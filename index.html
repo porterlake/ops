@@ -1477,6 +1477,44 @@ const queueHead=document.querySelector('.queue-head');
 if(queueHead)queueHead.addEventListener('click',()=>{if(MOBILE_Q.matches)document.body.classList.toggle('queueopen')});
 /* Rotating to landscape/tablet width must not strand the off-canvas state. */
 MOBILE_Q.addEventListener('change',()=>{if(!MOBILE_Q.matches){setNav(false);document.body.classList.remove('queueopen');}});
+
+/* ===== Swipe between days (v24) — mobile day view only.
+   This adds an INPUT path, not a new render path: it ends in stepDay(±1) then
+   render(), exactly what the arrow buttons already do. It changes only
+   selectedDay / weekOffset, never ROW or --row-h (golden rule 6).
+
+   Both touch listeners are passive and never call preventDefault, so native
+   vertical scrolling is structurally unaffected. Deliberately NO touch-action
+   CSS: pan-y on .cal-wrap would kill the horizontal panning that week and
+   month views need on a phone.
+
+   Bound once to the static .cal-wrap. render() only wipes the inner #cal, so
+   this never stacks duplicate listeners. Class hook, no id. ===== */
+const calWrap=document.querySelector('.cal-wrap');
+let swX=0,swY=0,swT=0,swOn=false,swFired=false;
+if(calWrap){
+  calWrap.addEventListener('touchstart',e=>{
+    swOn=MOBILE_Q.matches&&view==='day'&&e.touches.length===1;   /* 1 finger: pinch never steps the day */
+    if(!swOn)return;
+    swX=e.touches[0].clientX;swY=e.touches[0].clientY;swT=Date.now();
+  },{passive:true});
+  calWrap.addEventListener('touchend',e=>{
+    if(!swOn)return;swOn=false;
+    if(!MOBILE_Q.matches||view!=='day')return;                   /* re-check: rotation may have changed it */
+    const t=e.changedTouches[0],dx=t.clientX-swX,dy=t.clientY-swY;
+    if(Date.now()-swT>600)return;                                /* slow drag, not a swipe */
+    if(Math.abs(dx)<50)return;                                   /* below threshold */
+    if(Math.abs(dx)<=Math.abs(dy)*1.5)return;                    /* mostly vertical: let it scroll */
+    swFired=true;setTimeout(()=>{swFired=false},400);
+    stepDay(dx<0?1:-1);render();                                 /* left = next day, right = previous */
+  },{passive:true});
+  /* Armed only by a real swipe. Stops the trailing click from opening the drawer
+     when the gesture started on an appointment card. Normal taps never arm it. */
+  calWrap.addEventListener('click',e=>{
+    if(!swFired)return;
+    swFired=false;e.stopPropagation();e.preventDefault();
+  },true);
+}
 /* ===== Auth gate (v20) — email/password + self-service signup (Option B) ===== */
 let PROFILE=null,_booted=false,gateMode='signin';
 /* Role gating (v21). Fails closed: anything that isn't 'admin' is treated as an installer. */
