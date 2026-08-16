@@ -445,6 +445,124 @@ body.role-installer [data-admin]{display:none!important}
 .gate-link:hover{color:#efe9df}
 .gate-spin{width:26px;height:26px;border:3px solid #35302a;border-top-color:#d8c6a0;border-radius:50%;margin:0 auto;animation:gspin .8s linear infinite}
 @keyframes gspin{to{transform:rotate(360deg)}}
+
+/* ===== Dealers master/detail (v22). #genericView is the LIGHT content area —
+   only --ink/--muted/--border/--card/--raised/--page here. Dark chrome vars
+   (--sand-ink, --side-border) would render invisible. ===== */
+.dl-wrap{display:flex;gap:16px;align-items:flex-start}
+.dl-list{width:300px;flex-shrink:0;background:var(--card);border:1px solid var(--border);border-radius:14px;overflow:hidden}
+.dl-search{padding:10px;border-bottom:1px solid var(--border-soft)}
+.dl-input{width:100%;box-sizing:border-box;background:var(--raised);border:1px solid var(--border);color:var(--ink);font:inherit;font-size:13px;padding:9px 11px;border-radius:9px;outline:none}
+.dl-input:focus{border-color:var(--accent-line)}
+.dl-rows{max-height:60vh;overflow-y:auto}
+.dl-row{display:flex;align-items:center;gap:10px;padding:10px 13px;cursor:pointer;border-bottom:1px solid var(--border-soft)}
+.dl-row:last-child{border-bottom:none}
+.dl-row:hover{background:var(--raised)}
+.dl-row.on{background:var(--accent-soft);box-shadow:inset 3px 0 0 var(--accent)}
+.dl-nm{font-size:13px;font-weight:600;color:var(--ink);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dl-meta{display:flex;align-items:center;gap:8px;flex-shrink:0}
+.dl-disc{font-size:11px;font-weight:700;color:#4d7010}
+.dl-ct{font-size:11px;font-weight:700;color:var(--muted);background:var(--page);border:1px solid var(--border);border-radius:20px;padding:1px 7px;min-width:21px;text-align:center}
+.dl-detail{flex:1;min-width:0}
+.dl-empty{padding:26px 16px;text-align:center;color:var(--muted);font-size:13px}
+.dl-h{display:flex;align-items:center;gap:10px;margin-bottom:15px;flex-wrap:wrap}
+.dl-h h3{font-size:19px;font-weight:800;color:var(--ink)}
+.dl-badge{font-size:11.5px;font-weight:700;color:#4d7010;background:rgba(77,112,16,.1);border:1px solid rgba(77,112,16,.3);border-radius:20px;padding:3px 10px}
+.dl-sec{font-size:13px;font-weight:800;color:var(--ink);margin:24px 0 10px}
+.dl-cust{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:9px}
+.dl-cust .c{background:var(--card);border:1px solid var(--border);border-radius:11px;padding:11px 13px}
+.dl-cust .c b{display:block;font-size:13px;color:var(--ink);margin-bottom:3px}
+.dl-cust .c span{font-size:11.5px;color:var(--muted);display:block;line-height:1.5}
+.rep-table tr.dl-jr{cursor:pointer}
+.rep-table tr.dl-jr:hover td{background:var(--raised)}
+
+/* ============================================================================
+   MOBILE PASS 1 (v22). Additive and self-contained: deleting from this comment
+   to </style> (plus the .navtoggle button, its JS block, and the buildDay
+   min() literal) restores v20/v21 layout exactly.
+
+   ⚠ GOLDEN RULE 6: nothing below may set --row-h. sizeCalendar() is its single
+   writer. CSS setting it would desync the grid lines from the JS appointment
+   positions AND from the drop-hour math. Vertical space taken by mobile chrome
+   is already absorbed by the ROW_MIN=44 clamp on every phone-sized viewport.
+   ============================================================================ */
+
+/* Hamburger. Hidden on desktop, revealed in the block below. Class-hooked, no id. */
+.navtoggle{display:none;align-items:center;justify-content:center;background:rgba(255,255,255,.06);border:1px solid var(--side-border);color:var(--sand-ink);width:38px;height:38px;border-radius:9px;cursor:pointer;flex-shrink:0;padding:0}
+.navtoggle:hover{border-color:var(--accent-line)}
+.navtoggle svg{width:19px;height:19px}
+
+@media (max-width:640px){
+  /* Mobile browser chrome shrinks the visual viewport; plain 100vh hides the bottom
+     of the app behind it. Older engines ignore dvh and keep the 100vh above. */
+  html,body{height:100dvh}
+  body{height:100dvh}
+
+  /* --- Sidebar -> off-canvas panel --- */
+  .sidebar{position:fixed;top:0;left:0;bottom:0;width:264px;max-width:82vw;height:100dvh;
+    transform:translateX(-100%);transition:transform .24s cubic-bezier(.4,0,.2,1);
+    overflow-y:auto;box-shadow:16px 0 40px rgba(0,0,0,.5)}
+  body.navopen .sidebar{transform:translateX(0)}
+  /* Scrim as a pseudo-element so the mobile pass adds no DOM node beyond the button.
+     z-index 29 keeps it under .sidebar (30) and under drawer/modals (50/60). */
+  body.navopen .main::after{content:"";position:fixed;inset:0;background:rgba(8,8,10,.55);z-index:29}
+  .nav-item{padding:11px 12px;font-size:14.5px}
+
+  /* --- Topbar -> wraps instead of clipping --- */
+  .navtoggle{display:inline-flex}
+  .topbar{height:auto;min-height:56px;flex-wrap:wrap;padding:8px 12px;gap:8px;row-gap:6px}
+  .page-title{flex:1 1 auto;min-width:0;font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .page-title span{margin-left:6px;font-size:12px}
+  .seg{margin-left:0!important;flex:1 1 auto}   /* !important beats the inline margin-left:8px */
+  .seg button{padding:6px 10px;font-size:12px;flex:1}
+  .spacer{display:none}
+  .day-nav{flex:0 0 auto}
+  .day-nav button{min-width:38px;min-height:38px}
+  .topfilter{flex:1 1 130px;min-width:0}
+  .topbar .btn{flex:0 0 auto}
+
+  /* --- Work area stacks: queue strip above calendar --- */
+  .work{flex-direction:column}
+
+  /* --- Queue -> collapsible strip. .queue-head is the toggle, so no new element. --- */
+  .queue{width:auto;flex-shrink:0;border-right:none;border-bottom:1px solid var(--stage-line)}
+  .queue-head{cursor:pointer;padding:11px 14px;display:flex;align-items:center;gap:8px}
+  .queue-head h3{font-size:13px}
+  .queue-head p{display:none}   /* drag-to-schedule is desktop-only; don't instruct it here */
+  .queue-head::after{content:"\25be";margin-left:auto;font-size:13px;color:var(--stage-mut);transition:transform .2s}
+  body.queueopen .queue-head::after{transform:rotate(180deg)}
+  .queue-list{display:none}
+  body.queueopen .queue-list{display:block;max-height:38dvh;overflow-y:auto}
+
+  /* --- Calendar. Day view fits via buildDay's min(520px,100%); week/month still
+         scroll horizontally by design in pass 1. No --row-h here. --- */
+  .cal-wrap{-webkit-overflow-scrolling:touch}
+  .hint{display:none}
+
+  /* --- Drawer -> true full-screen sheet (was 386px, 6px wider than a 380px phone) --- */
+  .drawer{width:100%;max-width:100%;height:100dvh;box-shadow:none}
+  .dr-head{padding:14px 16px}
+  .dr-body{padding:14px 16px}
+
+  /* --- Modals -> near-full-width sheets --- */
+  .modal{width:100%;max-width:94vw;max-height:88dvh}
+  .modal-h{padding:14px 16px}
+  .modal-b{padding:16px}
+  .modal-f{padding:12px 16px}
+  .filegrid,.photogrid{grid-template-columns:repeat(3,1fr)}
+
+  /* --- Dealers master/detail stacks: list above, detail below --- */
+  .dl-wrap{flex-direction:column;gap:14px}
+  .dl-list{width:auto;align-self:stretch}
+  .dl-rows{max-height:40dvh}
+  .dl-cust{grid-template-columns:1fr}
+
+  /* --- iOS zooms in on focus for any field under 16px and never zooms back out --- */
+  .fld input,.fld select,.fld textarea,
+  .combo>input,.durrow select,.topfilter,
+  #njLines input,#njDiscWrap input,#drPriceEdit input,
+  .mtable input,.gate-input,.dl-input{font-size:16px}
+}
 </style>
 </head>
 <body>
@@ -481,6 +599,7 @@ body.role-installer [data-admin]{display:none!important}
 
   <div class="main">
     <div class="topbar">
+      <button class="navtoggle" type="button" aria-label="Menu" aria-expanded="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
       <div class="page-title" id="ptitle">Scheduler <span id="rangeLbl">Jun 22 – 28, 2026</span></div>
       <div class="seg ghost" id="viewSeg" style="margin-left:8px"><button data-v="month">Month</button><button data-v="week" class="on">Week</button><button data-v="day">Day</button></div>
       <div class="day-nav" id="dayNav"><button id="navPrev">‹</button><button id="navNext">›</button></div>
@@ -666,7 +785,9 @@ const SUPA_KEY='sb_publishable_MPCH4gX2glaSW-dJQktF-Q_QIL-M-y6';
 const sb=supabase.createClient(SUPA_URL,SUPA_KEY);
 async function loadDealers(){try{const {data,error}=await sb.from('dealers').select('id,name,discount_pct').order('name');
   if(error){console.error(error);toast('Could not load dealers — check connection',true);return;}
-  DEALERS.length=0;data.forEach(d=>DEALERS.push({id:d.id,name:d.name,discount:+d.discount_pct||0}));}catch(e){console.error(e);toast('Could not reach database',true);}}
+  DEALERS.length=0;data.forEach(d=>DEALERS.push({id:d.id,name:d.name,discount:+d.discount_pct||0}));
+  /* DEALERS fills after the first render; refresh if the user is already on the page. (v22) */
+  if(page==='dealers')buildGeneric('dealers');}catch(e){console.error(e);toast('Could not reach database',true);}}
 async function loadInstallers(){try{const {data,error}=await sb.from('installers').select('id,name,color,pay_type,pay_rate').eq('active',true).order('name');
   if(error){console.error(error);return;}INSTALLERS=(data||[]).map(i=>({id:i.id,name:i.name,color:i.color||'#5b8def',payType:i.pay_type||'hourly',payRate:i.pay_rate!=null?+i.pay_rate:0}));populateInstallerFilter();}catch(e){console.error(e)}}
 function populateInstallerFilter(){const s=$('instFilter');if(!s)return;s.innerHTML='<option value="all">All installers</option>';INSTALLERS.forEach(i=>{const o=document.createElement('option');o.value=i.id;o.textContent=i.name;s.appendChild(o)});const u=document.createElement('option');u.value='un';u.textContent='Unassigned';s.appendChild(u);s.value=instFilter;}
@@ -727,7 +848,7 @@ function buildWeek(){const cal=$('cal');const days=weekDays(weekOffset);
   days.forEach((d,i)=>{const el=document.createElement('div');el.className='dh'+(d.today?' today':'');el.innerHTML=`<div class="dow">${d.dow}</div><div class="dnum">${d.num}</div>`;el.onclick=()=>{selectedDay=i;setView('day')};head.appendChild(el)});cal.appendChild(head);
   const grid=document.createElement('div');grid.className='grid';grid.style.gridTemplateColumns=`var(--time-col) repeat(7,1fr)`;grid.appendChild(timeCol());days.forEach(d=>grid.appendChild(dayCol(d.key)));cal.appendChild(grid);
   visibleAppts().forEach(a=>{const col=grid.querySelector(`.day-col[data-key="${a.dateKey}"]`);if(col)col.appendChild(apptCard(a))});}
-function buildDay(){const cal=$('cal');cal.style.minWidth='520px';const d=weekDays(weekOffset)[selectedDay];
+function buildDay(){const cal=$('cal');cal.style.minWidth='min(520px,100%)';const d=weekDays(weekOffset)[selectedDay];
   const head=document.createElement('div');head.className='cal-head';head.style.gridTemplateColumns=`var(--time-col) 1fr`;head.innerHTML=`<div class="corner"></div><div class="dh${d.today?' today':''}"><div class="dow">${d.dow}</div><div class="dnum">${d.num}</div></div>`;cal.appendChild(head);
   const grid=document.createElement('div');grid.className='grid';grid.style.gridTemplateColumns=`var(--time-col) 1fr`;grid.appendChild(timeCol());grid.appendChild(dayCol(d.key));cal.appendChild(grid);
   visibleAppts().filter(a=>a.dateKey===d.key).forEach(a=>grid.querySelector('.day-col').appendChild(apptCard(a)));}
@@ -1065,7 +1186,7 @@ function buildReports(){const g=$('genericView');
     detail=`<div class="gp-head" style="font-size:15px;margin-top:26px">Job detail — ${singleInst?singleInst.name:singleDealer}</div>
       <table class="rep-table"><thead><tr><th>Date</th><th>Customer</th><th>${singleInst?'Dealer':'Installer'}</th><th>Type</th><th class="r">Status</th><th class="r">Revenue</th><th class="r">${singleInst?'Installer pay':'Cost'}</th><th class="r">Margin</th></tr></thead><tbody>${dRows}</tbody>
       <tfoot><tr><td colspan="5" style="font-weight:700">Totals</td><td class="r" style="font-weight:700">${fmtMoney(tRev)}</td><td class="r" style="font-weight:700">${fmtMoney(tCost)}</td><td class="r" style="font-weight:700">${fmtMoney(tMargin)}</td></tr></tfoot></table>`;
-    if(singleInst)detail+=`<div class="rep-note">Pay basis: ${singleInst.payType==='sub_1099'?`1099 · ${singleInst.payRate||0}% of job price`:`${singleInst.payType==='salary'?'Salary':'Hourly'} · ${fmtMoney(singleInst.payRate||0)}/hr × appointment duration`}. "Installer pay" is this installer's earned cost on each job.</div>`;
+    if(singleInst)detail+=`<div class="rep-note">Pay basis: ${singleInst.payType==='sub_1099'?`1099 · ${singleInst.payRate||0}% of job price`:`${singleInst.payType==='salary'?'Salary':'Hourly'} · ${fmtMoney(singleInst.payRate||0)}/hr × appointment duration`}.</div>`;
   }
   const who=singleInst?singleInst.name:(singleDealer||'All accounts');
   const gen=new Date().toLocaleDateString('en-US',{year:'numeric',month:'long',day:'numeric'});
@@ -1176,10 +1297,83 @@ function buildGeneric(p){const g=$('genericView');
   if(p==='toschedule'){const ready=queue.filter(readyToSchedule);const awaiting=queue.filter(stillAwaiting).length;
     g.innerHTML=`<div class="ts-wrap"><div class="ts-main"><div class="gp-head">To Schedule</div><div class="gp-sub">${ready.length} jobs ready to book.${awaiting?` ${awaiting} more awaiting product in Receiving.`:''}</div>${ready.map(j=>{const aw=partialAwaiting(j)?`<span class="awtag light">⏳ awaiting product</span>`:'';return `<div class="grow" style="cursor:pointer" onclick="openDrawer('${j.id}')"><span class="gt" style="background:rgba(216,198,160,.28);color:#7a6c45">${j.type}</span><div style="flex:1"><div class="gname">${j.cust} ${aw}</div><div class="gmeta">${j.scope} · ${j.addr}</div></div><div class="gmeta">${j.dealer}</div></div>`}).join('')||'<div class="empty"><h3>Queue is clear</h3><p>No jobs ready to schedule.</p></div>'}</div><div class="ts-side">${miniCal()}</div></div>`;return}
   if(p==='installers'){markConflicts();g.innerHTML=`<div class="gp-head">Installers</div><div class="gp-sub">Crew load &amp; pay setup. Pay type drives cost and margin.</div><div class="gcards">${INSTALLERS.filter(i=>i.id!=='un').map(i=>{const jobs=appts.filter(a=>a.installer===i.id);const conf=jobs.filter(a=>a._conflict).length;const pay=i.payType==='sub_1099'?`1099 · ${i.payRate||0}% of price`:`${i.payType==='salary'?'Salary':'Hourly'} · ${fmtMoney(i.payRate||0)}/hr`;return `<div class="gcard"><h4><span class="dot" style="background:${i.color}"></span>${i.name}<button class="pedit" onclick="editInstaller('${i.id}')">Edit pay</button></h4><div class="gstat"><div><b>${jobs.length}</b>jobs this week</div><div><b style="color:${conf?'#d9605c':'var(--ink)'}">${conf}</b>conflicts</div></div><div class="ipay">${pay}</div></div>`}).join('')}</div>`;return}
-  if(p==='dealers'){const dealers=[...new Set([...appts,...queue].map(x=>x.dealer))].filter(d=>d&&d!=='—');g.innerHTML=`<div class="gp-head">Dealers</div><div class="gp-sub">B2B accounts placing M&I orders.</div><div class="gcards">${dealers.map(d=>{const open=[...appts,...queue].filter(x=>x.dealer===d).length;return `<div class="gcard"><h4><span class="dot" style="background:var(--accent)"></span>${d}</h4><div class="gstat"><div><b>${open}</b>open jobs</div></div></div>`}).join('')}</div>`;return}
+  if(p==='dealers'){buildDealers();return}
   if(p==='inventory'){buildReceiving();return}
   if(p==='rates'){buildRates();return}
   if(p==='reports'){buildReports();return}}
+
+/* ===== Dealers — master/detail (v22).
+   The list sources from DEALERS, not from job rows, so accounts with no live
+   work still appear (the old card grid derived its list from appts+queue and
+   silently dropped every dealer without a job). Selection is keyed on
+   dealer_id, never on the name string.
+   Discount and every money figure carry data-admin, so the v21 rule
+   `body.role-installer [data-admin]{display:none!important}` hides them from
+   installers while the page itself stays usable as a dealer/contact lookup. ===== */
+let dealerSel=null,dealerSearch='',dealerCust={};
+function dealerJobs(id){return [...appts,...queue].filter(x=>x.dealerId===id);}
+
+function buildDealers(){const g=$('genericView');
+  g.innerHTML=`<div class="gp-head">Dealers</div><div class="gp-sub">B2B accounts placing M&amp;I orders.</div>
+    <div class="dl-wrap">
+      <div class="dl-list">
+        <div class="dl-search"><input class="dl-input" type="search" placeholder="Search dealers…"></div>
+        <div class="dl-rows"></div>
+      </div>
+      <div class="dl-detail"></div>
+    </div>`;
+  const inp=g.querySelector('.dl-input');inp.value=dealerSearch;
+  /* Re-render only the rows, so the input keeps focus and caret between keystrokes. */
+  inp.addEventListener('input',()=>{dealerSearch=inp.value;renderDealerRows();});
+  g.querySelector('.dl-rows').addEventListener('click',e=>{const row=e.target.closest('.dl-row');if(!row)return;
+    dealerSel=row.dataset.did;renderDealerRows();renderDealerDetail();});
+  if(dealerSel&&!DEALERS.some(d=>d.id===dealerSel))dealerSel=null;
+  renderDealerRows();renderDealerDetail();}
+
+function renderDealerRows(){const el=document.querySelector('.dl-rows');if(!el)return;
+  const q=dealerSearch.trim().toLowerCase();
+  const list=DEALERS.filter(d=>d.name.toLowerCase().includes(q)).sort((a,b)=>a.name.localeCompare(b.name));
+  if(!dealerSel&&list.length)dealerSel=list[0].id;
+  el.innerHTML=list.length?list.map(d=>`<div class="dl-row${d.id===dealerSel?' on':''}" data-did="${d.id}">
+      <span class="dl-nm">${d.name}</span>
+      <span class="dl-meta">${d.discount?`<span class="dl-disc" data-admin>${d.discount}%</span>`:''}<span class="dl-ct">${dealerJobs(d.id).length}</span></span>
+    </div>`).join(''):`<div class="dl-empty">No dealers match that search.</div>`;}
+
+function renderDealerDetail(){const el=document.querySelector('.dl-detail');if(!el)return;
+  const d=DEALERS.find(x=>x.id===dealerSel);
+  if(!d){el.innerHTML=`<div class="dl-empty">Select a dealer to see their detail.</div>`;return;}
+  const jobs=dealerJobs(d.id);
+  const done=jobs.filter(x=>x.status==='done').length;
+  const sched=jobs.filter(x=>x.dateKey&&x.status!=='done').length;
+  const unsched=jobs.length-done-sched;
+  let revDone=0,revOpen=0;
+  jobs.forEach(x=>{const t=jobPricing(x).total;if(x.status==='done')revDone+=t;else revOpen+=t;});
+  const sorted=[...jobs].sort((a,b)=>(b.dateKey||'').localeCompare(a.dateKey||''));
+  const jr=sorted.length?sorted.map(x=>`<tr class="dl-jr" data-jid="${x.id}"><td>${x.dateKey||'—'}</td><td class="nm">${x.cust}</td><td>${x.type}</td><td class="r">${x.status?(STATUS[x.status]?STATUS[x.status].label:x.status):'Unscheduled'}</td><td class="r" data-admin>${fmtMoney(jobPricing(x).total)}</td></tr>`).join('')
+    :`<tr><td colspan="5" style="text-align:center;color:var(--muted);padding:22px">No jobs on record for this account.</td></tr>`;
+  const cache=dealerCust[d.id];let custHtml;
+  if(Array.isArray(cache)){custHtml=cache.length?`<div class="dl-cust">${cache.map(c=>`<div class="c"><b>${c.name}</b><span>${c.default_address||'No address on file'}</span>${c.phone?`<span>${c.phone}</span>`:''}</div>`).join('')}</div>`:`<div class="dl-empty">No customers on file for this account.</div>`;}
+  else{custHtml=`<div class="dl-empty">Loading customers…</div>`;loadDealerCustomers(d.id);}
+  el.innerHTML=`<div class="dl-h"><h3>${d.name}</h3>${d.discount?`<span class="dl-badge" data-admin>${d.discount}% dealer discount</span>`:''}</div>
+    <div class="inv-bar">
+      <div class="inv-stat"><b>${jobs.length}</b><span>Total jobs</span></div>
+      <div class="inv-stat"><b>${sched}</b><span>Scheduled</span></div>
+      <div class="inv-stat"><b>${unsched}</b><span>Unscheduled</span></div>
+      <div class="inv-stat hl"><b>${done}</b><span>Completed</span></div>
+      <div class="inv-stat" data-admin><b style="color:#4d7010">${fmtMoney(revDone)}</b><span>Completed revenue</span></div>
+      <div class="inv-stat" data-admin><b>${fmtMoney(revOpen)}</b><span>Open value</span></div>
+    </div>
+    <div class="dl-sec">Customers</div>${custHtml}
+    <div class="dl-sec">Jobs</div>
+    <table class="rep-table"><thead><tr><th>Date</th><th>Customer</th><th>Type</th><th class="r">Status</th><th class="r" data-admin>Value</th></tr></thead><tbody>${jr}</tbody></table>`;
+  el.querySelector('tbody').addEventListener('click',e=>{const tr=e.target.closest('.dl-jr');if(tr)openDrawer(tr.dataset.jid);});}
+
+/* Mirrors the njFillCustomers query shape. Cached per dealer; 'loading' guards re-entry. */
+async function loadDealerCustomers(id){if(dealerCust[id])return;dealerCust[id]='loading';
+  try{const {data,error}=await sb.from('customers').select('id,name,default_address,phone').eq('dealer_id',id).order('name');
+    dealerCust[id]=error?[]:(data||[]);if(error)console.error(error);}
+  catch(e){console.error(e);dealerCust[id]=[];}
+  if(page==='dealers'&&dealerSel===id)renderDealerDetail();}
 const RATE_CATS=['Services','Horizontals','Verticals','Drapery','Shutters','Hurricane','Lutron','Repairs','Misc Fees'];
 const RATE_UNITS=['Per Blind','Per Linear Ft','Per Sq Ft','Per Opening','Per Unit','Per Installation','Flat','Hourly','Per Pallet','Per Month','Per Mile','Per Day','Quote Only'];
 let SERVICES=[],rateSearch='';
@@ -1265,6 +1459,23 @@ let toastT;function toast(msg,warn){const t=$('toast');t.innerHTML=msg;t.classNa
 
 $('svcBg').addEventListener('click',e=>{if(e.target.id==='svcBg')$('svcBg').classList.remove('open')});
 let _rsz;window.addEventListener('resize',()=>{clearTimeout(_rsz);_rsz=setTimeout(()=>{if(page==='scheduler')render();},120)});
+
+/* ===== Mobile pass 1 (v22) — off-canvas nav + collapsible queue.
+   Class-hooked only (adds no ids). Touches neither ROW nor --row-h. ===== */
+const MOBILE_Q=window.matchMedia('(max-width:640px)');
+const navToggle=document.querySelector('.navtoggle');
+function setNav(open){document.body.classList.toggle('navopen',open);
+  if(navToggle)navToggle.setAttribute('aria-expanded',open?'true':'false');}
+/* stopPropagation so this click doesn't immediately reach the .main closer below */
+if(navToggle)navToggle.addEventListener('click',e=>{e.stopPropagation();setNav(!document.body.classList.contains('navopen'))});
+const mainEl=document.querySelector('.main');
+if(mainEl)mainEl.addEventListener('click',()=>{if(document.body.classList.contains('navopen'))setNav(false)});
+/* Sidebar sits outside .main, so nav taps need their own close. */
+document.querySelectorAll('.sidebar .nav-item').forEach(n=>n.addEventListener('click',()=>setNav(false)));
+const queueHead=document.querySelector('.queue-head');
+if(queueHead)queueHead.addEventListener('click',()=>{if(MOBILE_Q.matches)document.body.classList.toggle('queueopen')});
+/* Rotating to landscape/tablet width must not strand the off-canvas state. */
+MOBILE_Q.addEventListener('change',()=>{if(!MOBILE_Q.matches){setNav(false);document.body.classList.remove('queueopen');}});
 /* ===== Auth gate (v20) — email/password + self-service signup (Option B) ===== */
 let PROFILE=null,_booted=false,gateMode='signin';
 /* Role gating (v21). Fails closed: anything that isn't 'admin' is treated as an installer. */
@@ -1323,7 +1534,10 @@ function applyProfile(p){PROFILE=p;
   if(nm)nm.textContent=label?label.charAt(0).toUpperCase()+label.slice(1):'User';
   if(rl)rl.textContent=p.role==='admin'?'Dispatch Admin':(p.role||'').charAt(0).toUpperCase()+(p.role||'').slice(1);
   if(av)av.textContent=(label||'U').slice(0,2).toUpperCase();}
-function bootApp(){if(_booted)return;_booted=true;renderQueue();render();loadAll();loadServices();}
+function bootApp(){if(_booted)return;_booted=true;
+  /* Phones open on Day: Week forces an 880px canvas that can't fit a phone. (v22) */
+  if(MOBILE_Q.matches&&view==='week')setView('day');
+  renderQueue();render();loadAll();loadServices();}
 async function resolveSession(){
   gateBody.innerHTML='<div class="gate-spin"></div>';gate.classList.remove('hidden');
   const {data:{session}}=await sb.auth.getSession();
