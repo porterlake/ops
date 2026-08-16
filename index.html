@@ -477,6 +477,47 @@ body.role-installer [data-admin]{display:none!important}
 .rep-table tr.dl-jr{cursor:pointer}
 .rep-table tr.dl-jr:hover td{background:var(--raised)}
 
+/* ===== LIGHT CALENDAR STAGE (v25) — scoped to .cal-wrap, never :root.
+   All six --stage-* vars are SHARED with the To Schedule queue rail, which
+   stays dark. Custom properties inherit, so redefining them on .cal-wrap
+   recolors every calendar descendant (cal-head, day columns, slots,
+   appointment cards, month grid) while the sibling rail, the sidebar, the
+   topbar, the drawer, the modals and the login gate are all outside this
+   subtree and cannot be reached.
+
+   COLOR ONLY. Nothing in this block changes geometry, and per golden rule 6
+   nothing here sets --row-h. ===== */
+.cal-wrap{
+  --stage:var(--page);        /* #f3f2ed — the exact surface Reports/Dealers sit on */
+  --stage-2:var(--card);      /* #ffffff — day-header bar */
+  --stage-card:var(--card);   /* #ffffff — appointment surface, incl. the JS gradient */
+  --stage-line:var(--border); /* #e5e3db — every gridline, hour row and day column */
+  --stage-ink:var(--ink);     /* #27241f */
+  --stage-mut:var(--muted);   /* #8c877d — time labels and day-of-week */
+}
+/* Appointment text was all white-on-dark (1.0-1.2:1 on the light stage).
+   Background, border-color and box-shadow are set inline by apptCard(), so
+   those are handled in the JS, not here. */
+.cal-wrap .appt{color:var(--ink)}
+.cal-wrap .appt .at{color:var(--ink)}
+.cal-wrap .appt .ai{color:var(--muted)}
+.cal-wrap .appt .srow{color:var(--muted)}
+.cal-wrap .appt .pill{background:rgba(0,0,0,.05);color:var(--muted)}
+/* Today + hover + drag target */
+.cal-wrap .dh:hover{background:rgba(0,0,0,.03)}
+.cal-wrap .dh.today{background:var(--accent-soft)}
+.cal-wrap .dh.today .dnum{color:var(--ink);font-weight:800}
+.cal-wrap .day-col.coldrop{background:rgba(216,198,160,.22);box-shadow:inset 0 0 0 1px var(--accent)}
+/* Unassigned banner lives inside .cal-wrap; its amber was 1.85:1 on off-white */
+.cal-wrap .assign-banner{background:rgba(238,165,4,.16);border-bottom-color:rgba(154,121,26,.45);color:#9a791a}
+.cal-wrap .assign-banner:hover{background:rgba(238,165,4,.26)}
+/* Month view */
+.cal-wrap .mcell.out{background:var(--raised)}
+.cal-wrap .mcell.drop{background:rgba(216,198,160,.22)}
+.cal-wrap .mchip{color:var(--ink);background:var(--raised);border-color:var(--border)}
+.cal-wrap .mchip .mbang{color:#a3211d}
+.cal-wrap .hint{background:var(--card);border-color:var(--border);color:var(--muted)}
+
 /* ============================================================================
    MOBILE PASS 1 (v22). Additive and self-contained: deleting from this comment
    to the end of this stylesheet (plus the .navtoggle button, its JS block, and the buildDay
@@ -735,6 +776,13 @@ function instById(id){return (id&&id!=='un'&&INSTALLERS.find(i=>i.id===id))||UNA
 const TYPES={"Measure":{c:"#d8c6a0"},"Install":{c:"#d8c6a0"},"Return Trip":{c:"#d8c6a0"}};
 const STATUS_ORDER=["rts","hold","scheduled","otw","progress","done","issue"];
 const STATUS={rts:{label:"Ready to Schedule",short:"RTS",color:"#9aa1ab"},hold:{label:"On Hold",short:"On Hold",color:"#b08a63"},scheduled:{label:"Scheduled",short:"Scheduled",color:"#5D84A5"},otw:{label:"On the Way",short:"On the Way",color:"#EEA504"},progress:{label:"In Progress",short:"In Progress",color:"#F7F1E1"},done:{label:"Completed",short:"Completed",color:"#606C38"},issue:{label:"Issue Reported",short:"Issue",color:"#7B1010"}};
+/* Light-stage status colors (v25). The STATUS map above is tuned for the dark
+   calendar stage; measured against the light stage, progress #F7F1E1 is 1.13:1,
+   otw 2.10 and rts 2.61 — unusable. These are hue-matched replacements, all
+   >=4.16:1 on both #ffffff and #f3f2ed. STATUS itself is deliberately NOT
+   modified, so the dark drawer, reports and dealer tables keep their colors. */
+const STATUS_LIGHT={rts:"#6E757E",hold:"#8A6742",scheduled:"#41627F",otw:"#9A6B04",progress:"#1F7A6B",done:"#4d7010",issue:"#a3211d"};
+const statusColor=k=>STATUS_LIGHT[k]||(STATUS[k]?STATUS[k].color:"#6E757E");
 const ICONS={ruler:'<path d="M3 11l8-8 10 10-8 8z"/><path d="M7 9l2 2M11 7l2 2M9 13l2 2"/>',send:'<path d="M22 2L11 13M22 2l-7 20-4-9-9-4z"/>',cam:'<path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/>',doc:'<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M9 13h6M9 17h6"/>',box:'<path d="M21 16V8a2 2 0 0 0-1-1.7l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.7l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><path d="M3.3 7L12 12l8.7-5M12 22V12"/>',check:'<path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>',link:'<path d="M10 13a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1.5 1.5"/><path d="M14 11a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1.5-1.5"/>',flag:'<path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><path d="M4 22v-7"/>',chart:'<path d="M3 3v18h18"/><path d="M7 14l4-4 3 3 5-6"/>'};
 const WO={"Measure":{color:"#5b9bd5",actions:[{ic:"ruler",label:"Open measure sheet"},{ic:"send",label:"Send measurements to quoting"},{ic:"cam",label:"Attach window photos"}]},"Install":{color:"#3a6fb0",actions:[{ic:"doc",label:"Open install work order"},{ic:"box",label:"Confirm stock received"},{ic:"cam",label:"Attach job photos"},{ic:"check",label:"Capture sign-off & completion"}]},"Return Trip":{color:"#d9605c",actions:[{ic:"link",label:"Open original job"},{ic:"doc",label:"Open return-trip report"},{ic:"flag",label:"Log reason for return"}]}};
 
@@ -814,18 +862,19 @@ function weekDays(off){return [...Array(7)].map((_,i)=>{const d=new Date(BASE_MO
 const isBaseWeek=()=>weekOffset===0, isBaseMonth=()=>monthOffset===0;
 function markConflicts(){appts.forEach(a=>a._conflict=false);for(let i=0;i<appts.length;i++)for(let j=i+1;j<appts.length;j++){const A=appts[i],B=appts[j];if(A.installer!=="un"&&A.installer===B.installer&&A.dateKey===B.dateKey&&A.start<B.start+B.dur&&B.start<A.start+A.dur){A._conflict=true;B._conflict=true}}}
 
-function apptCard(a){const s=STATUS[a.status],inst=instById(a.installer);const unassigned=(a.installer==='un'||!a.installer);
+function apptCard(a){const s=STATUS[a.status],sc=statusColor(a.status),inst=instById(a.installer);const unassigned=(a.installer==='un'||!a.installer);
   const el=document.createElement('div');el.className='appt'+(a.id===selectedId?' sel':'')+(a._conflict?' conflict':'')+(unassigned?' unassigned':'');
   el.style.top=(a.start-START_HOUR)*ROW+2+'px';el.style.height=(a.dur*ROW-6)+'px';
-  el.style.background=`linear-gradient(180deg, ${hexA(s.color,.14)} 0%, var(--stage-card) 50%)`;
-  el.style.borderColor=hexA(s.color,.9);
-  const glow=a.status==='done'?.26:a.status==='issue'?.24:.14;
-  el.style.boxShadow=`0 3px 10px rgba(0,0,0,.32), 0 0 14px ${hexA(s.color,glow)}`;
-  const instLabel=unassigned?`<span style="color:#EEA504;font-weight:800">⚠ Unassigned</span>`:inst.name.split(' ')[0];
+  el.style.background=`linear-gradient(180deg, ${hexA(sc,.14)} 0%, var(--stage-card) 50%)`;
+  el.style.borderColor=hexA(sc,.9);
+  /* Shadow and glow halved for the light stage (v25): the dark-stage values read as mud on off-white. */
+  const glow=a.status==='done'?.13:a.status==='issue'?.12:.07;
+  el.style.boxShadow=`0 2px 6px rgba(0,0,0,.10), 0 0 10px ${hexA(sc,glow)}`;
+  const instLabel=unassigned?`<span style="color:#9a791a;font-weight:800">⚠ Unassigned</span>`:inst.name.split(' ')[0];
   el.innerHTML=`<div class="pill">${a.type}</div>
     <div class="at">${a.cust}</div>
     <div class="ai"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="3.5"/><path d="M5 20a7 7 0 0 1 14 0"/></svg>${instLabel} · ${fmt(a.start)}–${fmt(a.start+a.dur)}</div>
-    <div class="srow"><i style="background:${s.color}"></i>${s.short}</div>
+    <div class="srow"><i style="background:${sc}"></i>${s.short}</div>
     ${a.status==='issue'?'<span class="bang">!</span>':''}${a._conflict?'<span class="cflag">Conflict</span>':''}${partialAwaiting(a)?'<span class="awtag" style="position:absolute;bottom:7px;right:9px;margin:0">⏳ product</span>':''}`;
   el.draggable=true;
   el.addEventListener('dragstart',e=>{e.dataTransfer.setData('appt',a.id);el.classList.add('dragging');document.body.classList.add('dragging')});
@@ -861,7 +910,7 @@ function buildMonth(){const cal=$('cal');cal.style.minWidth='880px';const m=new 
     c.onclick=e=>{if(e.target===c||e.target.classList.contains('md'))gotoDate(cd)};
     c.addEventListener('dragover',e=>{e.preventDefault();c.classList.add('drop')});c.addEventListener('dragleave',()=>c.classList.remove('drop'));
     c.addEventListener('drop',e=>{e.preventDefault();c.classList.remove('drop');const mv=e.dataTransfer.getData('appt');if(mv){const ap=appts.find(x=>x.id===mv);moveAppt(mv,key,ap?ap.start:9)}else dropJob(key,9,e)});
-    visibleAppts().filter(a=>a.dateKey===key).forEach(a=>{const s=STATUS[a.status];const chip=document.createElement('div');chip.className='mchip';chip.innerHTML=`<span class="mspine" style="background:${s.color}"></span>${a.cust}${a.status==='issue'?'<span class="mbang">!</span>':''}`;chip.onclick=ev=>{ev.stopPropagation();openDrawer(a.id)};c.appendChild(chip)});
+    visibleAppts().filter(a=>a.dateKey===key).forEach(a=>{const s=STATUS[a.status];const chip=document.createElement('div');chip.className='mchip';chip.innerHTML=`<span class="mspine" style="background:${statusColor(a.status)}"></span>${a.cust}${a.status==='issue'?'<span class="mbang">!</span>':''}`;chip.onclick=ev=>{ev.stopPropagation();openDrawer(a.id)};c.appendChild(chip)});
     grid.appendChild(c)}
   for(let i=offset+dim;i%7!==0;i++)grid.appendChild(Object.assign(document.createElement('div'),{className:'mcell out'}));cal.appendChild(grid);}
 function render(){sizeCalendar();markConflicts();const cal=$('cal');cal.innerHTML='';cal.style.minWidth='';
