@@ -1,0 +1,7 @@
+# Local-only working files — never publish to the public repo.
+
+# Project brief / working notes for Claude Code
+CLAUDE.md
+
+# Versioned local checkpoints of the app; only index.html ships
+porter-lake-scheduler-v*.html

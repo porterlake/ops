@@ -407,6 +407,9 @@
 /* ===== Auth gate (v20) — light-through-blinds ===== */
 .gate{position:fixed;inset:0;z-index:9999;background:#12100d;display:flex;align-items:center;justify-content:center;color:#efe9df;overflow:hidden}
 .gate.hidden{display:none}
+/* ===== Role gating (v21) — non-admins never see admin surfaces.
+   !important is load-bearing: renderDrPricing()/drRenderMargin() set inline display:block. ===== */
+body.role-installer [data-admin]{display:none!important}
 /* soft daylight shaft falling across the field, like sun through a half-open blind */
 .gate::before{content:'';position:absolute;inset:0;background:
   linear-gradient(105deg,transparent 0%,transparent 32%,rgba(216,198,160,.10) 44%,rgba(230,214,180,.14) 50%,rgba(216,198,160,.09) 56%,transparent 70%,transparent 100%);
@@ -459,12 +462,12 @@
     <div class="nav-label">Operations</div>
     <div class="nav-item active" data-page="scheduler"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>Scheduler</div>
     <div class="nav-item" data-page="toschedule"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7h18M3 12h18M3 17h12"/></svg>To Schedule <span class="badge" id="navCount">0</span></div>
-    <div class="nav-item" data-page="installers"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 21v-1a6 6 0 0 1 6-6h4a6 6 0 0 1 6 6v1"/></svg>Installers</div>
+    <div class="nav-item" data-admin data-page="installers"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 21v-1a6 6 0 0 1 6-6h4a6 6 0 0 1 6 6v1"/></svg>Installers</div>
     <div class="nav-label">Accounts</div>
     <div class="nav-item" data-page="dealers"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 21h18M5 21V7l8-4v18M19 21V11l-6-4"/></svg>Dealers</div>
     <div class="nav-item" data-page="inventory"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.7l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.7l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><path d="M3.3 7L12 12l8.7-5M12 22V12"/></svg>Receiving <span class="badge" id="navRecv">0</span></div>
-    <div class="nav-item" data-page="rates"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1v22M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>Service Rates</div>
-    <div class="nav-item" data-page="reports"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"/><path d="M7 14l4-4 3 3 5-6"/></svg>Reports</div>
+    <div class="nav-item" data-admin data-page="rates"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1v22M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>Service Rates</div>
+    <div class="nav-item" data-admin data-page="reports"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"/><path d="M7 14l4-4 3 3 5-6"/></svg>Reports</div>
     <div class="settings-menu popover" id="settingsMenu">
       <div class="si"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 21v-1a6 6 0 0 1 6-6h4a6 6 0 0 1 6 6v1"/></svg>My profile</div>
       <div class="si"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/></svg>Preferences</div>
@@ -483,7 +486,7 @@
       <div class="day-nav" id="dayNav"><button id="navPrev">‹</button><button id="navNext">›</button></div>
       <div class="spacer"></div>
       <select id="instFilter" class="topfilter"><option value="all">All installers</option></select>
-      <button class="btn" id="newJobBtn">+ New Job</button>
+      <button class="btn" id="newJobBtn" data-admin>+ New Job</button>
     </div>
 
     <div class="work" id="schedView">
@@ -511,7 +514,7 @@
       <div class="fld"><label>Site address (homeowner)</label><div class="val dim" id="drAddr">—</div></div>
       <div class="fld"><label>Contact</label><div class="val dim" id="drPhone">—</div></div>
       <div class="fld" id="drProductFld" style="display:none"><label>Product status</label><div class="val dim" id="drProduct">—</div></div>
-      <div class="fld" id="drPricingFld" style="display:none"><label>Pricing <button class="pedit" id="drPriceEditBtn" type="button">Edit</button></label>
+      <div class="fld" id="drPricingFld" data-admin style="display:none"><label>Pricing <button class="pedit" id="drPriceEditBtn" type="button">Edit</button></label>
         <div id="drPricing"></div>
         <div id="drPriceEdit" style="display:none">
           <div id="drPriceLines"></div>
@@ -520,7 +523,7 @@
           <div class="peactions"><button class="btn ghost sm" id="drPriceCancel" type="button">Cancel</button><button class="btn sm" id="drPriceSave" type="button">Save pricing</button></div>
         </div>
       </div>
-      <div class="fld" id="drMarginFld" style="display:none"><label>Margin</label><div id="drMargin"></div></div>
+      <div class="fld" id="drMarginFld" data-admin style="display:none"><label>Margin</label><div id="drMargin"></div></div>
       <div class="fld"><label>Scope</label><input id="drScope" type="text"></div>
       <div class="fld"><label>Duration</label><div class="durrow"><select id="drDurH"></select><span class="durx">hr</span><select id="drDurM"></select><span class="durx">min</span></div></div>
       <div class="fld"><label>Notes</label><textarea id="drNotes"></textarea></div>
@@ -558,7 +561,7 @@
     <div class="modal-f"><button class="btn ghost" id="njCancel">Cancel</button><button class="btn" id="njSave">Create job</button></div>
   </div></div>
 
-  <div class="modal-bg" id="svcBg"><div class="modal">
+  <div class="modal-bg" id="svcBg" data-admin><div class="modal">
     <div class="modal-h"><div class="mi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1v22M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></div><div><h3 id="svcTitle">Add rate</h3><div class="ms">Price is what you charge the dealer</div></div><button class="x" onclick="$('svcBg').classList.remove('open')">×</button></div>
     <div class="modal-b">
       <div class="fld"><label>Name</label><input id="svcName" placeholder="e.g. Roller Shades"></div>
@@ -572,7 +575,7 @@
     <div class="modal-f"><button class="btn ghost" id="svcDelete" style="display:none" onclick="deleteService()">Delete</button><div style="flex:1"></div><button class="btn ghost" onclick="$('svcBg').classList.remove('open')">Cancel</button><button class="btn" onclick="saveService()">Save</button></div>
   </div></div>
 
-  <div class="modal-bg" id="instBg"><div class="modal">
+  <div class="modal-bg" id="instBg" data-admin><div class="modal">
     <div class="modal-h"><div class="mi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 21v-1a6 6 0 0 1 6-6h4a6 6 0 0 1 6 6v1"/></svg></div><div><h3 id="instTitle">Installer pay</h3><div class="ms">How this installer's cost is calculated</div></div><button class="x" onclick="$('instBg').classList.remove('open')">×</button></div>
     <div class="modal-b">
       <div class="fld"><label>Installer</label><div class="val dim" id="instName">—</div></div>
@@ -938,12 +941,12 @@ function drAddRow(li){const row=document.createElement('div');row.className='lir
   if(li){row.dataset.lineId=li.id||'';row.dataset.serviceId=li.serviceId||'';row.dataset.min=li.minCharge!=null?li.minCharge:'';row.dataset.custom=li.isCustom?'1':'0';row.dataset.quote=(li.unitPrice==null&&li.serviceId)?'1':'0';const svc=li.serviceId?SERVICES.find(s=>s.id===li.serviceId):null;row.dataset.unit=svc?(svc.unit||''):'';}
   else{row.dataset.lineId='';resolveRow(row,{autofill:true});}
   drRecalc();return row;}
-function drEnterEdit(a){if(!a)return;drPriceDisc=+a.dealerDiscount||0;drPriceJobId=currentJobId();
+function drEnterEdit(a){if(!IS_ADMIN)return;if(!a)return;drPriceDisc=+a.dealerDiscount||0;drPriceJobId=currentJobId();
   drPriceOrig=(a.lineItems||[]).map(l=>({id:l.id,desc:l.desc,qty:l.qty,unitPrice:l.unitPrice,serviceId:l.serviceId||null,minCharge:l.minCharge,isCustom:!!l.isCustom}));
   fillSvcList();$('drPriceLines').innerHTML='';
   if(drPriceOrig.length)drPriceOrig.forEach(l=>drAddRow(l));else drAddRow();
   $('drPricing').style.display='none';$('drPriceEditBtn').style.display='none';$('drPriceEdit').style.display='block';drRecalc();}
-async function drSavePricing(a){if(!a)return;const jobId=drPriceJobId||currentJobId();if(!jobId){toast('Save the job first',true);return;}
+async function drSavePricing(a){if(!IS_ADMIN)return;if(!a)return;const jobId=drPriceJobId||currentJobId();if(!jobId){toast('Save the job first',true);return;}
   const desired=[];
   for(const row of [...$('drPriceLines').querySelectorAll('.lirow')]){const desc=row.querySelector('.lidesc').value.trim();if(!desc)continue;
     const qty=Math.max(1,+row.querySelector('.liqty').value||1);const priceStr=row.querySelector('.liprice').value.trim();const isQuote=row.dataset.quote==='1';
@@ -988,9 +991,9 @@ function instRateUI(){const t=$('instPayType').value,lbl=$('instRateLbl'),hint=$
   if(t==='sub_1099'){lbl.textContent='Percent of job price (%)';hint.textContent='Cost = job price × this %. e.g. 40 = 40% of the dealer charge.';}
   else if(t==='hourly'){lbl.textContent='Hourly rate ($/hr)';hint.textContent='Cost = rate × appointment duration.';}
   else{lbl.textContent='Loaded hourly cost ($/hr)';hint.textContent='Salary allocated by time. Cost = loaded $/hr × appointment duration.';}}
-function editInstaller(id){const i=INSTALLERS.find(x=>x.id===id);if(!i)return;editingInst=id;
+function editInstaller(id){if(!IS_ADMIN)return;const i=INSTALLERS.find(x=>x.id===id);if(!i)return;editingInst=id;
   $('instName').textContent=i.name;$('instPayType').value=i.payType||'hourly';$('instRate').value=i.payRate!=null?i.payRate:'';instRateUI();$('instBg').classList.add('open');}
-async function saveInstaller(){if(!editingInst)return;const payType=$('instPayType').value,payRate=+$('instRate').value||0;
+async function saveInstaller(){if(!IS_ADMIN)return;if(!editingInst)return;const payType=$('instPayType').value,payRate=+$('instRate').value||0;
   const {error}=await sb.from('installers').update({pay_type:payType,pay_rate:payRate}).eq('id',editingInst);
   if(error){toast('Save failed',true);console.error(error);return;}
   const i=INSTALLERS.find(x=>x.id===editingInst);if(i){i.payType=payType;i.payRate=payRate;}
@@ -1108,6 +1111,7 @@ document.addEventListener('click',e=>{if(!$('njDealerCombo').contains(e.target))
 $('njCustomer').onchange=njFillCustomer;
 $('njPhone').addEventListener('input',e=>{e.target.value=fmtPhone(e.target.value)});
 $('newJobBtn').onclick=()=>{
+  if(!IS_ADMIN)return;
   njDealerId=null;$('njDealerInput').value='';$('njDealerList').classList.remove('open');$('njNewDealerWrap').style.display='none';$('njDealerName').value='';$('njAddr').value='';$('njPhone').value='';
   $('njNewCustWrap').style.display='none';$('njCustName').value='';$('njHist').style.display='none';
   document.querySelectorAll('#njType .chip').forEach((x,i)=>{x.classList.toggle('on',i===0);x.style.background=i===0?TYPES.Measure.c:''});
@@ -1119,7 +1123,7 @@ $('newJobBtn').onclick=()=>{
   njFillCustomers();$('njBg').classList.add('open');};
 $('njClose').onclick=$('njCancel').onclick=()=>$('njBg').classList.remove('open');
 $('njBg').addEventListener('click',e=>{if(e.target.id==='njBg')$('njBg').classList.remove('open')});
-$('njSave').onclick=async()=>{let dId=njDealerId,dealer;
+$('njSave').onclick=async()=>{if(!IS_ADMIN)return;let dId=njDealerId,dealer;
   if(!dId){toast('Search and pick a dealer',true);return;}
   if(dId==='new'){dealer=$('njDealerName').value.trim();if(!dealer){toast('Enter the new dealer name',true);return;}
     const {data,error}=await sb.from('dealers').insert({name:dealer,discount_pct:njDiscount}).select().single();
@@ -1156,7 +1160,8 @@ $('njSave').onclick=async()=>{let dId=njDealerId,dealer;
   toast(awaiting?`<b>${custName}</b> created — sent to Receiving`:`<b>${custName}</b> created — ready to schedule`);
   if(page==='toschedule')buildGeneric('toschedule');if(page==='inventory')buildReceiving();};
 
-function navTo(p){page=p;document.querySelectorAll('.nav-item').forEach(n=>n.classList.toggle('active',n.dataset.page===p));
+function navTo(p){if(!IS_ADMIN&&ADMIN_PAGES.has(p))p='scheduler';
+  page=p;document.querySelectorAll('.nav-item').forEach(n=>n.classList.toggle('active',n.dataset.page===p));
   const sched=p==='scheduler';$('schedView').style.display=sched?'flex':'none';$('genericView').style.display=sched?'none':'block';
   $('viewSeg').style.display=sched?'flex':'none';$('dayNav').style.display=sched?'flex':'none';$('rangeLbl').style.display=sched?'inline':'none';$('instFilter').style.display=sched?'block':'none';
   const titles={scheduler:'Scheduler',toschedule:'To Schedule',installers:'Installers',dealers:'Dealers',inventory:'Receiving',rates:'Service Rates',reports:'Reports'};
@@ -1197,7 +1202,7 @@ function buildRates(){const g=$('genericView');const q=rateSearch.trim().toLower
     <input class="rate-search" id="rateSearch" placeholder="Search rates by name or category…" value="${rateSearch}">
     <div class="rate-list">${body||'<div class="empty"><h3>No matches</h3></div>'}</div>`;
   const si=$('rateSearch');si.oninput=e=>{rateSearch=e.target.value;const p=si.selectionStart;buildRates();const n=$('rateSearch');n.focus();n.setSelectionRange(p,p)};}
-function editService(id){const s=id?SERVICES.find(x=>x.id===id):null;
+function editService(id){if(!IS_ADMIN)return;const s=id?SERVICES.find(x=>x.id===id):null;
   $('svcTitle').textContent=s?'Edit rate':'Add rate';
   $('svcName').value=s?s.name:'';
   const catSel=$('svcCat');catSel.innerHTML='';RATE_CATS.forEach(c=>catSel.appendChild(new Option(c,c)));catSel.value=s?s.category:'Services';
@@ -1209,13 +1214,13 @@ function editService(id){const s=id?SERVICES.find(x=>x.id===id):null;
   $('svcDelete').style.display=s?'inline-flex':'none';
   editingSvc=id||null;$('svcBg').classList.add('open');}
 let editingSvc=null;
-async function saveService(){const name=$('svcName').value.trim();if(!name){toast('Enter a name',true);return;}
+async function saveService(){if(!IS_ADMIN)return;const name=$('svcName').value.trim();if(!name){toast('Enter a name',true);return;}
   const unit=$('svcUnit').value;const priceRaw=$('svcPrice').value.trim();
   const rec={name,category:$('svcCat').value,unit,price:unit==='Quote Only'||priceRaw===''?null:Number(priceRaw),min_charge:$('svcMin').value.trim()===''?null:Number($('svcMin').value),notes:$('svcNotes').value.trim()||null,active:$('svcActive').checked};
   if(editingSvc){const {error}=await sb.from('services').update(rec).eq('id',editingSvc);if(error){toast('Save failed',true);console.error(error);return;}Object.assign(SERVICES.find(s=>s.id===editingSvc),rec);toast('Rate updated');}
   else{const {data,error}=await sb.from('services').insert(rec).select().single();if(error){toast('Save failed',true);console.error(error);return;}SERVICES.push(data);toast(`<b>${name}</b> added`);}
   $('svcBg').classList.remove('open');buildRates();}
-async function deleteService(){if(!editingSvc)return;const {error}=await sb.from('services').delete().eq('id',editingSvc);if(error){toast('Delete failed',true);console.error(error);return;}
+async function deleteService(){if(!IS_ADMIN)return;if(!editingSvc)return;const {error}=await sb.from('services').delete().eq('id',editingSvc);if(error){toast('Delete failed',true);console.error(error);return;}
   SERVICES=SERVICES.filter(s=>s.id!==editingSvc);$('svcBg').classList.remove('open');buildRates();toast('Rate deleted');}
 
 function buildReceiving(){const g=$('genericView');
@@ -1262,6 +1267,9 @@ $('svcBg').addEventListener('click',e=>{if(e.target.id==='svcBg')$('svcBg').clas
 let _rsz;window.addEventListener('resize',()=>{clearTimeout(_rsz);_rsz=setTimeout(()=>{if(page==='scheduler')render();},120)});
 /* ===== Auth gate (v20) — email/password + self-service signup (Option B) ===== */
 let PROFILE=null,_booted=false,gateMode='signin';
+/* Role gating (v21). Fails closed: anything that isn't 'admin' is treated as an installer. */
+let IS_ADMIN=false;
+const ADMIN_PAGES=new Set(['installers','rates','reports']);
 const gate=$('authGate'),gateBody=$('gateBody');
 function esc(s){return String(s||'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
 function gateForm(msg,ok){gate.classList.remove('hidden');
@@ -1307,6 +1315,9 @@ function gateDenied(email){gate.classList.remove('hidden');
   gateBody.innerHTML=`<div class="gate-err" style="color:#efe9df">Signed in as <span class="gate-email">${esc(email)||'unknown'}</span> — but this account isn't authorized for this workspace yet.</div><div class="gate-note">Ask your admin to add this email to the team, then sign in again.</div><button class="gate-link" id="gOut">Sign out &amp; use a different account</button>`;
   $('gOut').onclick=async()=>{await sb.auth.signOut();gateMode='signin';gateForm();};}
 function applyProfile(p){PROFILE=p;
+  IS_ADMIN=(p&&p.role==='admin');
+  document.body.classList.toggle('role-installer',!IS_ADMIN);
+  if(!IS_ADMIN&&ADMIN_PAGES.has(page))navTo('scheduler');
   const nm=document.querySelector('#whoBtn .nm'),rl=document.querySelector('#whoBtn .rl'),av=document.querySelector('#whoBtn .av');
   const label=(p.email||'').split('@')[0];
   if(nm)nm.textContent=label?label.charAt(0).toUpperCase()+label.slice(1):'User';
@@ -1321,7 +1332,7 @@ async function resolveSession(){
   if(error){console.error(error);gateMode='signin';gateForm('Could not load your profile: '+error.message);return;}
   if(!prof||!prof.profile_id){gateDenied(session.user&&session.user.email);return;}
   applyProfile(prof);gate.classList.add('hidden');bootApp();}
-sb.auth.onAuthStateChange((ev)=>{if(ev==='SIGNED_OUT'){PROFILE=null;gateMode='signin';gateForm();}});
+sb.auth.onAuthStateChange((ev)=>{if(ev==='SIGNED_OUT'){PROFILE=null;IS_ADMIN=false;document.body.classList.add('role-installer');gateMode='signin';gateForm();}});
 $('siSignOut').onclick=async e=>{e.stopPropagation();menu.classList.remove('open');await sb.auth.signOut();};
 resolveSession();
 </script>
