@@ -518,6 +518,46 @@ body.role-installer [data-admin]{display:none!important}
 .cal-wrap .mchip .mbang{color:#a3211d}
 .cal-wrap .hint{background:var(--card);border-color:var(--border);color:var(--muted)}
 
+/* ===== LIGHT QUEUE RAIL (v26) — scoped to .queue, never :root.
+   Companion to the v25 block above. The To Schedule rail is a SIBLING of
+   .cal-wrap, not a descendant, so the v25 override could never inherit into it
+   and the rail stayed dark. Same technique, and the same six values, so the
+   rail and the calendar are the identical surface.
+
+   The sidebar, topbar, drawer, modals and login gate read only the --side-,
+   --sand- and --accent- vars. Not one of them consumes a --stage- var, so this
+   block cannot reach the dark chrome by inheritance or by cascade.
+
+   COLOR ONLY. Nothing here changes geometry, and per golden rule 6 nothing
+   here sets --row-h. Deliberately placed BEFORE the mobile block so that
+   block's "delete from this comment to the end" note stays true. ===== */
+.queue{
+  --stage:var(--page);        /* #f3f2ed */
+  --stage-2:var(--card);      /* #ffffff — rail surface, same white as .cal-head */
+  --stage-card:var(--card);   /* #ffffff */
+  --stage-line:var(--border); /* #e5e3db — rail edge, header rule, mobile edge */
+  --stage-ink:var(--ink);     /* #27241f — "To Schedule" and the customer name */
+  --stage-mut:var(--muted);   /* #8c877d — hint copy, job meta, mobile chevron */
+}
+/* Count pill: the 11.5:1 text inside was never the problem — sand on white is a
+   1.68:1 SHAPE edge, so the pill dissolved into the rail. Outline it. */
+.queue .queue-head .count{border:1px solid var(--accent-line)}
+/* Cards were a white-alpha gradient inside a white-alpha border: on a light
+   rail both resolve to nothing. --raised inside --card is the same figure and
+   ground pairing .dl-input already uses inside .dl-list. */
+.queue .job{background:var(--raised);border-color:var(--border)}
+.queue .job:hover{border-color:var(--accent-line)}
+/* Type tag was inline sand-on-sand from renderQueue (1.68:1). All three TYPES
+   are the same sand, so the tag never carried data — it is static now, and
+   renderQueue no longer writes an inline style that CSS would have to fight. */
+.queue .job .tag{background:var(--accent-soft);color:var(--accent-ink)}
+/* RTS badge: its white-alpha border vanished. The badge text color now comes
+   from STATUS_LIGHT.rts via renderQueue, so badge and stripe always agree. */
+.queue .job .rts{border-color:var(--border)}
+/* Dealer was #c6c0b3 (1.73:1). On slate it sat BRIGHTER than .meta, i.e.
+   emphasised; on light it has to go DARKER to hold that same rank. */
+.queue .job .dealer{color:var(--ink)}
+
 /* ============================================================================
    MOBILE PASS 1 (v22). Additive and self-contained: deleting from this comment
    to the end of this stylesheet (plus the .navtoggle button, its JS block, and the buildDay
@@ -924,9 +964,15 @@ function setView(v){view=v;document.querySelectorAll('#viewSeg button').forEach(
 
 function renderQueue(){const list=$('queueList');list.innerHTML='';
   const ready=queue.filter(readyToSchedule);
-  ready.forEach(j=>{const t=TYPES[j.type];const el=document.createElement('div');el.className='job';el.draggable=true;el.dataset.id=j.id;
-    const aw=partialAwaiting(j)?`<span class="awtag">⏳ awaiting product</span>`:'';
-    el.innerHTML=`<span class="jspine" style="background:${t.c}"></span><span class="tag" style="background:${hexA(t.c,.2)};color:${hexA(t.c,1)}">${j.type}</span><span class="rts">RTS</span>${aw}
+  ready.forEach(j=>{const el=document.createElement('div');el.className='job';el.draggable=true;el.dataset.id=j.id;
+    /* v26: stripe and RTS badge both read STATUS_LIGHT through statusColor, so the
+       queue speaks the same status language as the light calendar. Rows here are
+       RTS by definition (renderQueue only walks readyToSchedule) and mapJob sets
+       no status field, hence the 'rts' fallback. The type tag lost its inline
+       sand-on-sand style and is now static CSS in the LIGHT QUEUE RAIL block. */
+    const sc=statusColor(j.status||'rts');
+    const aw=partialAwaiting(j)?`<span class="awtag light">⏳ awaiting product</span>`:'';
+    el.innerHTML=`<span class="jspine" style="background:${sc}"></span><span class="tag">${j.type}</span><span class="rts" style="color:${sc}">RTS</span>${aw}
       <div class="cust">${j.cust}</div><div class="meta">${j.scope}<br>${j.addr}</div><div class="dealer">${j.dealer}</div>`;
     el.addEventListener('dragstart',e=>{e.dataTransfer.setData('id',j.id);el.classList.add('dragging');document.body.classList.add('dragging')});
     el.addEventListener('dragend',()=>{el.classList.remove('dragging');document.body.classList.remove('dragging')});
