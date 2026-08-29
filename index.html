@@ -503,6 +503,31 @@ body.role-installer [data-admin]{display:none!important}
 .cal-wrap .appt .ai{color:var(--muted)}
 .cal-wrap .appt .srow{color:var(--muted)}
 .cal-wrap .appt .pill{background:rgba(0,0,0,.05);color:var(--muted)}
+/* ===== NEUTRAL APPOINTMENT CARD (v27) -- scoped to .cal-wrap, never :root.
+   The card is now the same object as a .gcard on the Installers page: var(--card)
+   white, one 1px var(--border) hairline, a shadow you have to look for. These
+   declarations are REQUIRED, not decorative. apptCard() used to write background,
+   border-color and box-shadow inline on every render, and inline styles beat class
+   rules, so deleting the JS writes exposes the dark-stage base rules underneath -- in
+   particular the base .appt background is a gradient ending in a hardcoded #343434,
+   which would fade every card to near-black at the bottom.
+
+   border-WIDTH and border-COLOR are set as longhands on purpose. The shorthand would
+   also reset border-style and clobber .appt.unassigned{border-style:dashed}, which is
+   an equal-specificity rule sitting EARLIER in this stylesheet.
+
+   COLOR ONLY. No geometry, and per golden rule 6 nothing here sets --row-h. ===== */
+.cal-wrap .appt{background:var(--stage-card);border-width:1px;border-color:var(--stage-line);
+  box-shadow:0 1px 2px rgba(0,0,0,.05)}
+.cal-wrap .appt:hover{border-color:var(--accent-line);box-shadow:0 2px 5px rgba(0,0,0,.07)}
+/* Selected: the base rule is rgba(255,255,255,.45) -- white on white, invisible on the
+   light stage. It only ever looked fine because the inline status border covered it.
+   Sand is the app's selection language everywhere else, and is not a status colour. */
+.cal-wrap .appt.sel{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent-soft)}
+/* Conflict: the base rule paints a red border, which the inline border also used to
+   mask. Held NEUTRAL per the v27 brief -- the red .cflag "Conflict" pill and the red
+   "!" .bang badge both still render, so the warning loses no signal. */
+.cal-wrap .appt.conflict{border-color:var(--stage-line)}
 /* Today + hover + drag target */
 .cal-wrap .dh:hover{background:rgba(0,0,0,.03)}
 .cal-wrap .dh.today{background:var(--accent-soft)}
@@ -823,6 +848,15 @@ const STATUS={rts:{label:"Ready to Schedule",short:"RTS",color:"#9aa1ab"},hold:{
    modified, so the dark drawer, reports and dealer tables keep their colors. */
 const STATUS_LIGHT={rts:"#6E757E",hold:"#8A6742",scheduled:"#41627F",otw:"#9A6B04",progress:"#1F7A6B",done:"#4d7010",issue:"#a3211d"};
 const statusColor=k=>STATUS_LIGHT[k]||(STATUS[k]?STATUS[k].color:"#6E757E");
+/* v27: STATUS_TEXT is the same palette, one step darker only where it had to be. A dot
+   is a non-text graphic and answers to WCAG 1.4.11 (3:1); the status WORD beside it is
+   10px/700, which is NOT "large text", so it answers to 4.5:1. Five of the seven
+   STATUS_LIGHT values already clear that on the white card and are reused byte for
+   byte. Only rts (4.66:1) and otw (4.69:1) sat close enough to the line to be worth
+   fixing; both are scaled toward black, so hue is unchanged and only lightness moves.
+   Floor is now 5.12:1. Dots keep the brighter STATUS_LIGHT value, text reads here. */
+const STATUS_TEXT={rts:"#636971",hold:"#8A6742",scheduled:"#41627F",otw:"#8b6004",progress:"#1F7A6B",done:"#4d7010",issue:"#a3211d"};
+const statusText=k=>STATUS_TEXT[k]||statusColor(k);
 const ICONS={ruler:'<path d="M3 11l8-8 10 10-8 8z"/><path d="M7 9l2 2M11 7l2 2M9 13l2 2"/>',send:'<path d="M22 2L11 13M22 2l-7 20-4-9-9-4z"/>',cam:'<path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/>',doc:'<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M9 13h6M9 17h6"/>',box:'<path d="M21 16V8a2 2 0 0 0-1-1.7l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.7l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><path d="M3.3 7L12 12l8.7-5M12 22V12"/>',check:'<path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>',link:'<path d="M10 13a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1.5 1.5"/><path d="M14 11a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1.5-1.5"/>',flag:'<path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><path d="M4 22v-7"/>',chart:'<path d="M3 3v18h18"/><path d="M7 14l4-4 3 3 5-6"/>'};
 const WO={"Measure":{color:"#5b9bd5",actions:[{ic:"ruler",label:"Open measure sheet"},{ic:"send",label:"Send measurements to quoting"},{ic:"cam",label:"Attach window photos"}]},"Install":{color:"#3a6fb0",actions:[{ic:"doc",label:"Open install work order"},{ic:"box",label:"Confirm stock received"},{ic:"cam",label:"Attach job photos"},{ic:"check",label:"Capture sign-off & completion"}]},"Return Trip":{color:"#d9605c",actions:[{ic:"link",label:"Open original job"},{ic:"doc",label:"Open return-trip report"},{ic:"flag",label:"Log reason for return"}]}};
 
@@ -902,19 +936,19 @@ function weekDays(off){return [...Array(7)].map((_,i)=>{const d=new Date(BASE_MO
 const isBaseWeek=()=>weekOffset===0, isBaseMonth=()=>monthOffset===0;
 function markConflicts(){appts.forEach(a=>a._conflict=false);for(let i=0;i<appts.length;i++)for(let j=i+1;j<appts.length;j++){const A=appts[i],B=appts[j];if(A.installer!=="un"&&A.installer===B.installer&&A.dateKey===B.dateKey&&A.start<B.start+B.dur&&B.start<A.start+A.dur){A._conflict=true;B._conflict=true}}}
 
-function apptCard(a){const s=STATUS[a.status],sc=statusColor(a.status),inst=instById(a.installer);const unassigned=(a.installer==='un'||!a.installer);
+function apptCard(a){const s=STATUS[a.status],sc=statusColor(a.status),st=statusText(a.status),inst=instById(a.installer);const unassigned=(a.installer==='un'||!a.installer);
   const el=document.createElement('div');el.className='appt'+(a.id===selectedId?' sel':'')+(a._conflict?' conflict':'')+(unassigned?' unassigned':'');
   el.style.top=(a.start-START_HOUR)*ROW+2+'px';el.style.height=(a.dur*ROW-6)+'px';
-  el.style.background=`linear-gradient(180deg, ${hexA(sc,.14)} 0%, var(--stage-card) 50%)`;
-  el.style.borderColor=hexA(sc,.9);
-  /* Shadow and glow halved for the light stage (v25): the dark-stage values read as mud on off-white. */
-  const glow=a.status==='done'?.13:a.status==='issue'?.12:.07;
-  el.style.boxShadow=`0 2px 6px rgba(0,0,0,.10), 0 0 10px ${hexA(sc,glow)}`;
+  /* v27: background, border-color and box-shadow are NO LONGER written inline. The
+     status-tinted gradient, the 90%-opacity status outline and the status glow are all
+     gone -- the card is a flat white panel with one neutral hairline, styled entirely by
+     the NEUTRAL APPOINTMENT CARD block in CSS. top/height stay inline because they are
+     geometry derived from ROW and must never move into CSS (golden rule 6). */
   const instLabel=unassigned?`<span style="color:#9a791a;font-weight:800">⚠ Unassigned</span>`:inst.name.split(' ')[0];
   el.innerHTML=`<div class="pill">${a.type}</div>
     <div class="at">${a.cust}</div>
     <div class="ai"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="3.5"/><path d="M5 20a7 7 0 0 1 14 0"/></svg>${instLabel} · ${fmt(a.start)}–${fmt(a.start+a.dur)}</div>
-    <div class="srow"><i style="background:${sc}"></i>${s.short}</div>
+    <div class="srow" style="color:${st}"><i style="background:${sc}"></i>${s.short}</div>
     ${a.status==='issue'?'<span class="bang">!</span>':''}${a._conflict?'<span class="cflag">Conflict</span>':''}${partialAwaiting(a)?'<span class="awtag" style="position:absolute;bottom:7px;right:9px;margin:0">⏳ product</span>':''}`;
   el.draggable=true;
   el.addEventListener('dragstart',e=>{e.dataTransfer.setData('appt',a.id);el.classList.add('dragging');document.body.classList.add('dragging')});
