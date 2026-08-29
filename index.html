@@ -500,7 +500,18 @@ body.role-installer [data-admin]{display:none!important}
    those are handled in the JS, not here. */
 .cal-wrap .appt{color:var(--ink)}
 .cal-wrap .appt .at{color:var(--ink)}
-.cal-wrap .appt .ai{color:var(--muted)}
+/* v28: the installer + time line goes from --muted (3.57:1) to --ink (15.46:1).
+   It is real operational data, not chrome, so it reads at full strength. */
+.cal-wrap .appt .ai{color:var(--ink)}
+/* v28: the person glyph is the card's one accent pop. The svg draws with
+   stroke="currentColor", so setting color here re-tints the stroke only, and the
+   sibling text keeps the --ink set just above.
+   ** CONTRAST NOTE: --sand is #d8c6a0 = 1.68:1 on the white card. An icon is a
+   non-text graphic and answers to WCAG 1.4.11 (3:1), so this FAILS and will read as
+   very faint. This is the same 1.68:1 pairing v26 removed from the queue rail. Built
+   as specified and flagged for review; #978b70 is sand scaled toward black to 3.36:1
+   and would clear the bar with the hue unchanged. ** */
+.cal-wrap .appt .ai svg{color:var(--sand)}
 .cal-wrap .appt .srow{color:var(--muted)}
 .cal-wrap .appt .pill{background:rgba(0,0,0,.05);color:var(--muted)}
 /* ===== NEUTRAL APPOINTMENT CARD (v27) -- scoped to .cal-wrap, never :root.
@@ -517,7 +528,13 @@ body.role-installer [data-admin]{display:none!important}
    an equal-specificity rule sitting EARLIER in this stylesheet.
 
    COLOR ONLY. No geometry, and per golden rule 6 nothing here sets --row-h. ===== */
-.cal-wrap .appt{background:var(--stage-card);border-width:1px;border-color:var(--stage-line);
+/* v28: card border moves from the --border hairline to --ink for hard definition.
+   Still longhands, so .appt.unassigned{border-style:dashed} survives. ** NOTE: --ink
+   is now the DARKEST border in the system, so the three state rules below all render
+   LIGHTER than the resting card -- hover, selected and conflict each read as weaker
+   than an ordinary card rather than stronger. Left exactly as v27 shipped them per the
+   brief; flagged for review. ** */
+.cal-wrap .appt{background:var(--stage-card);border-width:1px;border-color:var(--ink);
   box-shadow:0 1px 2px rgba(0,0,0,.05)}
 .cal-wrap .appt:hover{border-color:var(--accent-line);box-shadow:0 2px 5px rgba(0,0,0,.07)}
 /* Selected: the base rule is rgba(255,255,255,.45) -- white on white, invisible on the
