@@ -513,7 +513,14 @@ body.role-installer [data-admin]{display:none!important}
    and would clear the bar with the hue unchanged. ** */
 .cal-wrap .appt .ai svg{color:var(--sand)}
 .cal-wrap .appt .srow{color:var(--muted)}
-.cal-wrap .appt .pill{background:rgba(0,0,0,.05);color:var(--muted)}
+/* v29: the job-type tag becomes the dark pill with sand text that .ipay already uses
+   for installer pay on the Installers page -- same two tokens, so the two pills are
+   one treatment rather than two lookalikes. --sand on --side-2 is 10.32:1, and the
+   pill body is 17.33:1 against the white card, so the shape edge is unambiguous too.
+   .ipay also carries a 1px --side-border edge, deliberately NOT copied: .pill is an
+   auto-width inline-block, so a border would add 2px to its outer size, and that is
+   geometry. This rule is colour only. */
+.cal-wrap .appt .pill{background:var(--side-2);color:var(--sand)}
 /* ===== NEUTRAL APPOINTMENT CARD (v27) -- scoped to .cal-wrap, never :root.
    The card is now the same object as a .gcard on the Installers page: var(--card)
    white, one 1px var(--border) hairline, a shadow you have to look for. These
