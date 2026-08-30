@@ -400,6 +400,56 @@
   .phototile{aspect-ratio:1;border:1.5px dashed var(--side-border);border-radius:10px;display:flex;align-items:center;justify-content:center;color:var(--sand-dim);font-size:22px;cursor:pointer;background-size:cover;background-position:center;transition:.14s}
   .phototile:hover{border-color:var(--accent-line);color:var(--sand)}
   .phototile.has{border-style:solid;border-color:#4cbf86}.phototile.has span{display:none}
+
+  /* ===== Measure sheet — a LIGHT working surface inside the dark modal shell.
+     Everything is scoped under .mslight, so the other seven modal actions keep
+     their dark styling untouched. Light palette per spec: --card / --raised
+     grounds, --ink text, --border lines, and the documented light-area margin
+     colors (green 4d7010, red a3211d).
+     Inputs deliberately reuse .dl-input, the existing light-area field style,
+     which the mobile block already lists in its 16px rule — so iOS will not
+     zoom on focus and no new mobile rule is needed.
+     Layout is single-column; the only side-by-side pair is whole+fraction,
+     which uses flex:1 1 0 with min-width:0 so it can never force the sheet
+     wider than its container. Nothing here sets --row-h. ===== */
+  .modal-b.mslight{background:var(--card);color:var(--ink)}
+  .mslight .mshead{display:flex;align-items:center;gap:8px;margin-bottom:12px}
+  .mslight .mshead h4{font-size:11.5px;letter-spacing:1px;text-transform:uppercase;color:var(--muted);font-weight:700}
+  .mslight .mscount{margin-left:auto;font-size:12px;color:var(--muted)}
+  .mscard{border:1px solid var(--border);border-left:3px solid var(--border);border-radius:11px;background:var(--raised);margin-bottom:10px}
+  .mscard.open{background:var(--card);border-color:var(--accent-line)}
+  .mscard.is-dirty{border-left-color:#9a6b00}
+  .mscard.is-saved{border-left-color:#4d7010}
+  .mssum{display:flex;align-items:center;gap:9px;padding:11px 12px;cursor:pointer}
+  .msidx{width:20px;height:20px;flex:none;border-radius:6px;background:var(--border-soft);color:var(--muted);font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center}
+  .mssumtxt{flex:1;min-width:0}
+  .mstitle{font-size:13px;font-weight:650;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .mssub{font-size:12px;color:var(--muted);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .msflag{flex:none;font-size:9.5px;font-weight:800;letter-spacing:.7px;text-transform:uppercase;padding:3px 7px;border-radius:999px}
+  .msflag.f-saved{color:#4d7010;background:rgba(77,112,16,.11)}
+  .msflag.f-dirty{color:#9a6b00;background:rgba(154,107,0,.13)}
+  .mscar{flex:none;color:var(--faint);font-size:12px;transition:transform .18s}
+  .mscard.open .mscar{transform:rotate(180deg)}
+  .msbody{display:none;padding:2px 12px 12px}
+  .mscard.open .msbody{display:block}
+  .msf{margin-bottom:11px}
+  .msf label{display:block;font-size:10px;letter-spacing:1.1px;text-transform:uppercase;color:var(--muted);margin-bottom:6px}
+  .msdim{display:flex;gap:8px}
+  .msdim>*{flex:1 1 0;min-width:0}
+  .msrow{display:flex;gap:8px;align-items:center;margin-top:13px}
+  .ms-del{margin-left:auto}
+  .msconfirm{display:none;align-items:center;gap:8px;margin-top:10px;padding:9px 10px;border:1px solid rgba(163,33,29,.35);background:rgba(163,33,29,.06);border-radius:9px;font-size:12px;font-weight:600;color:#a3211d}
+  .mscard.confirming .msconfirm{display:flex}
+  .msconfirm .cbtns{margin-left:auto;display:flex;gap:6px;flex:none}
+  .msbtn{font:inherit;font-size:12.5px;font-weight:650;padding:8px 13px;border-radius:8px;border:1px solid var(--border);background:var(--card);color:var(--ink);cursor:pointer}
+  .msbtn.pri{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+  .msbtn.dgr{background:#a3211d;border-color:#a3211d;color:#fff}
+  .msbtn:disabled{opacity:.55;cursor:default}
+  .msadd{width:100%;padding:12px;border:1.5px dashed var(--border);background:var(--raised);color:var(--muted);border-radius:11px;font:inherit;font-size:13px;font-weight:650;cursor:pointer}
+  .msadd:hover{border-color:var(--accent-line);color:var(--ink)}
+  .msadd:disabled{opacity:.5;cursor:default}
+  .msempty{font-size:12.5px;color:var(--muted);padding:8px 0 12px}
+
   .modal-f{padding:14px 22px;border-top:1px solid var(--side-border);display:flex;justify-content:flex-end;gap:10px}
 
   .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(20px);background:var(--side);color:var(--sand-ink);padding:11px 20px;border-radius:11px;font-size:13px;font-weight:600;opacity:0;transition:.25s;z-index:99;box-shadow:0 10px 30px rgba(0,0,0,.5);border:1px solid var(--side-border)}
@@ -1114,7 +1164,7 @@ $('drType').addEventListener('click',e=>{const c=e.target.closest('.chip');if(!c
 $('drStatus').addEventListener('change',e=>$('issueBanner').classList.toggle('show',e.target.value==='issue'));
 
 function modalBodyFor(ic){const a=appts.find(x=>x.id===selectedId)||{};
-  if(ic==='ruler')return `<table class="mtable"><tr><th>Room</th><th>Width</th><th>Height</th><th>Mount</th></tr><tr><td>Living rm</td><td><input value="36 ⅛"></td><td><input value="60"></td><td><input value="Inside"></td></tr><tr><td>Dining</td><td><input placeholder="—"></td><td><input placeholder="—"></td><td><input placeholder="—"></td></tr><tr><td>Master</td><td><input placeholder="—"></td><td><input placeholder="—"></td><td><input placeholder="—"></td></tr></table>`;
+  if(ic==='ruler')return `<div class="mshead"><h4>Measure sheet</h4><span class="mscount" id="msCount"></span></div><div id="msList"></div><button class="msadd" id="msAdd">+ Add line item</button>`;
   if(ic==='box')return `<div class="mcheck"><input type="checkbox" checked>Order #PL-4471 — 6 cellular shades</div><div class="mcheck"><input type="checkbox">Valance / hardware kit</div><div class="mcheck"><input type="checkbox">Motorization & remotes</div><p style="font-size:12px;color:var(--sand-dim);margin-top:10px">Install can't be marked Scheduled until all lines are received.</p>`;
   if(ic==='doc')return `<table class="mtable"><tr><th>Line</th><th>Item</th><th>Qty</th></tr><tr><td>1</td><td>${a.scope||'Window covering'}</td><td>—</td></tr></table><div class="fld" style="margin-top:14px"><label>Crew notes</label><textarea placeholder="Ladder access, pets, etc."></textarea></div>`;
   if(ic==='check')return `<div class="fld"><label>Customer signature</label><div style="height:80px;border:1px dashed var(--side-border);border-radius:9px;display:flex;align-items:center;justify-content:center;color:var(--sand-dim);font-size:12px">Sign here</div></div><div class="mcheck"><input type="checkbox">All windows installed & operating</div><div class="mcheck"><input type="checkbox">Job site cleaned</div>`;
@@ -1124,7 +1174,124 @@ function modalBodyFor(ic){const a=appts.find(x=>x.id===selectedId)||{};
   if(ic==='send')return `<p style="font-size:13px">Push the captured measurements to the quoting queue for <b>${a.dealer||'this dealer'}</b>.</p>`;
   if(ic==='flag')return `<div class="fld"><label>Reason for return</label><select><option>Wrong bracket / hardware</option><option>Manufacturer defect</option><option>Measurement error</option><option>Customer change</option></select></div><div class="fld"><label>Details</label><textarea></textarea></div>`;
   return '<p>—</p>';}
+/* ===== Measure sheet — fillable line items persisted to measure_lines.
+   Vertical stackable cards, one open at a time. Save-per-card so a dropped
+   connection on site never loses more than the line being edited, with an
+   explicit Saved / Unsaved flag on every card so the installer is never
+   guessing. Delete is two-step.
+
+   Fractions are displayed as fractions EVERYWHERE — summary row and reloaded
+   fields alike. The decimal *_in generated columns are deliberately never
+   selected or rendered; msFracLabel is the single numeric-to-label mapping and
+   msFracValue its inverse.
+
+   tenant_id is never sent. The default_tenant_id() column DEFAULT resolves it,
+   matching every other table. Touches no calendar geometry and never
+   sets --row-h. ===== */
+const MSFRACS=[[0,'0'],[0.125,'1/8'],[0.25,'1/4'],[0.375,'3/8'],[0.5,'1/2'],[0.625,'5/8'],[0.75,'3/4'],[0.875,'7/8']];
+const MSMOUNTS=['Inside Mount','Outside Mount','Ceiling Mount'];
+const MSCOLS='id,sort_order,product,mount_type,width_whole,width_frac,height_whole,height_frac,depth_whole,depth_frac,notes';
+function msFracLabel(v){if(v==null||v==='')return '0';const n=Number(v);const f=MSFRACS.find(x=>Math.abs(x[0]-n)<1e-9);return f?f[1]:'0';}
+function msFracValue(label){const f=MSFRACS.find(x=>x[1]===label);return f?f[0]:0;}
+function msInt(v){const t=String(v==null?'':v).trim();if(t==='')return null;const n=parseInt(t,10);return isNaN(n)||n<0?null:n;}
+/* Display helper: "36 1/8", or "36" when the fraction is zero, or null when the
+   dimension was never measured. Never emits a decimal. */
+function msDimText(whole,frac){const w=msInt(whole);const fl=msFracLabel(frac);if(w==null&&fl==='0')return null;return fl==='0'?String(w==null?0:w):(w==null?0:w)+' '+fl;}
+function msEsc(s){return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+function msFracOpts(sel){return MSFRACS.map(f=>`<option value="${f[1]}"${f[1]===sel?' selected':''}>${f[1]}</option>`).join('');}
+function msDimField(lbl,cw,cf,whole,frac){return `<div class="msf"><label>${lbl}</label><div class="msdim"><input class="dl-input ${cw}" inputmode="numeric" placeholder="0" value="${whole==null?'':msEsc(whole)}"><select class="dl-input ${cf}">${msFracOpts(msFracLabel(frac))}</select></div></div>`;}
+function msCardHTML(r,i){return `<div class="mscard ${r.id?'is-saved':'is-dirty'}" data-id="${msEsc(r.id)}">`+
+  `<div class="mssum"><span class="msidx">${i+1}</span><div class="mssumtxt"><div class="mstitle"></div><div class="mssub"></div></div><span class="msflag"></span><span class="mscar">&#9662;</span></div>`+
+  `<div class="msbody">`+
+  `<div class="msf"><label>Product</label><input class="dl-input ms-p" value="${msEsc(r.product)}" placeholder="e.g. 2&quot; wood blind"></div>`+
+  `<div class="msf"><label>Mount type</label><select class="dl-input ms-m"><option value="">—</option>${MSMOUNTS.map(m=>`<option${m===r.mount_type?' selected':''}>${m}</option>`).join('')}</select></div>`+
+  msDimField('Width (in)','ms-ww','ms-wf',r.width_whole,r.width_frac)+
+  msDimField('Height (in)','ms-hw','ms-hf',r.height_whole,r.height_frac)+
+  msDimField('Depth (in) — optional','ms-dw','ms-df',r.depth_whole,r.depth_frac)+
+  `<div class="msf"><label>Notes</label><input class="dl-input ms-n" value="${msEsc(r.notes)}" placeholder="Optional"></div>`+
+  `<div class="msrow"><button class="msbtn pri ms-save">Save line</button><button class="msbtn ms-del">Delete</button></div>`+
+  `<div class="msconfirm">Delete this line item?<span class="cbtns"><button class="msbtn ms-no">Cancel</button><button class="msbtn dgr ms-yes">Delete</button></span></div>`+
+  `</div></div>`;}
+function msSyncCard(card){const g=s=>card.querySelector(s);
+  const prod=g('.ms-p').value.trim();
+  const w=msDimText(g('.ms-ww').value,msFracValue(g('.ms-wf').value));
+  const h=msDimText(g('.ms-hw').value,msFracValue(g('.ms-hf').value));
+  const d=msDimText(g('.ms-dw').value,msFracValue(g('.ms-df').value));
+  const dims=[w,h,d].filter(Boolean).join(' × ');
+  g('.mstitle').textContent=prod||'Untitled line';
+  g('.mssub').textContent=[dims,g('.ms-m').value].filter(Boolean).join(' · ')||'No measurements yet';
+  const dirty=card.classList.contains('is-dirty');
+  const fl=g('.msflag');fl.className='msflag '+(dirty?'f-dirty':'f-saved');fl.textContent=dirty?'Unsaved':'Saved';}
+function msMarkDirty(card){card.classList.add('is-dirty');card.classList.remove('is-saved');msSyncCard(card);}
+function msRenumber(){const list=$('msList');if(!list)return;
+  [...list.querySelectorAll('.mscard')].forEach((c,i)=>{c.querySelector('.msidx').textContent=i+1;});
+  const n=list.querySelectorAll('.mscard').length,c=$('msCount');
+  if(c)c.textContent=n?n+(n===1?' line':' lines'):'';}
+function msAddCard(rec){const list=$('msList');if(!list)return null;
+  const em=list.querySelector('.msempty');if(em)em.remove();
+  list.insertAdjacentHTML('beforeend',msCardHTML(rec||{},list.querySelectorAll('.mscard').length));
+  const card=list.lastElementChild;
+  list.querySelectorAll('.mscard.open').forEach(c=>{if(c!==card)c.classList.remove('open')});
+  card.classList.add('open');msSyncCard(card);msRenumber();
+  card.scrollIntoView({block:'nearest'});return card;}
+async function msSaveCard(card,silent){const jobId=currentJobId();
+  if(!jobId){toast('Save the job first',true);return false;}
+  const g=s=>card.querySelector(s);
+  const dim=(cw,cf)=>{const w=msInt(g(cw).value),f=msFracValue(g(cf).value);return (w==null&&f===0)?[null,null]:[w,f];};
+  const [ww,wf]=dim('.ms-ww','.ms-wf'),[hw,hf]=dim('.ms-hw','.ms-hf'),[dw,df]=dim('.ms-dw','.ms-df');
+  const payload={job_id:jobId,
+    sort_order:[...card.parentNode.querySelectorAll('.mscard')].indexOf(card),
+    product:g('.ms-p').value.trim()||null,
+    mount_type:g('.ms-m').value||null,
+    width_whole:ww,width_frac:wf,height_whole:hw,height_frac:hf,depth_whole:dw,depth_frac:df,
+    notes:g('.ms-n').value.trim()||null};
+  const btn=g('.ms-save'),id=card.dataset.id;
+  btn.disabled=true;btn.textContent='Saving…';
+  try{
+    if(id){const {error}=await sb.from('measure_lines').update(payload).eq('id',id);if(error)throw error;}
+    else{const {data,error}=await sb.from('measure_lines').insert(payload).select('id').single();if(error)throw error;card.dataset.id=data.id;}
+    card.classList.remove('is-dirty');card.classList.add('is-saved');msSyncCard(card);
+    if(!silent)toast('Line saved');
+    return true;
+  }catch(err){console.error(err);if(!silent)toast('Could not save line',true);return false;}
+  finally{btn.disabled=false;btn.textContent='Save line';}}
+async function msDeleteCard(card){const id=card.dataset.id;
+  if(id){const {error}=await sb.from('measure_lines').delete().eq('id',id);
+    if(error){console.error(error);toast('Could not delete line',true);card.classList.remove('confirming');return;}}
+  card.remove();msRenumber();
+  const list=$('msList');
+  if(list&&!list.querySelectorAll('.mscard').length)msAddCard({});
+  toast('Line deleted');}
+async function msInit(){const list=$('msList'),addBtn=$('msAdd');if(!list)return;
+  const jobId=currentJobId();
+  if(!jobId){list.innerHTML='<div class="msempty">Save the job first — measurements attach to a saved job.</div>';if(addBtn)addBtn.disabled=true;return;}
+  list.innerHTML='<div class="msempty">Loading…</div>';
+  const {data,error}=await sb.from('measure_lines').select(MSCOLS).eq('job_id',jobId).order('sort_order');
+  if(error){console.error(error);list.innerHTML='<div class="msempty">Could not load the measure sheet.</div>';return;}
+  list.innerHTML='';
+  (data||[]).forEach((r,i)=>list.insertAdjacentHTML('beforeend',msCardHTML(r,i)));
+  [...list.querySelectorAll('.mscard')].forEach(c=>msSyncCard(c));
+  if(!list.querySelectorAll('.mscard').length)msAddCard({});
+  msRenumber();}
+function msDirtyCards(){const l=$('msList');return l?[...l.querySelectorAll('.mscard.is-dirty')]:[];}
+/* Delegated so dynamically added cards need no per-line wiring and no new ids. */
+document.addEventListener('click',e=>{
+  if(!e.target.closest('.modal-b.mslight'))return;
+  if(e.target.closest('#msAdd')){msAddCard({});return;}
+  const card=e.target.closest('.mscard');if(!card)return;
+  if(e.target.closest('.ms-save')){msSaveCard(card);return;}
+  if(e.target.closest('.ms-del')){card.classList.add('confirming');return;}
+  if(e.target.closest('.ms-no')){card.classList.remove('confirming');return;}
+  if(e.target.closest('.ms-yes')){msDeleteCard(card);return;}
+  if(e.target.closest('.mssum')){const wasOpen=card.classList.contains('open');
+    card.parentNode.querySelectorAll('.mscard').forEach(c=>{c.classList.remove('open');c.classList.remove('confirming')});
+    if(!wasOpen)card.classList.add('open');}});
+['input','change'].forEach(ev=>document.addEventListener(ev,e=>{
+  const card=e.target.closest('.modal-b.mslight .mscard');if(card)msMarkDirty(card);}));
+
 function openModal(ic,label){currentModalIc=ic;modalPdf=null;const a=currentItem()||{};$('modalIcon').innerHTML=`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">${ICONS[ic]||ICONS.doc}</svg>`;$('modalTitle').textContent=label;$('modalSub').textContent=`${a.cust||''} · ${a.type||''}`;$('modalBody').innerHTML=modalBodyFor(ic);
+  $('modalBody').classList.toggle('mslight',ic==='ruler');
+  if(ic==='ruler')msInit();
   $('modalBody').querySelectorAll('input[type=file]').forEach(inp=>inp.onchange=e=>{const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=ev=>{
     if(f.type==='application/pdf'){modalPdf={name:f.name,url:ev.target.result};const dz=inp.closest('.pdfdrop');if(dz){dz.classList.add('has');dz.querySelector('.pdfname').textContent=f.name}}
     else{const tile=inp.closest('.phototile');if(tile){tile.style.backgroundImage=`url(${ev.target.result})`;tile.classList.add('has')}}
@@ -1133,6 +1300,16 @@ function openModal(ic,label){currentModalIc=ic;modalPdf=null;const a=currentItem
 function closeModal(){$('modalBg').classList.remove('open')}
 $('modalClose').onclick=closeModal;$('modalCancel').onclick=closeModal;
 $('modalSave').onclick=async()=>{
+  /* Measure sheet: each card already saves itself. This is the safety net for
+     anything still flagged Unsaved when the installer hits the footer button. */
+  if(currentModalIc==='ruler'){const dirty=msDirtyCards();
+    if(!dirty.length){toast('All lines saved');closeModal();return;}
+    const btn=$('modalSave');btn.textContent='Saving…';btn.disabled=true;
+    let ok=0;for(const c of dirty){if(await msSaveCard(c,true))ok++;}
+    btn.textContent='Save';btn.disabled=false;
+    if(ok===dirty.length){toast(`${ok} line${ok>1?'s':''} saved`);closeModal();}
+    else toast(`${dirty.length-ok} line(s) could not be saved`,true);
+    return;}
   if(currentModalIc==='cam'||currentModalIc==='upload'){const jobId=currentJobId();
     if(!jobId){toast('Save the job first',true);return;}
     const btn=$('modalSave');
