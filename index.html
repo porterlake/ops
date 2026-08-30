@@ -416,6 +416,7 @@
   .mslight .mshead{display:flex;align-items:center;gap:8px;margin-bottom:12px}
   .mslight .mshead h4{font-size:11.5px;letter-spacing:1px;text-transform:uppercase;color:var(--muted);font-weight:700}
   .mslight .mscount{margin-left:auto;font-size:12px;color:var(--muted)}
+  .mslight .mshead .msbtn{padding:6px 11px;font-size:11.5px;flex:none}
   .mscard{border:1px solid var(--border);border-left:3px solid var(--border);border-radius:11px;background:var(--raised);margin-bottom:10px}
   .mscard.open{background:var(--card);border-color:var(--accent-line)}
   .mscard.is-dirty{border-left-color:#9a6b00}
@@ -1168,7 +1169,7 @@ $('drType').addEventListener('click',e=>{const c=e.target.closest('.chip');if(!c
 $('drStatus').addEventListener('change',e=>$('issueBanner').classList.toggle('show',e.target.value==='issue'));
 
 function modalBodyFor(ic){const a=appts.find(x=>x.id===selectedId)||{};
-  if(ic==='ruler')return `<div class="mshead"><h4>Measure sheet</h4><span class="mscount" id="msCount"></span></div><div id="msList"></div><button class="msadd" id="msAdd">+ Add line item</button>`;
+  if(ic==='ruler')return `<div class="mshead"><h4>Measure sheet</h4><span class="mscount" id="msCount"></span><button class="msbtn ms-pdf" id="msPdf">Generate PDF</button></div><div id="msList"></div><button class="msadd" id="msAdd">+ Add line item</button>`;
   if(ic==='box')return `<div class="mcheck"><input type="checkbox" checked>Order #PL-4471 — 6 cellular shades</div><div class="mcheck"><input type="checkbox">Valance / hardware kit</div><div class="mcheck"><input type="checkbox">Motorization & remotes</div><p style="font-size:12px;color:var(--sand-dim);margin-top:10px">Install can't be marked Scheduled until all lines are received.</p>`;
   if(ic==='doc')return `<table class="mtable"><tr><th>Line</th><th>Item</th><th>Qty</th></tr><tr><td>1</td><td>${a.scope||'Window covering'}</td><td>—</td></tr></table><div class="fld" style="margin-top:14px"><label>Crew notes</label><textarea placeholder="Ladder access, pets, etc."></textarea></div>`;
   if(ic==='check')return `<div class="fld"><label>Customer signature</label><div style="height:80px;border:1px dashed var(--side-border);border-radius:9px;display:flex;align-items:center;justify-content:center;color:var(--sand-dim);font-size:12px">Sign here</div></div><div class="mcheck"><input type="checkbox">All windows installed & operating</div><div class="mcheck"><input type="checkbox">Job site cleaned</div>`;
@@ -1281,6 +1282,10 @@ async function msDeleteCard(card){const id=card.dataset.id;
   if(list&&!list.querySelectorAll('.mscard').length)msAddCard({});
   toast('Line deleted');}
 async function msInit(){const list=$('msList'),addBtn=$('msAdd');if(!list)return;
+  /* Warm the PDF library now, while the sheet is opening, so the Generate PDF
+     click itself never has to await a network fetch (see the iOS gesture note
+     on msEnsurePdfLib). Fire-and-forget: a failure here is retried on click. */
+  msEnsurePdfLib();
   const jobId=currentJobId();
   if(!jobId){list.innerHTML='<div class="msempty">Save the job first — measurements attach to a saved job.</div>';if(addBtn)addBtn.disabled=true;return;}
   list.innerHTML='<div class="msempty">Loading…</div>';
@@ -1292,10 +1297,123 @@ async function msInit(){const list=$('msList'),addBtn=$('msAdd');if(!list)return
   if(!list.querySelectorAll('.mscard').length)msAddCard({});
   msRenumber();}
 function msDirtyCards(){const l=$('msList');return l?[...l.querySelectorAll('.mscard.is-dirty')]:[];}
+
+/* ===== Measure sheet PDF — STAGE 1: generate and hand the installer a file.
+   Saving the PDF back to the job is Stage 2 and is deliberately NOT built here:
+   nothing below uploads, writes a files row, or touches Storage.
+
+   jsPDF + autoTable load from the same CDN the Supabase client already uses.
+   They are pulled in lazily and, importantly, PRELOADED when the measure sheet
+   opens — if the library were fetched inside the button handler, the await would
+   break the user-gesture chain and iOS Safari can silently block the resulting
+   download. A failed load is reported explicitly, never swallowed.
+
+   The logo is read from the existing login-gate img at generate time. That
+   element is a sibling of gateBody, not a child, so it survives the gate's
+   innerHTML rewrites — this reuses the embedded asset without adding a second
+   68KB copy of it to the file. ===== */
+const MSPDF_JS='https://cdn.jsdelivr.net/npm/jspdf@2.5.2/dist/jspdf.umd.min.js';
+const MSPDF_AT='https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.4/dist/jspdf.plugin.autotable.min.js';
+let MSPDF_P=null;
+function msLoadScript(src){return new Promise((ok,no)=>{const s=document.createElement('script');s.src=src;s.onload=()=>ok();s.onerror=()=>no(new Error('could not load '+src));document.head.appendChild(s);});}
+function msPdfReady(){return !!(window.jspdf&&window.jspdf.jsPDF&&window.jspdf.jsPDF.API&&window.jspdf.jsPDF.API.autoTable);}
+function msEnsurePdfLib(){
+  if(msPdfReady())return Promise.resolve(true);
+  /* One in-flight promise, cleared on failure so a later retry can succeed
+     once the installer is back on signal. */
+  if(!MSPDF_P)MSPDF_P=msLoadScript(MSPDF_JS).then(()=>msLoadScript(MSPDF_AT))
+    .then(()=>msPdfReady()).catch(err=>{console.error(err);MSPDF_P=null;return false;});
+  return MSPDF_P;}
+function msFmtDate(d){if(!d)return null;const dt=(d instanceof Date)?d:new Date(String(d)+'T00:00:00');
+  if(isNaN(dt.getTime()))return null;
+  return dt.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});}
+function msPdfLogo(){const el=document.querySelector('.gate-logo');return (el&&el.src&&el.src.indexOf('data:image')===0)?el.src:null;}
+function msBuildPdf(rows){
+  const {jsPDF}=window.jspdf;
+  const doc=new jsPDF({unit:'mm',format:'letter',orientation:'portrait'});
+  const PW=doc.internal.pageSize.getWidth(),PH=doc.internal.pageSize.getHeight(),M=14;
+  const SAND=[216,198,160],INK=[39,36,31],MUT=[140,135,125],LINE=[229,227,219],ALT=[250,250,247];
+  const item=currentItem()||{};
+  const logo=msPdfLogo();
+  const drawHeader=()=>{
+    if(logo){try{doc.addImage(logo,'PNG',M,11,42,25.3);}catch(err){console.error('logo',err);}}
+    doc.setTextColor(INK[0],INK[1],INK[2]);doc.setFont('helvetica','bold');doc.setFontSize(11.5);
+    doc.text('Porter Lake Shading Systems',PW-M,16,{align:'right'});
+    doc.setFont('helvetica','normal');doc.setFontSize(9);doc.setTextColor(MUT[0],MUT[1],MUT[2]);
+    doc.text('941-539-5398',PW-M,21,{align:'right'});
+    doc.text('orders@porterlakeshades.com',PW-M,25.5,{align:'right'});
+    doc.text('2151 Whitfield Park Ave., Sarasota, FL 34243',PW-M,30,{align:'right'});
+    doc.setDrawColor(SAND[0],SAND[1],SAND[2]);doc.setLineWidth(0.8);doc.line(M,39,PW-M,39);};
+  drawHeader();
+  doc.setFont('helvetica','bold');doc.setFontSize(15);doc.setTextColor(INK[0],INK[1],INK[2]);
+  doc.text('MEASURE SHEET',M,50);
+  /* Context rows are pushed only when the value is real. A missing address or an
+     unassigned installer drops its whole row rather than printing a blank label. */
+  const ctx=[],push=(l,v)=>{if(v&&String(v).trim()&&String(v).trim()!=='—')ctx.push([l,String(v).trim()]);};
+  push('Customer',item.cust);
+  push('Dealer',item.dealer);
+  push('Date measured',item.dateKey?msFmtDate(item.dateKey):null);
+  push('Measured by',(item.installer&&item.installer!=='un')?instById(item.installer).name:null);
+  push('Job address',item.addr);
+  const CX=[M,PW/2+2];let cy=59;
+  ctx.forEach((r,i)=>{const x=CX[i%2],y=cy+Math.floor(i/2)*11;
+    doc.setFont('helvetica','bold');doc.setFontSize(7.5);doc.setTextColor(MUT[0],MUT[1],MUT[2]);
+    doc.text(r[0].toUpperCase(),x,y);
+    doc.setFont('helvetica','normal');doc.setFontSize(10);doc.setTextColor(INK[0],INK[1],INK[2]);
+    doc.text(r[1],x,y+4.8);});
+  const startY=cy+Math.ceil(ctx.length/2)*11+4;
+  /* msDimText is the same helper the card summary uses, so the PDF shows
+     "36 1/8" exactly as the form does. The generated *_in decimal columns are
+     not selected and are never referenced here. */
+  const body=rows.map((r,i)=>[i+1,r.room_name||'—',r.product||'—',r.mount_type||'—',
+    msDimText(r.width_whole,r.width_frac)||'—',
+    msDimText(r.height_whole,r.height_frac)||'—',
+    msDimText(r.depth_whole,r.depth_frac)||'—',
+    msQty(r.quantity),r.notes||'']);
+  const totalQty=rows.reduce((s,r)=>s+msQty(r.quantity),0);
+  doc.autoTable({startY:startY,
+    head:[['#','Room','Product','Mount','Width','Height','Depth','Qty','Notes']],
+    body:body,theme:'grid',
+    styles:{font:'helvetica',fontSize:9,cellPadding:2.2,textColor:INK,lineColor:LINE,lineWidth:0.15,overflow:'linebreak',valign:'top'},
+    headStyles:{fillColor:SAND,textColor:INK,fontStyle:'bold',fontSize:8.5},
+    alternateRowStyles:{fillColor:ALT},
+    columnStyles:{0:{cellWidth:8,halign:'right'},1:{cellWidth:26},2:{cellWidth:30},
+      3:{cellWidth:20},4:{cellWidth:19,halign:'right'},5:{cellWidth:19,halign:'right'},
+      6:{cellWidth:15,halign:'right'},7:{cellWidth:11,halign:'right'},8:{cellWidth:'auto'}},
+    margin:{left:M,right:M,top:44},
+    didDrawPage:drawHeader});
+  const endY=(doc.lastAutoTable?doc.lastAutoTable.finalY:startY)+8;
+  doc.setFont('helvetica','bold');doc.setFontSize(10.5);doc.setTextColor(INK[0],INK[1],INK[2]);
+  doc.text('Total openings: '+totalQty,PW-M,endY,{align:'right'});
+  const pages=doc.internal.getNumberOfPages(),gen=msFmtDate(new Date());
+  for(let p=1;p<=pages;p++){doc.setPage(p);
+    doc.setDrawColor(SAND[0],SAND[1],SAND[2]);doc.setLineWidth(0.5);doc.line(M,PH-18,PW-M,PH-18);
+    doc.setFont('helvetica','normal');doc.setFontSize(8.5);doc.setTextColor(MUT[0],MUT[1],MUT[2]);
+    doc.text('Measurements provided by Porter Lake Shading Systems',M,PH-13);
+    doc.text('Generated '+gen,M,PH-8.8);
+    doc.text('Page '+p+' of '+pages,PW-M,PH-8.8,{align:'right'});}
+  const safe=(item.cust||'job').replace(/[^\w-]+/g,'_').slice(0,40);
+  doc.save('measure-sheet-'+safe+'.pdf');}
+async function msGeneratePdf(){
+  const jobId=currentJobId();
+  if(!jobId){toast('Save the job first',true);return;}
+  if(msDirtyCards().length){toast('Save every line before generating the PDF',true);return;}
+  const btn=$('msPdf'),label=btn?btn.textContent:'';
+  if(btn){btn.disabled=true;btn.textContent='Preparing…';}
+  try{
+    const ok=await msEnsurePdfLib();
+    if(!ok){toast('Could not load the PDF tool — check your connection and try again. Your measurements are saved.',true);return;}
+    const {data,error}=await sb.from('measure_lines').select(MSCOLS).eq('job_id',jobId).order('sort_order');
+    if(error)throw error;
+    if(!data||!data.length){toast('Nothing to export yet — add a line item first');return;}
+    msBuildPdf(data);
+  }catch(err){console.error(err);toast('Could not generate the PDF',true);}
+  finally{if(btn){btn.disabled=false;btn.textContent=label||'Generate PDF';}}}
 /* Delegated so dynamically added cards need no per-line wiring and no new ids. */
 document.addEventListener('click',e=>{
   if(!e.target.closest('.modal-b.mslight'))return;
   if(e.target.closest('#msAdd')){msAddCard({});return;}
+  if(e.target.closest('#msPdf')){msGeneratePdf();return;}
   const card=e.target.closest('.mscard');if(!card)return;
   if(e.target.closest('.ms-save')){msSaveCard(card);return;}
   if(e.target.closest('.ms-del')){card.classList.add('confirming');return;}
