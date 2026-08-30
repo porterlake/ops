@@ -436,6 +436,10 @@
   .msf label{display:block;font-size:10px;letter-spacing:1.1px;text-transform:uppercase;color:var(--muted);margin-bottom:6px}
   .msdim{display:flex;gap:8px}
   .msdim>*{flex:1 1 0;min-width:0}
+  /* Quantity is 1-3 digits; a full-width box for "3" reads as a mistake.
+     Capped rather than paired side-by-side so the card stays single-column
+     and cannot overflow on a narrow phone. */
+  .mslight .ms-q{max-width:130px}
   .msrow{display:flex;gap:8px;align-items:center;margin-top:13px}
   .ms-del{margin-left:auto}
   .msconfirm{display:none;align-items:center;gap:8px;margin-top:10px;padding:9px 10px;border:1px solid rgba(163,33,29,.35);background:rgba(163,33,29,.06);border-radius:9px;font-size:12px;font-weight:600;color:#a3211d}
@@ -1190,7 +1194,10 @@ function modalBodyFor(ic){const a=appts.find(x=>x.id===selectedId)||{};
    sets --row-h. ===== */
 const MSFRACS=[[0,'0'],[0.125,'1/8'],[0.25,'1/4'],[0.375,'3/8'],[0.5,'1/2'],[0.625,'5/8'],[0.75,'3/4'],[0.875,'7/8']];
 const MSMOUNTS=['Inside Mount','Outside Mount','Ceiling Mount'];
-const MSCOLS='id,sort_order,product,mount_type,width_whole,width_frac,height_whole,height_frac,depth_whole,depth_frac,notes';
+const MSCOLS='id,sort_order,room_name,product,quantity,mount_type,width_whole,width_frac,height_whole,height_frac,depth_whole,depth_frac,notes';
+/* quantity is NOT NULL in the DB with a CHECK of >= 1, so a blank or junk box
+   must never reach Supabase. This is the single coercion point. */
+function msQty(v){const n=parseInt(v,10);return (isNaN(n)||n<1)?1:n;}
 function msFracLabel(v){if(v==null||v==='')return '0';const n=Number(v);const f=MSFRACS.find(x=>Math.abs(x[0]-n)<1e-9);return f?f[1]:'0';}
 function msFracValue(label){const f=MSFRACS.find(x=>x[1]===label);return f?f[0]:0;}
 function msInt(v){const t=String(v==null?'':v).trim();if(t==='')return null;const n=parseInt(t,10);return isNaN(n)||n<0?null:n;}
@@ -1203,6 +1210,8 @@ function msDimField(lbl,cw,cf,whole,frac){return `<div class="msf"><label>${lbl}
 function msCardHTML(r,i){return `<div class="mscard ${r.id?'is-saved':'is-dirty'}" data-id="${msEsc(r.id)}">`+
   `<div class="mssum"><span class="msidx">${i+1}</span><div class="mssumtxt"><div class="mstitle"></div><div class="mssub"></div></div><span class="msflag"></span><span class="mscar">&#9662;</span></div>`+
   `<div class="msbody">`+
+  `<div class="msf"><label>Room name</label><input class="dl-input ms-r" value="${msEsc(r.room_name)}" placeholder="e.g. Living Room"></div>`+
+  `<div class="msf"><label>Quantity</label><input class="dl-input ms-q" type="number" inputmode="numeric" min="1" step="1" value="${msQty(r.quantity)}"></div>`+
   `<div class="msf"><label>Product</label><input class="dl-input ms-p" value="${msEsc(r.product)}" placeholder="e.g. 2&quot; wood blind"></div>`+
   `<div class="msf"><label>Mount type</label><select class="dl-input ms-m"><option value="">—</option>${MSMOUNTS.map(m=>`<option${m===r.mount_type?' selected':''}>${m}</option>`).join('')}</select></div>`+
   msDimField('Width (in)','ms-ww','ms-wf',r.width_whole,r.width_frac)+
@@ -1213,13 +1222,17 @@ function msCardHTML(r,i){return `<div class="mscard ${r.id?'is-saved':'is-dirty'
   `<div class="msconfirm">Delete this line item?<span class="cbtns"><button class="msbtn ms-no">Cancel</button><button class="msbtn dgr ms-yes">Delete</button></span></div>`+
   `</div></div>`;}
 function msSyncCard(card){const g=s=>card.querySelector(s);
-  const prod=g('.ms-p').value.trim();
+  const room=g('.ms-r').value.trim(),prod=g('.ms-p').value.trim();
   const w=msDimText(g('.ms-ww').value,msFracValue(g('.ms-wf').value));
   const h=msDimText(g('.ms-hw').value,msFracValue(g('.ms-hf').value));
   const d=msDimText(g('.ms-dw').value,msFracValue(g('.ms-df').value));
   const dims=[w,h,d].filter(Boolean).join(' × ');
-  g('.mstitle').textContent=prod||'Untitled line';
-  g('.mssub').textContent=[dims,g('.ms-m').value].filter(Boolean).join(' · ')||'No measurements yet';
+  /* First word only — "Inside" not "Inside Mount". The summary is one
+     ellipsised line on a phone and the full value stays in the dropdown. */
+  const mount=(g('.ms-m').value||'').split(' ')[0];
+  const meta=[dims,mount].filter(Boolean);
+  g('.mstitle').textContent=[room,prod].filter(Boolean).join(' · ')||'Untitled line';
+  g('.mssub').textContent=(meta.length?meta.join(' · '):'No measurements yet')+' · Qty '+msQty(g('.ms-q').value);
   const dirty=card.classList.contains('is-dirty');
   const fl=g('.msflag');fl.className='msflag '+(dirty?'f-dirty':'f-saved');fl.textContent=dirty?'Unsaved':'Saved';}
 function msMarkDirty(card){card.classList.add('is-dirty');card.classList.remove('is-saved');msSyncCard(card);}
@@ -1239,9 +1252,14 @@ async function msSaveCard(card,silent){const jobId=currentJobId();
   const g=s=>card.querySelector(s);
   const dim=(cw,cf)=>{const w=msInt(g(cw).value),f=msFracValue(g(cf).value);return (w==null&&f===0)?[null,null]:[w,f];};
   const [ww,wf]=dim('.ms-ww','.ms-wf'),[hw,hf]=dim('.ms-hw','.ms-hf'),[dw,df]=dim('.ms-dw','.ms-df');
+  /* Coerce before sending, and write the coerced value back so the installer
+     sees exactly what was stored rather than a blank box that saved as 1. */
+  const qty=msQty(g('.ms-q').value);g('.ms-q').value=qty;
   const payload={job_id:jobId,
     sort_order:[...card.parentNode.querySelectorAll('.mscard')].indexOf(card),
+    room_name:g('.ms-r').value.trim()||null,
     product:g('.ms-p').value.trim()||null,
+    quantity:qty,
     mount_type:g('.ms-m').value||null,
     width_whole:ww,width_frac:wf,height_whole:hw,height_frac:hf,depth_whole:dw,depth_frac:df,
     notes:g('.ms-n').value.trim()||null};
