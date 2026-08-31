@@ -1399,8 +1399,15 @@ function msBuildPdf(rows){
     doc.text('Measurements provided by Porter Lake Shading Systems',M,PH-13);
     doc.text('Generated '+gen,M,PH-8.8);
     doc.text('Page '+p+' of '+pages,PW-M,PH-8.8,{align:'right'});}
-  const safe=(item.cust||'job').replace(/[^\w-]+/g,'_').slice(0,40);
-  doc.save('measure-sheet-'+safe+'.pdf');}
+  /* Stage 2: hand the finished doc back rather than saving here, so the caller
+     can upload it to the job first and still download the same object. */
+  return {doc:doc,filename:msPdfFilename()};}
+/* Date AND time. Two exports on the same day would otherwise appear as two
+   identically named rows in the job's file list. The storage path already
+   guarantees uniqueness via Date.now(); this makes them distinguishable to a
+   human reading the list later. */
+function msPdfFilename(){const d=new Date(),p=n=>String(n).padStart(2,'0');
+  return 'Measure Sheet — '+d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate())+' '+p(d.getHours())+'-'+p(d.getMinutes())+'.pdf';}
 async function msGeneratePdf(){
   const jobId=currentJobId();
   if(!jobId){toast('Save the job first',true);return;}
@@ -1413,7 +1420,25 @@ async function msGeneratePdf(){
     const {data,error}=await sb.from('measure_lines').select(MSCOLS).eq('job_id',jobId).order('sort_order');
     if(error)throw error;
     if(!data||!data.length){toast('Nothing to export yet — add a line item first');return;}
-    msBuildPdf(data);
+    const built=msBuildPdf(data);
+    /* Save to the job FIRST, then download — but a failed upload must never
+       cost the installer the document, so the download runs either way and the
+       error says plainly which half succeeded. Reuses uploadFile() untouched:
+       same job-files bucket, same jobId/timestamp path, same files row, so the
+       result lands in the drawer's existing PDF list with kind='pdf'. */
+    let saved=false;
+    try{
+      if(btn)btn.textContent='Saving…';
+      const blob=built.doc.output('blob');
+      let file;
+      try{file=new File([blob],built.filename,{type:'application/pdf'});}
+      catch(e){file=blob;file.name=built.filename;}
+      await uploadFile(jobId,file,'pdf');
+      saved=true;
+    }catch(err){console.error('measure sheet upload',err);}
+    built.doc.save(built.filename);
+    if(saved){toast('PDF saved to the job and downloaded');refreshFiles();}
+    else toast('Downloaded — but it could NOT be saved to the job. Check your connection and generate again.',true);
   }catch(err){console.error(err);toast('Could not generate the PDF',true);}
   finally{if(btn){btn.disabled=false;btn.textContent=label||'Generate PDF';}}}
 /* Delegated so dynamically added cards need no per-line wiring and no new ids. */
