@@ -788,7 +788,7 @@ body.role-installer [data-admin]{display:none!important}
       <button class="navtoggle" type="button" aria-label="Menu" aria-expanded="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
       <div class="page-title" id="ptitle">Scheduler <span id="rangeLbl"></span></div>
       <div class="seg ghost" id="viewSeg" style="margin-left:8px"><button data-v="month">Month</button><button data-v="week" class="on">Week</button><button data-v="day">Day</button></div>
-      <div id="monthLbl" style="font-size:12.5px;font-weight:700;letter-spacing:.03em;color:var(--sand-ink);white-space:nowrap;flex:0 0 auto"></div><div class="day-nav" id="dayNav"><button id="navPrev">‹</button><button id="navToday" style="width:auto;padding:0 10px;font-size:12px;font-weight:600">Today</button><button id="navNext">›</button></div>
+      <div class="day-nav" id="dayNav"><button id="navPrev">‹</button><button id="navToday" style="width:auto;padding:0 10px;font-size:12px;font-weight:600">Today</button><button id="navNext">›</button></div>
       <div class="spacer"></div>
       <select id="instFilter" class="topfilter"><option value="all">All installers</option></select>
       <button class="btn" id="newJobBtn" data-admin>+ New Job</button>
@@ -916,6 +916,14 @@ const DOW=["Mon","Tue","Wed","Thu","Fri","Sat","Sun"], MONTHN=["January","Februa
 /* Declarations, not arrow consts, so ordering with their callers cannot bite. */
 function monthAnchor(off){return new Date(TODAY.getFullYear(),TODAY.getMonth()+(off||0),1);}
 function monthLabel(off){const m=monthAnchor(off);return MONTHN[m.getMonth()]+" "+m.getFullYear();}
+/* The week label used to name only the START month, so the week of Aug 31 -
+   Sep 6 read "Aug 31 - 6" — a week that is mostly September labelled August.
+   Three cases: within one month, across two months, across two years. */
+function weekLabel(days){const a=days[0].date,b=days[6].date;
+  const mA=MONTHN[a.getMonth()].slice(0,3),mB=MONTHN[b.getMonth()].slice(0,3);
+  if(a.getFullYear()!==b.getFullYear())return `${mA} ${a.getDate()}, ${a.getFullYear()} – ${mB} ${b.getDate()}, ${b.getFullYear()}`;
+  if(a.getMonth()!==b.getMonth())return `${mA} ${a.getDate()} – ${mB} ${b.getDate()}, ${b.getFullYear()}`;
+  return `${mA} ${a.getDate()} – ${b.getDate()}, ${b.getFullYear()}`;}
 /* Day 0 of the NEXT month is the last day of this one — the real length, which
    is what the old hardcoded dim=30 in miniCal got wrong for any 31-day month. */
 function daysInMonth(d){return new Date(d.getFullYear(),d.getMonth()+1,0).getDate();}
@@ -1084,14 +1092,7 @@ function buildMonth(){const cal=$('cal');cal.style.minWidth='880px';const m=mont
 function render(){sizeCalendar();markConflicts();const cal=$('cal');cal.innerHTML='';cal.style.minWidth='';
   if(view==='week')buildWeek();else if(view==='day')buildDay();else buildMonth();
   const days=weekDays(weekOffset);
-  $('rangeLbl').textContent=view==='month'?monthLabel(monthOffset):view==='day'?`${days[selectedDay].dow} ${MONTHN[days[selectedDay].date.getMonth()].slice(0,3)} ${days[selectedDay].num}, ${days[selectedDay].date.getFullYear()}`:`${MONTHN[days[0].date.getMonth()].slice(0,3)} ${days[0].num} – ${days[6].num}, ${days[6].date.getFullYear()}`;
-  /* Full month and year, on all three views. A week that straddles two
-     months says so ("Aug - Sep 2026") rather than silently picking one. */
-  $('monthLbl').textContent=view==='month'?monthLabel(monthOffset)
-    :view==='day'?`${MONTHN[days[selectedDay].date.getMonth()]} ${days[selectedDay].date.getFullYear()}`
-    :days[0].date.getMonth()===days[6].date.getMonth()
-      ?`${MONTHN[days[0].date.getMonth()]} ${days[0].date.getFullYear()}`
-      :`${MONTHN[days[0].date.getMonth()].slice(0,3)} – ${MONTHN[days[6].date.getMonth()].slice(0,3)} ${days[6].date.getFullYear()}`;
+  $('rangeLbl').textContent=view==='month'?monthLabel(monthOffset):view==='day'?`${days[selectedDay].dow} ${MONTHN[days[selectedDay].date.getMonth()].slice(0,3)} ${days[selectedDay].num}, ${days[selectedDay].date.getFullYear()}`:weekLabel(days);
   const un=appts.filter(a=>(a.installer==='un'||!a.installer)&&a.status!=='done').length;const b=$('assignBanner');
   if(un){b.style.display='flex';b.innerHTML=`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9v4M12 17h.01"/></svg>${un} scheduled job${un>1?'s':''} need an installer assigned — click to review`;b.onclick=()=>{instFilter='un';const s=$('instFilter');if(s)s.value='un';render()};}
   else b.style.display='none';}
@@ -2225,7 +2226,7 @@ $('njSave').onclick=async()=>{if(!IS_ADMIN)return;let dId=njDealerId,dealer;
 function navTo(p){if(!IS_ADMIN&&ADMIN_PAGES.has(p))p='scheduler';
   page=p;document.querySelectorAll('.nav-item').forEach(n=>n.classList.toggle('active',n.dataset.page===p));
   const sched=p==='scheduler';$('schedView').style.display=sched?'flex':'none';$('genericView').style.display=sched?'none':'block';
-  $('viewSeg').style.display=sched?'flex':'none';$('dayNav').style.display=sched?'flex':'none';$('monthLbl').style.display=sched?'block':'none';$('rangeLbl').style.display=sched?'inline':'none';$('instFilter').style.display=sched?'block':'none';
+  $('viewSeg').style.display=sched?'flex':'none';$('dayNav').style.display=sched?'flex':'none';$('rangeLbl').style.display=sched?'inline':'none';$('instFilter').style.display=sched?'block':'none';
   const titles={scheduler:'Scheduler',toschedule:'To Schedule',installers:'Installers',dealers:'Dealers',inventory:'Receiving',rates:'Service Rates',reports:'Reports'};
   $('ptitle').childNodes[0].nodeValue=titles[p]+' ';
   if(sched)render();else buildGeneric(p);}
