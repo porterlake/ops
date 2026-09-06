@@ -831,7 +831,7 @@ body.role-installer [data-admin]{display:none!important}
       <div class="fld" id="drMarginFld" data-admin style="display:none"><label>Margin</label><div id="drMargin"></div></div>
       <div class="fld"><label>Scope</label><input id="drScope" type="text"></div>
       <div class="fld"><label>Duration</label><div class="durrow"><select id="drDurH"></select><span class="durx">hr</span><select id="drDurM"></select><span class="durx">min</span></div></div>
-      <div class="fld"><label>Notes</label><textarea id="drNotes"></textarea></div>
+      <div class="fld"><label>Notes</label><textarea id="drNoteNew" placeholder="Add an internal note…"></textarea><div style="display:flex;justify-content:flex-end;margin-top:8px"><button class="btn" id="drNoteAdd">Add Note</button></div><div id="drNoteFeed" style="margin-top:10px"></div></div>
       <div class="fld"><label>Documents &amp; photos</label><div id="drFiles"></div></div>
     </div>
     <div class="dr-foot"><button class="btn del" id="drLeftBtn">Unschedule</button><button class="btn" onclick="saveDrawer()">Save changes</button></div>
@@ -1130,7 +1130,9 @@ function openDrawer(id){let a=appts.find(x=>x.id===id),mode='appt';if(!a){a=queu
   {const ph=a.phone||'';$('drPhone').innerHTML=ph?`<a class="tel" href="tel:${telDigits(ph)}">${ph}</a>`:'—';}
   const li=a.lineItems||[];if(li.length){const d=li.filter(x=>x.delivered).length;$('drProductFld').style.display='block';$('drProduct').innerHTML=d===li.length?`<span style="color:#7c9a3f">All ${li.length} line item${li.length>1?'s':''} delivered</span>`:`<span style="color:#caa017">${d}/${li.length} delivered — awaiting product</span>`;}else $('drProductFld').style.display='none';
   renderDrPricing(a);drCancelEdit();
-  $('drScope').value=a.scope||'';$('drNotes').value=a.notes||'';
+  $('drScope').value=a.scope||'';
+  /* Notes are their own append-only feed as of v44; nothing to prefill. */
+  $('drNoteNew').value='';noteLoad();
   fillDur($('drDurH'),$('drDurM'),(mode==='appt'?a.dur*60:(a.estMins||defaultMins(a.type))));
   document.querySelectorAll('#drType .chip').forEach(c=>{const on=c.dataset.t===a.type;c.classList.toggle('on',on);c.style.background=on?TYPES[a.type].c:''});
   drTypeShow(a.type);
@@ -1194,12 +1196,12 @@ $('viewBg').addEventListener('click',e=>{if(e.target.id==='viewBg')$('viewBg').c
 function closeDrawer(){selectedId=null;$('drawer').classList.remove('open');render()}
 function renderWO(type){const set=WO[type],box=$('woBlock');box.innerHTML=`<div class="wo-h"><i style="background:${set.color}"></i>${type} work order</div><div class="wo-actions">${set.actions.map(a=>`<button class="wo-btn" data-ic="${a.ic}" data-label="${a.label}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">${ICONS[a.ic]}</svg>${a.label}<span class="arr">›</span></button>`).join('')}</div>`;box.querySelectorAll('.wo-btn').forEach(b=>b.onclick=()=>openModal(b.dataset.ic,b.dataset.label));}
 async function saveDrawer(){const inQ=drawerMode==='queue';const a=(inQ?queue:appts).find(x=>x.id===selectedId);if(!a)return;
-  a.scope=$('drScope').value;a.notes=$('drNotes').value;a.type=document.querySelector('#drType .chip.on').dataset.t;
+  a.scope=$('drScope').value;a.type=document.querySelector('#drType .chip.on').dataset.t;
   a.status=$('drStatus').value;a.installer=$('drInstaller').value;
   const mins=Math.max(15,hmToMins($('drDurH').value,$('drDurM').value)||defaultMins(a.type));
   if(inQ){a.estMins=mins;const {error}=await sb.from('jobs').update({type:a.type,scope:a.scope,estimated_minutes:mins,site_address:a.addr==='—'?null:a.addr}).eq('id',a.id);if(error)console.error(error);renderQueue();if(page==='toschedule')buildGeneric('toschedule');toast('Saved');closeDrawer();return;}
   a.dur=mins/60;a.estMins=mins;
-  const {error:ae}=await sb.from('appointments').update({installer_id:a.installer==='un'?null:a.installer,status:a.status,notes:a.notes,duration_minutes:mins}).eq('id',a.id);if(ae)console.error(ae);
+  const {error:ae}=await sb.from('appointments').update({installer_id:a.installer==='un'?null:a.installer,status:a.status,duration_minutes:mins}).eq('id',a.id);if(ae)console.error(ae);
   if(a.jobId){const {error:je}=await sb.from('jobs').update({type:a.type,scope:a.scope,estimated_minutes:mins}).eq('id',a.jobId);if(je)console.error(je);}
   markConflicts();render();
   const nm=instById(a.installer).name.split(' ')[0];
@@ -1227,6 +1229,87 @@ function drTypeShow(t){const b=$('drTypeBadge');if(!b)return;
 function drTypeEditOn(){const v=$('drTypeView'),c=$('drType');
   if(v)v.style.display='none';if(c)c.style.display='flex';}
 $('drTypeEdit').onclick=drTypeEditOn;
+/* ===== Internal job notes feed (v44) ===================================
+   Replaces the drawer's single free-text Notes box. It lives in the shared
+   drawer markup, so it appears in every job type — measure, install, return
+   trip — and in the queue drawer too.
+
+   Keyed on the JOB, not the appointment. That is what makes it work for an
+   unscheduled job: the old textarea was written only by the appointments
+   UPDATE, and the queue branch of saveDrawer() returns before reaching it, so
+   a note typed on a queue job used to be discarded without any error.
+
+   INTERNAL ONLY. Nothing in send-documents or msBuildPdf reads job_notes, and
+   nothing here should ever be wired to either.
+
+   APPEND-ONLY, enforced by RLS rather than by this UI: the table has SELECT and
+   INSERT policies and no UPDATE or DELETE policy at all. There is deliberately
+   no edit or delete affordance below, and adding one would not work if there
+   were — a blocked write returns 0 rows rather than an error.
+   ======================================================================== */
+let NOTE_ROWS=[];
+
+/* Same derivation the user chip uses, so the feed says "Mike" exactly as the
+   sidebar does. '(migrated)' is the marker the backfill wrote for notes that
+   predate authorship being recorded at all. */
+function noteWho(email){const s=String(email||'').trim();
+  if(!s)return 'Unknown';
+  if(s==='(migrated)')return 'Migrated note';
+  const l=s.split('@')[0];
+  return l?l.charAt(0).toUpperCase()+l.slice(1):'Unknown';}
+
+function noteWhen(ts){const d=new Date(ts);
+  if(isNaN(d.getTime()))return '';
+  return d.toLocaleString(undefined,{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'});}
+
+function noteRender(){const box=$('drNoteFeed');if(!box)return;
+  const dim='font-size:12.5px;color:var(--sand-dim)';
+  if(!NOTE_ROWS.length){box.innerHTML='<div style="'+dim+'">No notes yet.</div>';return;}
+  box.innerHTML=NOTE_ROWS.map(function(n){
+    return '<div style="padding:10px 0;border-top:1px solid var(--side-border)">'
+      +'<div style="font-size:13px;line-height:1.5;color:var(--sand-ink);white-space:pre-wrap">'+esc(n.body)+'</div>'
+      +'<div style="'+dim+';margin-top:5px">'+esc(noteWho(n.author_email))+' · '+esc(noteWhen(n.created_at))+'</div>'
+      +'</div>';}).join('');}
+
+async function noteLoad(){const box=$('drNoteFeed');if(!box)return;
+  const dim='font-size:12.5px;color:var(--sand-dim)';
+  NOTE_ROWS=[];
+  const jobId=currentJobId();
+  if(!jobId){box.innerHTML='<div style="'+dim+'">Save the job first to add notes.</div>';return;}
+  box.innerHTML='<div style="'+dim+'">Loading notes…</div>';
+  const {data,error}=await sb.from('job_notes')
+    .select('id,body,author_email,created_at')
+    .eq('job_id',jobId)
+    .order('created_at',{ascending:false});
+  if(error){console.error('noteLoad',error);
+    box.innerHTML='<div style="font-size:12.5px;color:#e08a86">Could not load notes.</div>';return;}
+  NOTE_ROWS=data||[];noteRender();}
+
+async function noteAdd(){
+  const jobId=currentJobId();
+  if(!jobId){toast('Save the job first',true);return;}
+  const ta=$('drNoteNew'),btn=$('drNoteAdd');
+  const body=(ta?ta.value:'').trim();
+  if(!body){toast('Type a note first');return;}
+  const lbl=btn?btn.textContent:'Add Note';
+  if(btn){btn.disabled=true;btn.textContent='Adding…';}
+  /* job_id and body ONLY. tenant_id, created_by and author_email are filled by
+     database defaults from the caller's own JWT, so the client cannot claim to
+     be someone else — unlike files.uploaded_by, which the client sends as the
+     hardcoded string 'M. Lake'. */
+  const {data,error}=await sb.from('job_notes')
+    .insert({job_id:jobId,body})
+    .select('id,body,author_email,created_at')
+    .single();
+  if(btn){btn.disabled=false;btn.textContent=lbl;}
+  if(error){console.error('noteAdd',error);toast('Could not add the note',true);return;}
+  ta.value='';
+  /* Prepend the row the database actually returned rather than re-fetching —
+     one round trip instead of two, and the author and timestamp shown are the
+     ones the DB assigned, not a local guess. */
+  NOTE_ROWS.unshift(data);noteRender();
+  toast('Note added');}
+$('drNoteAdd').onclick=noteAdd;
 $('drClose').onclick=closeDrawer;
 $('drType').addEventListener('click',e=>{const c=e.target.closest('.chip');if(!c)return;document.querySelectorAll('#drType .chip').forEach(x=>{x.classList.remove('on');x.style.background=''});c.classList.add('on');c.style.background=TYPES[c.dataset.t].c;renderWO(c.dataset.t);drTypeShow(c.dataset.t)});
 $('drStatus').addEventListener('change',e=>$('issueBanner').classList.toggle('show',e.target.value==='issue'));
