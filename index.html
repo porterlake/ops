@@ -1151,11 +1151,15 @@ async function refreshFiles(){const a=currentItem();if(!a)return;const jobId=cur
   if(!jobId){$('drFiles').innerHTML='<div class="fileempty">Save the job first to attach files.</div>';return;}
   $('drFiles').innerHTML='<div class="fileempty">Loading files…</div>';
   a.files=await loadFiles(jobId);renderFiles(a);}
-function renderFiles(a){const box=$('drFiles');const files=a.files||[];const photos=files.filter(f=>f.kind==='photo'),pdfs=files.filter(f=>f.kind==='pdf');
+/* Newest first, documents above photos (v40). loadFiles returns rows in
+   uploaded_at ASCENDING, so each list is reversed here rather than re-querying.
+   filter() already returns a fresh array, so reverse() cannot disturb a.files —
+   openViewer looks files up by id, so display order never affects it. */
+function renderFiles(a){const box=$('drFiles');const files=a.files||[];const photos=files.filter(f=>f.kind==='photo').reverse(),pdfs=files.filter(f=>f.kind==='pdf').reverse();
   let h=`<div class="fileadd"><button onclick="openModal('cam','Attach photos')">+ Photos</button><button onclick="openModal('upload','Upload document')">+ PDF</button></div>`;
   if(!files.length)h+=`<div class="fileempty">No files yet — attach work orders or photos above.</div>`;
-  if(photos.length)h+=`<div class="filegrid">${photos.map(f=>`<div class="filethumb" style="background-image:url(${f.url})" onclick="openViewer('${f.id}')"><span class="filedel" onclick="event.stopPropagation();deleteFile('${f.id}','${f.path}')">×</span></div>`).join('')}</div>`;
   if(pdfs.length)h+=pdfs.map(f=>`<div class="filepdf"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" onclick="openViewer('${f.id}')"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg><span onclick="openViewer('${f.id}')" style="flex:1;cursor:pointer">${f.name}</span><span class="vw" onclick="openViewer('${f.id}')">View ›</span><span class="filedel" onclick="event.stopPropagation();deleteFile('${f.id}','${f.path}')">×</span></div>`).join('');
+  if(photos.length)h+=`<div class="filegrid">${photos.map(f=>`<div class="filethumb" style="background-image:url(${f.url})" onclick="openViewer('${f.id}')"><span class="filedel" onclick="event.stopPropagation();deleteFile('${f.id}','${f.path}')">×</span></div>`).join('')}</div>`;
   box.innerHTML=h;}
 function openViewer(fileId){const a=currentItem();if(!a||!a.files)return;const f=a.files.find(x=>x.id===fileId);if(!f)return;
   $('viewTitle').textContent=f.name;$('viewIcon').innerHTML=`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">${f.kind==='pdf'?'<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/>':'<rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-5-5L5 21"/>'}</svg>`;
@@ -1746,9 +1750,11 @@ async function sdInit(){
   try{files=await loadFiles(jobId);}catch(err){console.error('sdInit',err);}
   /* loadFiles orders by uploaded_at ascending, so reversing puts newest first. */
   const sheets=files.filter(f=>f.kind==='pdf'&&sdIsMeasureSheet(f)).reverse();
-  /* Photos stay in the order they were taken — that is the order the dealer
-     should read them in. */
-  const photos=files.filter(f=>f.kind==='photo');
+  /* Newest first (v40), matching the drawer. This reverses the v37 choice of
+     chronological order. One consequence worth knowing: the size-budget split
+     below keeps photos from the START of this list, so if a job ever exceeds
+     the budget it is now the OLDEST photos that are left out, not the newest. */
+  const photos=files.filter(f=>f.kind==='photo').reverse();
   if(!sheets.length){
     box.innerHTML='<p style="font-size:13px;color:var(--sand-ink);line-height:1.55">No measure sheet has been generated for this job yet.</p>'
       +'<p style="'+dim+';margin-top:10px">Open the measure sheet, then tap <b>Generate PDF</b>. That saves it to the job and makes it sendable.</p>';
