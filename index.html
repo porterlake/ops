@@ -786,9 +786,9 @@ body.role-installer [data-admin]{display:none!important}
   <div class="main">
     <div class="topbar">
       <button class="navtoggle" type="button" aria-label="Menu" aria-expanded="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
-      <div class="page-title" id="ptitle">Scheduler <span id="rangeLbl">Jun 22 – 28, 2026</span></div>
+      <div class="page-title" id="ptitle">Scheduler <span id="rangeLbl"></span></div>
       <div class="seg ghost" id="viewSeg" style="margin-left:8px"><button data-v="month">Month</button><button data-v="week" class="on">Week</button><button data-v="day">Day</button></div>
-      <div class="day-nav" id="dayNav"><button id="navPrev">‹</button><button id="navNext">›</button></div>
+      <div class="day-nav" id="dayNav"><button id="navPrev">‹</button><button id="navToday" style="width:auto;padding:0 10px;font-size:12px;font-weight:600">Today</button><button id="navNext">›</button></div>
       <div class="spacer"></div>
       <select id="instFilter" class="topfilter"><option value="all">All installers</option></select>
       <button class="btn" id="newJobBtn" data-admin>+ New Job</button>
@@ -904,8 +904,21 @@ body.role-installer [data-admin]{display:none!important}
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
-const BASE_MON=new Date(2026,5,22), TODAY=new Date(2026,5,26);
+/* Anchored to the real clock at launch (v41). TODAY is midnight today;
+   BASE_MON is the Monday of today's week, so weekOffset=0 is THIS week.
+   These decide which dates are ON SCREEN, never which date an appointment is
+   ON: mapAppt stores an absolute YYYY-MM-DD taken from start_time, and a drop
+   composes its ISO from the target cell's own key. Moving the anchor moves the
+   window, not the contents. */
+const TODAY=(function(){const d=new Date();d.setHours(0,0,0,0);return d;})();
+const BASE_MON=(function(){const d=new Date(TODAY);d.setDate(d.getDate()-((d.getDay()+6)%7));return d;})();
 const DOW=["Mon","Tue","Wed","Thu","Fri","Sat","Sun"], MONTHN=["January","February","March","April","May","June","July","August","September","October","November","December"];
+/* Declarations, not arrow consts, so ordering with their callers cannot bite. */
+function monthAnchor(off){return new Date(TODAY.getFullYear(),TODAY.getMonth()+(off||0),1);}
+function monthLabel(off){const m=monthAnchor(off);return MONTHN[m.getMonth()]+" "+m.getFullYear();}
+/* Day 0 of the NEXT month is the last day of this one — the real length, which
+   is what the old hardcoded dim=30 in miniCal got wrong for any 31-day month. */
+function daysInMonth(d){return new Date(d.getFullYear(),d.getMonth()+1,0).getDate();}
 const START_HOUR=6,END_HOUR=20;let ROW=54;
 const ROW_MIN=44,ROW_MAX=78;
 function sizeCalendar(){if(view==='month')return;const wrap=document.querySelector('.cal-wrap');if(!wrap)return;
@@ -976,7 +989,9 @@ let appts=[
   {id:"a8",type:"Install",cust:"Allen Tyre",dealer:"Bayview Shade",addr:"19 Coral Way",scope:"Drapery hardware",day:4,start:15,dur:1.5,installer:"th",status:"done"}
 ];
 
-let view="week", selectedDay=4, weekOffset=0, monthOffset=0, selectedId=null, page="scheduler", drawerMode="appt", instFilter="all";
+/* selectedDay is today's index within BASE_MON's week (0=Mon). Math.round
+   rather than a raw divide so a DST boundary cannot land it on 5.96. */
+let view="week", selectedDay=Math.round((TODAY-BASE_MON)/86400000), weekOffset=0, monthOffset=0, selectedId=null, page="scheduler", drawerMode="appt", instFilter="all";
 let currentModalIc=null, modalPdf=null;
 const fid=()=>'f'+Date.now()+Math.floor(Math.random()*999);
 function currentItem(){return (drawerMode==='queue'?queue:appts).find(x=>x.id===selectedId)}
@@ -1055,11 +1070,11 @@ function buildDay(){const cal=$('cal');cal.style.minWidth='min(520px,100%)';cons
   const head=document.createElement('div');head.className='cal-head';head.style.gridTemplateColumns=`var(--time-col) 1fr`;head.innerHTML=`<div class="corner"></div><div class="dh${d.today?' today':''}"><div class="dow">${d.dow}</div><div class="dnum">${d.num}</div></div>`;cal.appendChild(head);
   const grid=document.createElement('div');grid.className='grid';grid.style.gridTemplateColumns=`var(--time-col) 1fr`;grid.appendChild(timeCol());grid.appendChild(dayCol(d.key));cal.appendChild(grid);
   visibleAppts().filter(a=>a.dateKey===d.key).forEach(a=>grid.querySelector('.day-col').appendChild(apptCard(a)));}
-function buildMonth(){const cal=$('cal');cal.style.minWidth='880px';const m=new Date(2026,5+monthOffset,1);
+function buildMonth(){const cal=$('cal');cal.style.minWidth='880px';const m=monthAnchor(monthOffset);
   const grid=document.createElement('div');grid.className='mgrid';DOW.forEach(d=>{const h=document.createElement('div');h.className='mdow';h.textContent=d;grid.appendChild(h)});
-  const offset=(m.getDay()+6)%7,dim=new Date(2026,6+monthOffset,0).getDate();
+  const offset=(m.getDay()+6)%7,dim=daysInMonth(m);
   for(let i=0;i<offset;i++)grid.appendChild(Object.assign(document.createElement('div'),{className:'mcell out'}));
-  for(let dt=1;dt<=dim;dt++){const cd=new Date(2026,5+monthOffset,dt);const key=dateKey(cd);const c=document.createElement('div');c.className='mcell'+(cd.toDateString()===TODAY.toDateString()?' today':'');c.innerHTML=`<span class="md">${dt}</span>`;
+  for(let dt=1;dt<=dim;dt++){const cd=new Date(m.getFullYear(),m.getMonth(),dt);const key=dateKey(cd);const c=document.createElement('div');c.className='mcell'+(cd.toDateString()===TODAY.toDateString()?' today':'');c.innerHTML=`<span class="md">${dt}</span>`;
     c.onclick=e=>{if(e.target===c||e.target.classList.contains('md'))gotoDate(cd)};
     c.addEventListener('dragover',e=>{e.preventDefault();c.classList.add('drop')});c.addEventListener('dragleave',()=>c.classList.remove('drop'));
     c.addEventListener('drop',e=>{e.preventDefault();c.classList.remove('drop');const mv=e.dataTransfer.getData('appt');if(mv){const ap=appts.find(x=>x.id===mv);moveAppt(mv,key,ap?ap.start:9)}else dropJob(key,9,e)});
@@ -1069,7 +1084,7 @@ function buildMonth(){const cal=$('cal');cal.style.minWidth='880px';const m=new 
 function render(){sizeCalendar();markConflicts();const cal=$('cal');cal.innerHTML='';cal.style.minWidth='';
   if(view==='week')buildWeek();else if(view==='day')buildDay();else buildMonth();
   const days=weekDays(weekOffset);
-  $('rangeLbl').textContent=view==='month'?`${MONTHN[((5+monthOffset)%12+12)%12]} 2026`:view==='day'?`${days[selectedDay].dow} ${MONTHN[days[selectedDay].date.getMonth()].slice(0,3)} ${days[selectedDay].num}, ${days[selectedDay].date.getFullYear()}`:`${MONTHN[days[0].date.getMonth()].slice(0,3)} ${days[0].num} – ${days[6].num}, ${days[6].date.getFullYear()}`;
+  $('rangeLbl').textContent=view==='month'?monthLabel(monthOffset):view==='day'?`${days[selectedDay].dow} ${MONTHN[days[selectedDay].date.getMonth()].slice(0,3)} ${days[selectedDay].num}, ${days[selectedDay].date.getFullYear()}`:`${MONTHN[days[0].date.getMonth()].slice(0,3)} ${days[0].num} – ${days[6].num}, ${days[6].date.getFullYear()}`;
   const un=appts.filter(a=>(a.installer==='un'||!a.installer)&&a.status!=='done').length;const b=$('assignBanner');
   if(un){b.style.display='flex';b.innerHTML=`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9v4M12 17h.01"/></svg>${un} scheduled job${un>1?'s':''} need an installer assigned — click to review`;b.onclick=()=>{instFilter='un';const s=$('instFilter');if(s)s.value='un';render()};}
   else b.style.display='none';}
@@ -2193,11 +2208,11 @@ function navTo(p){if(!IS_ADMIN&&ADMIN_PAGES.has(p))p='scheduler';
   const titles={scheduler:'Scheduler',toschedule:'To Schedule',installers:'Installers',dealers:'Dealers',inventory:'Receiving',rates:'Service Rates',reports:'Reports'};
   $('ptitle').childNodes[0].nodeValue=titles[p]+' ';
   if(sched)render();else buildGeneric(p);}
-function miniCal(){const m=new Date(2026,5,1),offset=(m.getDay()+6)%7,dim=30;let cells='';
+function miniCal(){const m=monthAnchor(0),offset=(m.getDay()+6)%7,dim=daysInMonth(m);let cells='';
   for(let i=0;i<offset;i++)cells+=`<div class="mc-day out"></div>`;
-  for(let dt=1;dt<=dim;dt++){const cd=new Date(2026,5,dt);const key=dateKey(cd);const has=appts.some(a=>a.dateKey===key);const today=cd.toDateString()===TODAY.toDateString();
-    cells+=`<div class="mc-day${today?' today':''}" onclick="gotoDate(new Date(2026,5,${dt}))">${dt}${has?'<span class="pip"></span>':''}</div>`}
-  return `<div class="minical"><div class="mc-h">June 2026</div><div class="mc-grid">${DOW.map(d=>`<span>${d[0]}</span>`).join('')}${cells}</div></div>`;}
+  for(let dt=1;dt<=dim;dt++){const cd=new Date(m.getFullYear(),m.getMonth(),dt);const key=dateKey(cd);const has=appts.some(a=>a.dateKey===key);const today=cd.toDateString()===TODAY.toDateString();
+    cells+=`<div class="mc-day${today?' today':''}" onclick="gotoDate(new Date(${m.getFullYear()},${m.getMonth()},${dt}))">${dt}${has?'<span class="pip"></span>':''}</div>`}
+  return `<div class="minical"><div class="mc-h">${monthLabel(0)}</div><div class="mc-grid">${DOW.map(d=>`<span>${d[0]}</span>`).join('')}${cells}</div></div>`;}
 function buildGeneric(p){const g=$('genericView');
   if(p==='toschedule'){const ready=queue.filter(readyToSchedule);const awaiting=queue.filter(stillAwaiting).length;
     g.innerHTML=`<div class="ts-wrap"><div class="ts-main"><div class="gp-head">To Schedule</div><div class="gp-sub">${ready.length} jobs ready to book.${awaiting?` ${awaiting} more awaiting product in Receiving.`:''}</div>${ready.map(j=>{const aw=partialAwaiting(j)?`<span class="awtag light">⏳ awaiting product</span>`:'';return `<div class="grow" style="cursor:pointer" onclick="openDrawer('${j.id}')"><span class="gt" style="background:rgba(216,198,160,.28);color:#7a6c45">${j.type}</span><div style="flex:1"><div class="gname">${j.cust} ${aw}</div><div class="gmeta">${j.scope} · ${j.addr}</div></div><div class="gmeta">${j.dealer}</div></div>`}).join('')||'<div class="empty"><h3>Queue is clear</h3><p>No jobs ready to schedule.</p></div>'}</div><div class="ts-side">${miniCal()}</div></div>`;return}
@@ -2354,6 +2369,16 @@ async function scheduleAnyway(jobId){const j=queue.find(x=>x.id===jobId);if(!j)r
 document.querySelectorAll('.nav-item').forEach(n=>n.onclick=()=>navTo(n.dataset.page));
 document.querySelectorAll('#viewSeg button').forEach(b=>b.onclick=()=>setView(b.dataset.v));
 function stepDay(d){selectedDay+=d;if(selectedDay<0){selectedDay=6;weekOffset--}if(selectedDay>6){selectedDay=0;weekOffset++}}
+/* Today respects the ACTIVE view: day jumps to today, week to this week,
+   month to this month. Deliberately does NOT call setView() — gotoDate() does,
+   which is right for clicking a date but wrong for this button.
+   Reads the clock fresh rather than using TODAY, so a tab left open past
+   midnight still jumps to the actual today. */
+$('navToday').onclick=()=>{const t=new Date();t.setHours(0,0,0,0);
+  const diff=Math.round((t-BASE_MON)/86400000);
+  weekOffset=Math.floor(diff/7);selectedDay=((diff%7)+7)%7;
+  monthOffset=(t.getFullYear()-TODAY.getFullYear())*12+(t.getMonth()-TODAY.getMonth());
+  render();};
 $('navPrev').onclick=()=>{if(view==='day')stepDay(-1);else if(view==='week')weekOffset--;else monthOffset--;render()};$('navNext').onclick=()=>{if(view==='day')stepDay(1);else if(view==='week')weekOffset++;else monthOffset++;render()};
 const instSel=$('instFilter');populateInstallerFilter();
 instSel.onchange=()=>{instFilter=instSel.value;render()};
