@@ -2612,30 +2612,154 @@ async function saveService(){if(!IS_ADMIN)return;const name=$('svcName').value.t
 async function deleteService(){if(!IS_ADMIN)return;if(!editingSvc)return;const {error}=await sb.from('services').delete().eq('id',editingSvc);if(error){toast('Delete failed',true);console.error(error);return;}
   SERVICES=SERVICES.filter(s=>s.id!==editingSvc);$('svcBg').classList.remove('open');buildRates();toast('Rate deleted');}
 
+/* ===== Receiving: reach jobs that have left the awaiting queue (v47) =====
+   Two separate disappearances made a mistaken check-off uncorrectable:
+
+     1. buildReceiving rendered cards for AWAITING jobs only. `ready` was
+        counted in the stat bar but never given a card, so checking off the last
+        line made the whole card vanish.
+     2. `queue` excludes scheduled jobs, so once a job was scheduled it left the
+        pool entirely — invisible here, and unreachable by toggleLine, whose
+        first statement was queue.find(...).
+
+   Fix: an Awaiting / Received / All filter, drawing from a pool that includes
+   scheduled jobs, and a toggleLine that resolves a job from that same pool.
+
+   The AWAITING view is deliberately still sourced from `queue` alone, exactly
+   as before, so the default view behaves identically to v46 — the extended pool
+   is used only by the two new correction views.
+   ======================================================================== */
+let recvFilter='awaiting';
+
+function setRecvFilter(f){recvFilter=f;buildReceiving();}
+
+/* queue plus the scheduled jobs, deduped by job id. The lineItems array is
+   passed by REFERENCE, not copied — that is what lets toggleLine mutate the
+   underlying appointment's copy and have every view agree afterwards. */
+function recvPool(){
+  const out=queue.slice();
+  const seen=new Set(out.map(function(j){return j.id;}));
+  appts.forEach(function(a){
+    if(!a.jobId||seen.has(a.jobId))return;
+    if(!a.lineItems||!a.lineItems.length)return;
+    seen.add(a.jobId);
+    out.push({id:a.jobId,cust:a.cust,type:a.type,dealer:a.dealer,addr:a.addr,
+              lineItems:a.lineItems,scheduled:true});
+  });
+  return out;
+}
+
+/* Resolves a job for the write path. queue first (the common case), then the
+   scheduled jobs. This is what makes an already-scheduled job correctable. */
+function recvFind(jobId){
+  const q=queue.find(function(x){return x.id===jobId;});
+  if(q)return q;
+  return recvPool().find(function(x){return x.id===jobId;})||null;
+}
+
+function recvFullyReceived(j){
+  return !!(j.lineItems&&j.lineItems.length&&j.lineItems.every(function(li){return li.delivered;}));
+}
+
+function recvCard(j,showSchedule){
+  const done=j.lineItems.filter(function(li){return li.delivered;}).length,tot=j.lineItems.length;
+  const lines=j.lineItems.map(function(li){
+    return '<div class="lrow '+(li.delivered?'on':'')+'">'
+      +'<button class="lck" onclick="toggleLine(\''+j.id+'\',\''+li.id+'\')">'
+      +(li.delivered?'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M5 12l5 5L20 6"/></svg>':'')
+      +'</button>'
+      +'<div class="ld"><div class="ln">'+esc(li.desc)+'</div>'
+      +(li.delivered&&li.by?'<div class="lby">'+esc(li.by)+'</div>':'')+'</div>'
+      +'<div class="lq">&times;'+esc(String(li.qty))+'</div>'
+      +'<div class="lstat">'+(li.delivered
+          ?'<span class="lbadge in">Delivered</span>'
+          :'<span class="lbadge out">Pending</span>')+'</div>'
+      +'</div>';}).join('');
+  const tag=j.scheduled?' <span class="rtype">Scheduled</span>':'';
+  return '<div class="rcard"><div class="rhead"><div>'
+      +'<div class="rcust">'+esc(j.cust)+' <span class="rtype">'+esc(j.type)+'</span>'+tag+'</div>'
+      +'<div class="rsub">'+esc(j.dealer)+' &middot; '+esc(j.addr)+'</div></div>'
+      +'<div class="rprog">'+done+'/'+tot+' delivered</div></div>'
+      +'<div class="lines">'+lines+'</div>'
+      +(showSchedule
+        ?'<div class="ract"><button class="btn sm" onclick="scheduleAnyway(\''+j.id+'\')">Schedule anyway (partial)</button></div>'
+        :'')
+      +'</div>';
+}
+
 function buildReceiving(){const g=$('genericView');
+  /* Fails closed: an installer never sees the correction views, and cannot be
+     left in one by stale state either. */
+  if(!IS_ADMIN)recvFilter='awaiting';
   const awaiting=queue.filter(stillAwaiting);
   const ready=queue.filter(readyToSchedule);
-  const cards=awaiting.map(j=>{const done=j.lineItems.filter(li=>li.delivered).length,tot=j.lineItems.length;
-    const lines=j.lineItems.map(li=>`<div class="lrow ${li.delivered?'on':''}">
-        <button class="lck" onclick="toggleLine('${j.id}','${li.id}')">${li.delivered?'<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"3\"><path d=\"M5 12l5 5L20 6\"/></svg>':''}</button>
-        <div class="ld"><div class="ln">${li.desc}</div>${li.delivered&&li.by?`<div class="lby">${li.by}</div>`:''}</div>
-        <div class="lq">×${li.qty}</div>
-        <div class="lstat">${li.delivered?'<span class="lbadge in">Delivered</span>':'<span class="lbadge out">Pending</span>'}</div>
-      </div>`).join('');
-    return `<div class="rcard"><div class="rhead"><div><div class="rcust">${j.cust} <span class="rtype">${j.type}</span></div><div class="rsub">${j.dealer} · ${j.addr}</div></div>
-        <div class="rprog">${done}/${tot} delivered</div></div>
-        <div class="lines">${lines}</div>
-        <div class="ract"><button class="btn sm" onclick="scheduleAnyway('${j.id}')">Schedule anyway (partial)</button></div></div>`;}).join('');
-  g.innerHTML=`<div class="gp-head">Receiving</div><div class="gp-sub">Check off line items as product arrives. When all line items are delivered, the job moves to Ready to Schedule automatically.</div>
-    <div class="inv-bar"><div class="inv-stat hl"><b>${awaiting.length}</b><span>Awaiting product</span></div><div class="inv-stat"><b>${ready.length}</b><span>Ready to schedule</span></div></div>
-    ${cards||'<div class="empty"><h3>Nothing in receiving</h3><p>No jobs are waiting on product right now.</p></div>'}`;}
-async function toggleLine(jobId,lineId){const j=queue.find(x=>x.id===jobId);if(!j)return;const li=j.lineItems.find(l=>l.id===lineId);if(!li)return;
+  const received=recvPool().filter(recvFullyReceived);
+
+  let list,empty;
+  if(recvFilter==='received'){
+    list=received.map(function(j){return recvCard(j,false);}).join('');
+    empty='<div class="empty"><h3>Nothing fully received yet</h3><p>Jobs appear here once every line item is checked in.</p></div>';
+  }else if(recvFilter==='all'){
+    const seen=new Set(),rows=[];
+    awaiting.forEach(function(j){seen.add(j.id);rows.push(recvCard(j,true));});
+    received.forEach(function(j){if(!seen.has(j.id))rows.push(recvCard(j,false));});
+    list=rows.join('');
+    empty='<div class="empty"><h3>No jobs with line items</h3><p>Nothing to receive or correct.</p></div>';
+  }else{
+    list=awaiting.map(function(j){return recvCard(j,true);}).join('');
+    empty='<div class="empty"><h3>Nothing in receiving</h3><p>No jobs are waiting on product right now.</p></div>';
+  }
+
+  /* Styled inline against the LIGHT palette, NOT with .seg/.seg.ghost.
+     Receiving renders inside #genericView, which is white, and .seg.ghost
+     button.on sets color:var(--sand-ink) — a near-white cream built for the
+     dark topbar. Reusing it here would have made the active filter invisible.
+     This is the light-vs-dark palette landmine in CLAUDE.md. */
+  const seg=function(v,label,n){
+    const on=recvFilter===v;
+    return '<button onclick="setRecvFilter(\''+v+'\')" style="'
+      +'background:'+(on?'#ffffff':'none')+';border:none;font:inherit;font-size:12.5px;'
+      +'font-weight:600;padding:6px 13px;border-radius:6px;cursor:pointer;'
+      +'color:'+(on?'var(--ink)':'var(--muted)')+';'
+      +(on?'box-shadow:0 1px 2px rgba(0,0,0,.10);':'')
+      +'">'+label+(n==null?'':' ('+n+')')+'</button>';};
+  /* data-admin: correcting stock that is already checked in is a warehouse /
+     admin action. Normal receiving stays open to installers exactly as before.
+     NOTE this hides the control, it does not secure the write — RLS on
+     line_items still lets any tenant user update a row. */
+  const filters='<div data-admin style="margin:0 0 14px">'
+    +'<div style="display:inline-flex;gap:2px;background:#f1efe9;border:1px solid var(--border);border-radius:9px;padding:3px">'
+    +seg('awaiting','Awaiting',awaiting.length)
+    +seg('received','Received',received.length)
+    +seg('all','All')
+    +'</div></div>';
+
+  g.innerHTML='<div class="gp-head">Receiving</div>'
+    +'<div class="gp-sub">Check off line items as product arrives. When all line items are delivered, the job moves to Ready to Schedule automatically. Use <b>Received</b> to pull a job back up and correct a mistaken check-off.</div>'
+    +filters
+    +'<div class="inv-bar"><div class="inv-stat hl"><b>'+awaiting.length+'</b><span>Awaiting product</span></div>'
+    +'<div class="inv-stat"><b>'+ready.length+'</b><span>Ready to schedule</span></div></div>'
+    +(list||empty);}
+
+async function toggleLine(jobId,lineId){
+  /* recvFind, not queue.find: a scheduled job is no longer in the queue, and
+     before v47 this returned undefined and the click did nothing at all. */
+  const j=recvFind(jobId);if(!j)return;
+  const li=j.lineItems.find(function(l){return l.id===lineId;});if(!li)return;
   const nowDel=!li.delivered;const by=nowDel?'Warehouse · '+shortDate():null;
-  const {error}=await sb.from('line_items').update({delivered:nowDel,delivered_by:by,delivered_at:nowDel?new Date().toISOString():null}).eq('id',lineId);
+  const {error}=await sb.from('line_items')
+    .update({delivered:nowDel,delivered_by:by,delivered_at:nowDel?new Date().toISOString():null})
+    .eq('id',lineId);
   if(error){toast('Update failed',true);console.error(error);return;}
-  li.delivered=nowDel;li.by=by||'';const allDel=j.lineItems.every(l=>l.delivered);
-  buildReceiving();renderQueue();if(page==='toschedule')buildGeneric('toschedule');
-  toast(allDel?`<b>${j.cust}</b> fully delivered — now Ready to Schedule`:nowDel?'Line item delivered':'Line item un-marked');}
+  li.delivered=nowDel;li.by=by||'';
+  const allDel=j.lineItems.every(function(l){return l.delivered;});
+  buildReceiving();renderQueue();
+  if(page==='toschedule')buildGeneric('toschedule');
+  /* A scheduled job's stock lives on an appointment, so the calendar's
+     awaiting indicators need refreshing too. */
+  if(j.scheduled)render();
+  toast(allDel?'<b>'+esc(j.cust)+'</b> fully delivered — now Ready to Schedule'
+       :nowDel?'Line item delivered':'Line item un-marked');}
 async function scheduleAnyway(jobId){const j=queue.find(x=>x.id===jobId);if(!j)return;
   const {error}=await sb.from('jobs').update({override_schedule:true}).eq('id',jobId);
   if(error){toast('Update failed',true);console.error(error);return;}
