@@ -1173,7 +1173,7 @@ function modalBodyFor(ic){const a=appts.find(x=>x.id===selectedId)||{};
   if(ic==='box')return `<div class="mcheck"><input type="checkbox" checked>Order #PL-4471 — 6 cellular shades</div><div class="mcheck"><input type="checkbox">Valance / hardware kit</div><div class="mcheck"><input type="checkbox">Motorization & remotes</div><p style="font-size:12px;color:var(--sand-dim);margin-top:10px">Install can't be marked Scheduled until all lines are received.</p>`;
   if(ic==='doc')return `<table class="mtable"><tr><th>Line</th><th>Item</th><th>Qty</th></tr><tr><td>1</td><td>${a.scope||'Window covering'}</td><td>—</td></tr></table><div class="fld" style="margin-top:14px"><label>Crew notes</label><textarea placeholder="Ladder access, pets, etc."></textarea></div>`;
   if(ic==='check')return `<div class="fld"><label>Customer signature</label><div style="height:80px;border:1px dashed var(--side-border);border-radius:9px;display:flex;align-items:center;justify-content:center;color:var(--sand-dim);font-size:12px">Sign here</div></div><div class="mcheck"><input type="checkbox">All windows installed & operating</div><div class="mcheck"><input type="checkbox">Job site cleaned</div>`;
-  if(ic==='cam')return `<p style="font-size:12.5px;color:var(--sand-dim);margin-bottom:12px">Tap a tile to add a photo from this device.</p><div class="photogrid">${[0,1,2,3,4,5,6,7].map(()=>`<label class="phototile"><input type="file" accept="image/*" hidden><span>+</span></label>`).join('')}</div>`;
+  if(ic==='cam')return `<p style="font-size:12.5px;color:var(--sand-dim);margin-bottom:6px">Choose several at once — the picker allows multi-select, and Take Photo still works for a single shot. Tap a chosen photo to remove it.</p><p id="camCount" style="font-size:12.5px;color:var(--sand-dim);margin-bottom:12px">No photos chosen yet.</p><input type="file" id="camInput" accept="image/*" multiple hidden><div class="photogrid" id="camGrid"></div>`;
   if(ic==='upload')return `<label class="pdfdrop"><input type="file" accept="application/pdf" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12"/></svg><div>Tap to choose a PDF</div><div class="pdfname">No file chosen</div></label>`;
   if(ic==='link')return `<p style="font-size:13px">Linked to original job <b>${a.cust}</b> — ${a.dealer}.</p><p style="font-size:12px;color:var(--sand-dim);margin-top:8px">Opening will pull the original measure & install records.</p>`;
   if(ic==='send')return `<div id="sdBody"><p style="font-size:12.5px;color:var(--sand-dim)">Loading measure sheets…</p></div>`;
@@ -1456,6 +1456,66 @@ document.addEventListener('click',e=>{
     if(!wasOpen)card.classList.add('open');}});
 ['input','change'].forEach(ev=>document.addEventListener(ev,e=>{
   const card=e.target.closest('.modal-b.mslight .mscard');if(card)msMarkDirty(card);}));
+
+/* ===== Attach photos — multi-select (v38) ===============================
+   ONE capability, three entry points: the drawer's "+ Photos" button, the
+   Measure work order's "Attach window photos" and the Install work order's
+   "Attach job photos" all open this same ic==='cam' modal. Adding multi-select
+   here covers every add-photo spot in the app.
+
+   The input carries `multiple`, which on both iOS and Android still offers
+   "Take Photo" alongside the library, so single-shot camera capture is
+   unaffected — it simply returns one file instead of several.
+
+   Previews use object URLs rather than FileReader data URLs: ten 4MB photos
+   read as base64 would be ~53MB of strings held in the modal, which is exactly
+   the kind of thing that makes a phone feel broken.
+   ======================================================================== */
+let CAM_SEL=[];   /* [{file,url}] — chosen on this device, not yet uploaded */
+
+function camReset(){
+  CAM_SEL.forEach(function(s){try{URL.revokeObjectURL(s.url)}catch(e){}});
+  CAM_SEL=[];
+}
+
+function camRender(){
+  const grid=$('camGrid');if(!grid)return;
+  const tiles=CAM_SEL.map(function(s,i){
+    return '<div class="phototile has" data-i="'+i+'" title="Tap to remove" style="background-image:url(\''+s.url+'\')"></div>';
+  }).join('');
+  /* The add tile is a <label for>, so it keeps working after every re-render
+     without the input itself being rebuilt (and losing its handler). */
+  grid.innerHTML=tiles+'<label class="phototile" for="camInput"><span>+</span></label>';
+  const cnt=$('camCount');
+  if(cnt)cnt.innerHTML=CAM_SEL.length
+    ? esc(String(CAM_SEL.length))+' photo'+(CAM_SEL.length===1?'':'s')+' ready to upload · <span id="camClear" style="cursor:pointer;text-decoration:underline">Clear</span>'
+    : 'No photos chosen yet.';
+  const clr=$('camClear');
+  if(clr)clr.onclick=function(){camReset();camRender();};
+  grid.querySelectorAll('.phototile[data-i]').forEach(function(t){
+    t.onclick=function(){
+      const i=+t.dataset.i,s=CAM_SEL[i];
+      if(!s)return;
+      try{URL.revokeObjectURL(s.url)}catch(e){}
+      CAM_SEL.splice(i,1);camRender();};
+  });
+}
+
+/* Called from openModal AFTER the generic file-input wiring, so this handler
+   replaces the single-file preview one for the photo input only. The PDF
+   ('upload') modal keeps the generic handler untouched. */
+function camInit(){
+  camReset();
+  const inp=$('camInput');
+  if(inp)inp.onchange=function(e){
+    const picked=[...(e.target.files||[])];
+    picked.forEach(function(f){CAM_SEL.push({file:f,url:URL.createObjectURL(f)})});
+    /* Clearing the value lets the same photo be chosen again, and lets a second
+       batch be added on top of the first rather than replacing it. */
+    e.target.value='';
+    camRender();};
+  camRender();
+}
 
 /* ===== Send to Dealer (v37) =============================================
    A thin client over the deployed send-documents Edge Function. The function
@@ -1766,6 +1826,7 @@ function openModal(ic,label){currentModalIc=ic;modalPdf=null;const a=currentItem
     if(f.type==='application/pdf'){modalPdf={name:f.name,url:ev.target.result};const dz=inp.closest('.pdfdrop');if(dz){dz.classList.add('has');dz.querySelector('.pdfname').textContent=f.name}}
     else{const tile=inp.closest('.phototile');if(tile){tile.style.backgroundImage=`url(${ev.target.result})`;tile.classList.add('has')}}
   };r.readAsDataURL(f)});
+  if(ic==='cam')camInit();
   $('modalBg').classList.add('open');}
 function closeModal(){$('modalBg').classList.remove('open')}
 $('modalClose').onclick=closeModal;$('modalCancel').onclick=closeModal;
@@ -1784,16 +1845,30 @@ $('modalSave').onclick=async()=>{
   if(currentModalIc==='cam'||currentModalIc==='upload'){const jobId=currentJobId();
     if(!jobId){toast('Save the job first',true);return;}
     const btn=$('modalSave');
+    if(currentModalIc==='cam'){
+      const picked=CAM_SEL.slice();
+      if(!picked.length){toast('No photos selected');closeModal();return;}
+      btn.disabled=true;
+      /* Each upload is caught on its own: one bad file or one dropped packet
+         must not cost the whole batch. Survivors land, failures are named. */
+      let ok=0;const failed=[];
+      for(let i=0;i<picked.length;i++){
+        btn.textContent='Uploading '+(i+1)+'/'+picked.length+'…';
+        try{await uploadFile(jobId,picked[i].file,'photo');ok++;}
+        catch(err){console.error('photo upload',picked[i].file.name,err);failed.push(picked[i].file.name);}
+      }
+      btn.textContent='Save';btn.disabled=false;
+      camReset();
+      await refreshFiles();
+      if(!failed.length)toast(ok+' photo'+(ok===1?'':'s')+' uploaded');
+      else if(ok)toast(ok+' uploaded · '+failed.length+' failed, try those again',true);
+      else toast('Could not upload the photos',true);
+      closeModal();return;}
     try{
-      if(currentModalIc==='cam'){const inputs=[...document.querySelectorAll('#modalBody input[type=file]')].filter(i=>i.files&&i.files[0]);
-        if(!inputs.length){toast('No photos selected');closeModal();return;}
-        btn.textContent='Uploading…';btn.disabled=true;
-        for(const inp of inputs)await uploadFile(jobId,inp.files[0],'photo');
-        toast(`${inputs.length} photo${inputs.length>1?'s':''} uploaded`);
-      }else{const inp=document.querySelector('#modalBody input[type=file]');
-        if(!inp||!inp.files[0]){toast('No file chosen');return;}
-        btn.textContent='Uploading…';btn.disabled=true;
-        await uploadFile(jobId,inp.files[0],'pdf');toast('Document uploaded');}
+      const inp=document.querySelector('#modalBody input[type=file]');
+      if(!inp||!inp.files[0]){toast('No file chosen');return;}
+      btn.textContent='Uploading…';btn.disabled=true;
+      await uploadFile(jobId,inp.files[0],'pdf');toast('Document uploaded');
       await refreshFiles();
     }catch(err){console.error(err);toast('Upload failed',true);}
     btn.textContent='Save';btn.disabled=false;closeModal();return;}
