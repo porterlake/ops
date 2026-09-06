@@ -788,7 +788,7 @@ body.role-installer [data-admin]{display:none!important}
       <button class="navtoggle" type="button" aria-label="Menu" aria-expanded="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
       <div class="page-title" id="ptitle">Scheduler <span id="rangeLbl"></span></div>
       <div class="seg ghost" id="viewSeg" style="margin-left:8px"><button data-v="month">Month</button><button data-v="week" class="on">Week</button><button data-v="day">Day</button></div>
-      <div class="day-nav" id="dayNav"><button id="navPrev">‹</button><button id="navToday" style="width:auto;padding:0 10px;font-size:12px;font-weight:600">Today</button><button id="navNext">›</button></div>
+      <div id="monthLbl" style="font-size:12.5px;font-weight:700;letter-spacing:.03em;color:var(--sand-ink);white-space:nowrap;flex:0 0 auto"></div><div class="day-nav" id="dayNav"><button id="navPrev">‹</button><button id="navToday" style="width:auto;padding:0 10px;font-size:12px;font-weight:600">Today</button><button id="navNext">›</button></div>
       <div class="spacer"></div>
       <select id="instFilter" class="topfilter"><option value="all">All installers</option></select>
       <button class="btn" id="newJobBtn" data-admin>+ New Job</button>
@@ -812,7 +812,7 @@ body.role-installer [data-admin]{display:none!important}
     <div class="dr-body">
       <div class="issue-banner" id="issueBanner"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9v4M12 17h.01"/></svg>Issue reported — resolution required before close.<button onclick="logResolution()">Log resolution</button></div>
       <div class="wo" id="woBlock"></div>
-      <div class="fld"><label>Appointment type</label><div class="chips" id="drType"><div class="chip" data-t="Measure">Measure</div><div class="chip" data-t="Install">Install</div><div class="chip" data-t="Return Trip">Return Trip</div></div></div>
+      <div class="fld"><label>Appointment type</label><div class="chips" id="drTypeView"><span class="chip on" id="drTypeBadge" style="cursor:default"></span><button type="button" class="chip" id="drTypeEdit" style="background:none;color:var(--sand-dim);font:inherit;font-size:12px;font-weight:600">Edit</button></div><div class="chips" id="drType" style="display:none"><div class="chip" data-t="Measure">Measure</div><div class="chip" data-t="Install">Install</div><div class="chip" data-t="Return Trip">Return Trip</div></div></div>
       <div class="fld"><label>Status</label><select id="drStatus"></select></div>
       <div class="fld"><label>Installer</label><select id="drInstaller"></select></div>
       <div class="fld"><label>Dealer (account)</label><div class="val" id="drDealer">—</div></div>
@@ -950,7 +950,7 @@ const statusColor=k=>STATUS_LIGHT[k]||(STATUS[k]?STATUS[k].color:"#6E757E");
 const STATUS_TEXT={rts:"#636971",hold:"#8A6742",scheduled:"#41627F",otw:"#8b6004",progress:"#1F7A6B",done:"#4d7010",issue:"#a3211d"};
 const statusText=k=>STATUS_TEXT[k]||statusColor(k);
 const ICONS={ruler:'<path d="M3 11l8-8 10 10-8 8z"/><path d="M7 9l2 2M11 7l2 2M9 13l2 2"/>',send:'<path d="M22 2L11 13M22 2l-7 20-4-9-9-4z"/>',cam:'<path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/>',doc:'<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M9 13h6M9 17h6"/>',box:'<path d="M21 16V8a2 2 0 0 0-1-1.7l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.7l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><path d="M3.3 7L12 12l8.7-5M12 22V12"/>',check:'<path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>',link:'<path d="M10 13a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1.5 1.5"/><path d="M14 11a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1.5-1.5"/>',flag:'<path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><path d="M4 22v-7"/>',chart:'<path d="M3 3v18h18"/><path d="M7 14l4-4 3 3 5-6"/>'};
-const WO={"Measure":{color:"#5b9bd5",actions:[{ic:"ruler",label:"Open measure sheet"},{ic:"cam",label:"Attach window photos"},{ic:"send",label:"Send to Dealer"}]},"Install":{color:"#3a6fb0",actions:[{ic:"doc",label:"Open install work order"},{ic:"box",label:"Confirm stock received"},{ic:"cam",label:"Attach job photos"},{ic:"check",label:"Capture sign-off & completion"}]},"Return Trip":{color:"#d9605c",actions:[{ic:"link",label:"Open original job"},{ic:"doc",label:"Open return-trip report"},{ic:"flag",label:"Log reason for return"}]}};
+const WO={"Measure":{color:"#5b9bd5",actions:[{ic:"ruler",label:"Open Measure Sheet"},{ic:"cam",label:"Attach Photos"},{ic:"send",label:"Send to Dealer"}]},"Install":{color:"#3a6fb0",actions:[{ic:"doc",label:"Open install work order"},{ic:"box",label:"Confirm stock received"},{ic:"cam",label:"Attach job photos"},{ic:"check",label:"Capture sign-off & completion"}]},"Return Trip":{color:"#d9605c",actions:[{ic:"link",label:"Open original job"},{ic:"doc",label:"Open return-trip report"},{ic:"flag",label:"Log reason for return"}]}};
 
 const DEALERS=[];
 let custCache=[];
@@ -1085,6 +1085,13 @@ function render(){sizeCalendar();markConflicts();const cal=$('cal');cal.innerHTM
   if(view==='week')buildWeek();else if(view==='day')buildDay();else buildMonth();
   const days=weekDays(weekOffset);
   $('rangeLbl').textContent=view==='month'?monthLabel(monthOffset):view==='day'?`${days[selectedDay].dow} ${MONTHN[days[selectedDay].date.getMonth()].slice(0,3)} ${days[selectedDay].num}, ${days[selectedDay].date.getFullYear()}`:`${MONTHN[days[0].date.getMonth()].slice(0,3)} ${days[0].num} – ${days[6].num}, ${days[6].date.getFullYear()}`;
+  /* Full month and year, on all three views. A week that straddles two
+     months says so ("Aug - Sep 2026") rather than silently picking one. */
+  $('monthLbl').textContent=view==='month'?monthLabel(monthOffset)
+    :view==='day'?`${MONTHN[days[selectedDay].date.getMonth()]} ${days[selectedDay].date.getFullYear()}`
+    :days[0].date.getMonth()===days[6].date.getMonth()
+      ?`${MONTHN[days[0].date.getMonth()]} ${days[0].date.getFullYear()}`
+      :`${MONTHN[days[0].date.getMonth()].slice(0,3)} – ${MONTHN[days[6].date.getMonth()].slice(0,3)} ${days[6].date.getFullYear()}`;
   const un=appts.filter(a=>(a.installer==='un'||!a.installer)&&a.status!=='done').length;const b=$('assignBanner');
   if(un){b.style.display='flex';b.innerHTML=`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9v4M12 17h.01"/></svg>${un} scheduled job${un>1?'s':''} need an installer assigned — click to review`;b.onclick=()=>{instFilter='un';const s=$('instFilter');if(s)s.value='un';render()};}
   else b.style.display='none';}
@@ -1125,6 +1132,7 @@ function openDrawer(id){let a=appts.find(x=>x.id===id),mode='appt';if(!a){a=queu
   $('drScope').value=a.scope||'';$('drNotes').value=a.notes||'';
   fillDur($('drDurH'),$('drDurM'),(mode==='appt'?a.dur*60:(a.estMins||defaultMins(a.type))));
   document.querySelectorAll('#drType .chip').forEach(c=>{const on=c.dataset.t===a.type;c.classList.toggle('on',on);c.style.background=on?TYPES[a.type].c:''});
+  drTypeShow(a.type);
   renderWO(a.type);
   const ss=$('drStatus');ss.innerHTML='';STATUS_ORDER.forEach(k=>{const o=document.createElement('option');o.value=k;o.textContent=STATUS[k].label;ss.appendChild(o)});ss.value=a.status||'rts';
   $('issueBanner').classList.toggle('show',(a.status||'')==='issue');
@@ -1205,8 +1213,21 @@ async function unschedule(){const a=appts.find(x=>x.id===selectedId);if(!a)retur
   queue.unshift({id:a.jobId,type:a.type,customerId:a.customerId,cust:a.cust,dealerId:a.dealerId,dealer:a.dealer,addr:a.addr,phone:a.phone,scope:a.scope,awaitingProduct:a.awaitingProduct,override:a.override,lineItems:a.lineItems||[],dealerDiscount:a.dealerDiscount||0,files:a.files||[]});
   appts=appts.filter(x=>x.id!==selectedId);renderQueue();render();toast(`<b>${a.cust}</b> returned to queue`);closeDrawer();}
 function logResolution(){const a=appts.find(x=>x.id===selectedId);if(!a)return;a.status='done';$('drStatus').value='done';$('issueBanner').classList.remove('show');render();toast('Resolution logged — marked completed');}
+/* Appointment type is display-only until Edit is tapped (v42). The three
+   chips previously changed a job's type on one stray tap, which is far too
+   easy to fumble on a phone in the field.
+   saveDrawer still reads '#drType .chip.on', so what gets persisted is
+   unchanged — only the disclosure is. Picking a type collapses straight back
+   to the badge, so the drawer never sits in a half-edited state. */
+function drTypeShow(t){const b=$('drTypeBadge');if(!b)return;
+  b.textContent=t||'—';b.style.background=(TYPES[t]&&TYPES[t].c)||'';
+  const v=$('drTypeView'),c=$('drType');
+  if(v)v.style.display='flex';if(c)c.style.display='none';}
+function drTypeEditOn(){const v=$('drTypeView'),c=$('drType');
+  if(v)v.style.display='none';if(c)c.style.display='flex';}
+$('drTypeEdit').onclick=drTypeEditOn;
 $('drClose').onclick=closeDrawer;
-$('drType').addEventListener('click',e=>{const c=e.target.closest('.chip');if(!c)return;document.querySelectorAll('#drType .chip').forEach(x=>{x.classList.remove('on');x.style.background=''});c.classList.add('on');c.style.background=TYPES[c.dataset.t].c;renderWO(c.dataset.t)});
+$('drType').addEventListener('click',e=>{const c=e.target.closest('.chip');if(!c)return;document.querySelectorAll('#drType .chip').forEach(x=>{x.classList.remove('on');x.style.background=''});c.classList.add('on');c.style.background=TYPES[c.dataset.t].c;renderWO(c.dataset.t);drTypeShow(c.dataset.t)});
 $('drStatus').addEventListener('change',e=>$('issueBanner').classList.toggle('show',e.target.value==='issue'));
 
 function modalBodyFor(ic){const a=appts.find(x=>x.id===selectedId)||{};
@@ -2204,7 +2225,7 @@ $('njSave').onclick=async()=>{if(!IS_ADMIN)return;let dId=njDealerId,dealer;
 function navTo(p){if(!IS_ADMIN&&ADMIN_PAGES.has(p))p='scheduler';
   page=p;document.querySelectorAll('.nav-item').forEach(n=>n.classList.toggle('active',n.dataset.page===p));
   const sched=p==='scheduler';$('schedView').style.display=sched?'flex':'none';$('genericView').style.display=sched?'none':'block';
-  $('viewSeg').style.display=sched?'flex':'none';$('dayNav').style.display=sched?'flex':'none';$('rangeLbl').style.display=sched?'inline':'none';$('instFilter').style.display=sched?'block':'none';
+  $('viewSeg').style.display=sched?'flex':'none';$('dayNav').style.display=sched?'flex':'none';$('monthLbl').style.display=sched?'block':'none';$('rangeLbl').style.display=sched?'inline':'none';$('instFilter').style.display=sched?'block':'none';
   const titles={scheduler:'Scheduler',toschedule:'To Schedule',installers:'Installers',dealers:'Dealers',inventory:'Receiving',rates:'Service Rates',reports:'Reports'};
   $('ptitle').childNodes[0].nodeValue=titles[p]+' ';
   if(sched)render();else buildGeneric(p);}
