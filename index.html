@@ -1122,8 +1122,30 @@ function currentJobId(){if(!selectedId)return null;if(drawerMode==='queue')retur
 async function uploadFile(jobId,file,kind){const safe=file.name.replace(/[^\w.\-]/g,'_');const path=`${jobId}/${Date.now()}_${safe}`;
   const {error:ue}=await sb.storage.from('job-files').upload(path,file);if(ue)throw ue;
   const {error:ie}=await sb.from('files').insert({job_id:jobId,kind,name:file.name,storage_path:path,uploaded_by:'M. Lake'});if(ie)throw ie;}
+/* Signed URLs, not getPublicUrl (v39). The job-files bucket is being taken
+   private, and a signed URL is the only read that survives that. This is the
+   ONE place the app turns a storage path into a URL — thumbnails, the PDF
+   iframe, the image viewer and the Send-to-Dealer photo compression all consume
+   what this returns — so changing it here covers every read in the app.
+
+   Signed URLs work on a public bucket too, which is what lets v39 ship BEFORE
+   the bucket flips private. See 2026-09-06-storage-03-bucket-private.sql. */
+const SIGNED_URL_TTL=3600;   /* seconds — reopening the drawer re-signs */
 async function loadFiles(jobId){const {data,error}=await sb.from('files').select('id,kind,name,storage_path').eq('job_id',jobId).order('uploaded_at');
-  if(error){console.error(error);return[];}return (data||[]).map(f=>{const {data:pub}=sb.storage.from('job-files').getPublicUrl(f.storage_path);return {id:f.id,kind:f.kind,name:f.name,url:pub.publicUrl,path:f.storage_path};});}
+  if(error){console.error(error);return[];}
+  const rows=data||[];if(!rows.length)return[];
+  const paths=rows.map(f=>f.storage_path);
+  /* One request signs every file on the job rather than one call per file. */
+  const {data:signed,error:se}=await sb.storage.from('job-files').createSignedUrls(paths,SIGNED_URL_TTL);
+  /* A failure is left as url:null rather than falling back to getPublicUrl.
+     That fallback would keep working while the bucket is public and then break
+     the day it is not — hiding precisely the failure this staged rollout
+     exists to surface. A null url shows as a missing thumbnail, with the real
+     cause in the console. */
+  if(se)console.error('createSignedUrls',se);
+  const byPath=new Map();
+  (signed||[]).forEach((s,i)=>{if(s&&s.signedUrl)byPath.set(s.path||paths[i],s.signedUrl);});
+  return rows.map(f=>({id:f.id,kind:f.kind,name:f.name,url:byPath.get(f.storage_path)||null,path:f.storage_path}));}
 async function deleteFile(fileId,path){try{await sb.storage.from('job-files').remove([path]);await sb.from('files').delete().eq('id',fileId);refreshFiles();toast('File removed');}catch(e){console.error(e);toast('Could not remove file',true);}}
 async function refreshFiles(){const a=currentItem();if(!a)return;const jobId=currentJobId();
   if(!jobId){$('drFiles').innerHTML='<div class="fileempty">Save the job first to attach files.</div>';return;}
