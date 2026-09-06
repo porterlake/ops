@@ -1316,6 +1316,100 @@ async function noteAdd(){
   NOTE_ROWS.unshift(data);noteRender();
   toast('Note added');}
 $('drNoteAdd').onclick=noteAdd;
+/* ===== Confirm Stock Received (v46) ====================================
+   Replaces a hardcoded placeholder: three invented order lines that rendered
+   identically on every job, with checkboxes that persisted nothing. An
+   installer verifying stock against that was reading fiction. (The literal
+   strings are deliberately not quoted here — the build asserts they appear
+   nowhere in the file, and a comment quoting them would defeat that check.)
+
+   Now renders the job's real line_items. No new schema: description, qty,
+   delivered, delivered_by and delivered_at all already exist, and the Receiving
+   page has been writing them all along.
+
+   READ-ONLY, and not only by preference. toggleLine(), the existing write path,
+   begins with queue.find(x => x.id === jobId) — a SCHEDULED job is no longer in
+   the queue, so calling it from an install drawer would find nothing and
+   silently do nothing. Making this writable means new code, not reuse.
+
+   Re-queried on open rather than read from the in-memory copy: stale stock is
+   the exact failure this screen exists to prevent, and the warehouse may check
+   something in while the installer has the app open.
+   ======================================================================== */
+
+function stockWhen(row){
+  /* delivered_by is written as 'Warehouse · Sep 2', so it already carries a
+     date — showing delivered_at as well would just repeat it. The timestamp is
+     the fallback for rows where nobody was recorded. */
+  const by=String(row.delivered_by||'').trim();
+  if(by)return by;
+  if(!row.delivered_at)return 'Received';
+  const d=new Date(row.delivered_at);
+  if(isNaN(d.getTime()))return 'Received';
+  return d.toLocaleString(undefined,{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'});
+}
+
+function stockRow(row,ok){
+  const mark=ok
+    ?'<span style="color:#7c9a3f;font-size:15px;line-height:1">&#10003;</span>'
+    :'<span style="color:#caa017;font-size:15px;line-height:1">&#9679;</span>';
+  const qty=(row.qty==null||row.qty==='')?'':esc(String(row.qty))+' &times; ';
+  const meta=ok
+    ?'<div style="font-size:11.5px;color:var(--sand-dim);margin-top:3px">'+esc(stockWhen(row))+'</div>'
+    :'<div style="font-size:11.5px;color:#caa017;margin-top:3px">Not received yet</div>';
+  return '<div class="mcheck" style="align-items:flex-start;font-weight:500">'
+    +mark
+    +'<div style="flex:1;min-width:0">'
+      +'<div style="font-weight:600;color:var(--sand-ink)">'+qty+esc(row.description||'Line item')+'</div>'
+      +meta
+    +'</div></div>';
+}
+
+async function stockInit(){
+  const box=$('stockBody');if(!box)return;
+  const dim='font-size:12.5px;color:var(--sand-dim);line-height:1.55';
+  const jobId=currentJobId();
+  if(!jobId){box.innerHTML='<p style="'+dim+'">Save the job first.</p>';return;}
+  box.innerHTML='<p style="'+dim+'">Checking stock…</p>';
+  /* Fresh read, not the cached copy. delivered_at is selected here for the
+     first time — the app has always written it and never read it back. */
+  const {data,error}=await sb.from('line_items')
+    .select('id,description,qty,delivered,delivered_by,delivered_at')
+    .eq('job_id',jobId)
+    .order('delivered',{ascending:true})
+    .order('description',{ascending:true});
+  if(error){console.error('stockInit',error);
+    box.innerHTML='<p style="font-size:12.5px;color:#e08a86">Could not load the stock list.</p>';return;}
+  const rows=data||[];
+  if(!rows.length){
+    box.innerHTML='<p style="'+dim+'">No line items on this job, so there is no stock to check.</p>';return;}
+
+  const awaiting=rows.filter(function(r){return !r.delivered;});
+  const received=rows.filter(function(r){return !!r.delivered;});
+  const head='<div style="font-size:13px;font-weight:700;color:'
+    +(awaiting.length?'#caa017':'#7c9a3f')+';margin-bottom:12px">'
+    +received.length+' of '+rows.length+' received'
+    +(awaiting.length?' &middot; '+awaiting.length+' still awaiting':' &middot; all stock in')
+    +'</div>';
+  const lbl='font-size:10.5px;letter-spacing:1.2px;text-transform:uppercase;color:var(--sand-dim);margin:14px 0 7px';
+
+  let h=head;
+  /* Awaiting first: it is the thing the installer needs to see before loading
+     the van. Received is the reassurance underneath. */
+  if(awaiting.length){
+    h+='<div style="'+lbl+';margin-top:0">Still awaiting ('+awaiting.length+')</div>'
+      +awaiting.map(function(r){return stockRow(r,false);}).join('');}
+  if(received.length){
+    h+='<div style="'+lbl+'">Received ('+received.length+')</div>'
+      +received.map(function(r){return stockRow(r,true);}).join('');}
+  h+='<p style="'+dim+';margin-top:14px">'
+    +(awaiting.length
+      ?'Warehouse check-in happens on the Receiving page — this view is read-only.'
+      :'Everything on this job has been checked in.')
+    +'</p>';
+  box.innerHTML=h;
+}
+
 /* ===== Dealer quick-actions popup (v45) ================================
    The dealer field lives in the ONE shared drawer block, so making it
    clickable lands this in every drawer at once — install, measure, return trip
@@ -1391,7 +1485,7 @@ $('drStatus').addEventListener('change',e=>$('issueBanner').classList.toggle('sh
 
 function modalBodyFor(ic){const a=appts.find(x=>x.id===selectedId)||{};
   if(ic==='ruler')return `<div class="mshead"><h4>Measure sheet</h4><span class="mscount" id="msCount"></span><button class="msbtn ms-pdf" id="msPdf">Generate PDF</button></div><div id="msList"></div><button class="msadd" id="msAdd">+ Add line item</button>`;
-  if(ic==='box')return `<div class="mcheck"><input type="checkbox" checked>Order #PL-4471 — 6 cellular shades</div><div class="mcheck"><input type="checkbox">Valance / hardware kit</div><div class="mcheck"><input type="checkbox">Motorization & remotes</div><p style="font-size:12px;color:var(--sand-dim);margin-top:10px">Install can't be marked Scheduled until all lines are received.</p>`;
+  if(ic==='box')return `<div id="stockBody"><p style="font-size:12.5px;color:var(--sand-dim)">Checking stock…</p></div>`;
   if(ic==='doc')return `<table class="mtable"><tr><th>Line</th><th>Item</th><th>Qty</th></tr><tr><td>1</td><td>${a.scope||'Window covering'}</td><td>—</td></tr></table><div class="fld" style="margin-top:14px"><label>Crew notes</label><textarea placeholder="Ladder access, pets, etc."></textarea></div>`;
   if(ic==='check')return `<div class="fld"><label>Customer signature</label><div style="height:80px;border:1px dashed var(--side-border);border-radius:9px;display:flex;align-items:center;justify-content:center;color:var(--sand-dim);font-size:12px">Sign here</div></div><div class="mcheck"><input type="checkbox">All windows installed & operating</div><div class="mcheck"><input type="checkbox">Job site cleaned</div>`;
   if(ic==='cam')return `<p style="font-size:12.5px;color:var(--sand-dim);margin-bottom:6px">Choose several at once — the picker allows multi-select, and Take Photo still works for a single shot. Tap a chosen photo to remove it.</p><p id="camCount" style="font-size:12.5px;color:var(--sand-dim);margin-bottom:12px">No photos chosen yet.</p><input type="file" id="camInput" accept="image/*" multiple hidden><div class="photogrid" id="camGrid"></div>`;
@@ -2045,6 +2139,7 @@ function openModal(ic,label){currentModalIc=ic;modalPdf=null;const a=currentItem
   $('modalSave').textContent=ic==='send'?'Send':'Save';
   $('modalSave').disabled=false;
   if(ic==='send')sdInit();
+  if(ic==='box')stockInit();
   $('modalBody').querySelectorAll('input[type=file]').forEach(inp=>inp.onchange=e=>{const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=ev=>{
     if(f.type==='application/pdf'){modalPdf={name:f.name,url:ev.target.result};const dz=inp.closest('.pdfdrop');if(dz){dz.classList.add('has');dz.querySelector('.pdfname').textContent=f.name}}
     else{const tile=inp.closest('.phototile');if(tile){tile.style.backgroundImage=`url(${ev.target.result})`;tile.classList.add('has')}}
