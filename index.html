@@ -254,6 +254,12 @@
   .lbadge{font-size:9.5px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;padding:3px 9px;border-radius:20px}
   .lbadge.in{background:rgba(96,108,56,.16);color:#4e5a2e}.lbadge.out{background:rgba(176,138,99,.16);color:#8c6736}
   .ract{margin-top:12px;display:flex;justify-content:flex-end}
+  /* The card the "Go to Receiving" bridge landed on. Light-palette tokens:
+     this renders inside #genericView, which is white. */
+  .rcard.rfocus{border-color:#b49e6f;box-shadow:0 0 0 3px rgba(180,158,111,.28)}
+  .rfbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:rgba(216,198,160,.20);
+    border:1px solid #b49e6f;border-radius:10px;padding:10px 14px;margin:0 0 14px;font-size:13px;color:#5f5433}
+  .rsrow{display:flex;gap:9px;flex-wrap:wrap;align-items:center;margin:0 0 14px}
   .btn.sm{padding:7px 12px;font-size:12px}
   .lilabel{display:block;font-size:10.5px;letter-spacing:1.2px;text-transform:uppercase;color:var(--sand-dim);margin-bottom:9px}
   .liadd{font:inherit;font-size:12px;font-weight:700;color:var(--sand-ink);background:var(--side-3);border:1px solid var(--side-border);border-radius:8px;padding:7px 12px;cursor:pointer;margin-top:2px}
@@ -2187,7 +2193,10 @@ function openModal(ic,label){currentModalIc=ic;modalPdf=null;const a=currentItem
   /* The footer button is shared by every tile, so its label and enabled state
      are set per-modal here. sdInit() may then disable it if the job has no
      measure sheet to send. */
-  $('modalSave').textContent=ic==='send'?'Send':'Save';
+  /* The stock panel is read-only, so its footer button has no save to do — it
+     used to fire a "Saved to work order" toast that was simply untrue. It is
+     the bridge to the Receiving page instead. */
+  $('modalSave').textContent=ic==='send'?'Send':(ic==='box'?'Go to Receiving':'Save');
   $('modalSave').disabled=false;
   if(ic==='send')sdInit();
   if(ic==='box')stockInit();
@@ -2200,6 +2209,9 @@ function openModal(ic,label){currentModalIc=ic;modalPdf=null;const a=currentItem
 function closeModal(){$('modalBg').classList.remove('open')}
 $('modalClose').onclick=closeModal;$('modalCancel').onclick=closeModal;
 $('modalSave').onclick=async()=>{
+  /* Read the job id BEFORE recvGoto closes the drawer — closeDrawer() nulls
+     selectedId, and currentJobId() derives from it. */
+  if(currentModalIc==='box'){recvGoto(currentJobId());return;}
   if(currentModalIc==='send'){await sdSend();return;}
   /* Measure sheet: each card already saves itself. This is the safety net for
      anything still flagged Unsaved when the installer hits the footer button. */
@@ -2682,7 +2694,55 @@ async function deleteService(){if(!IS_ADMIN)return;if(!editingSvc)return;const {
    ======================================================================== */
 let recvFilter='awaiting';
 
+/* ===== Receiving navigation (v49) ======================================
+   Three gaps, one shared idea: a job on this page needs to be REACHABLE.
+
+   recvFocus pins ONE job by id. While it is set the page renders that job
+   alone, ignoring the Awaiting/Received/All filter entirely. That bypass is
+   the whole point of the bridge: buildReceiving() forces non-admins to the
+   Awaiting view, so an installer sent here from the drawer to correct a
+   FULLY RECEIVED job would otherwise land on a page that cannot show it.
+
+   recvQuery / recvDealer are the scale fix, applied BEFORE the Awaiting and
+   Received counts are computed so the filter badges always describe what is
+   actually on screen rather than the whole table.
+   ==================================================================== */
+let recvFocus=null,recvQuery='',recvDealer='';
+
 function setRecvFilter(f){recvFilter=f;buildReceiving();}
+function recvClearFocus(){recvFocus=null;buildReceiving();}
+function setRecvDealer(v){recvDealer=v||'';buildReceiving();}
+
+/* Customer OR dealer, case-insensitive substring, plus the dealer dropdown.
+   Both are ANDed: searching "smith" inside a dealer filter stays inside it. */
+function recvMatch(j){
+  if(recvDealer&&(j.dealer||'')!==recvDealer)return false;
+  const q=recvQuery.trim().toLowerCase();
+  if(!q)return true;
+  return String(j.cust||'').toLowerCase().indexOf(q)>=0
+      || String(j.dealer||'').toLowerCase().indexOf(q)>=0;}
+
+/* Only dealers that actually have a job on this page, so the list stays short
+   and never offers a filter that would return nothing. */
+function recvDealerList(){
+  const s=new Set();
+  recvPool().forEach(function(j){if(j.dealer)s.add(j.dealer);});
+  return Array.from(s).sort(function(a,b){return a.localeCompare(b);});}
+
+/* The bridge out of the drawer's read-only stock panel. Sets the pin BEFORE
+   navigating, because navTo() builds the page synchronously. */
+function recvGoto(jobId){
+  if(!jobId){toast('Save the job first',true);return;}
+  recvFocus=jobId;recvQuery='';recvDealer='';
+  closeModal();closeDrawer();
+  navTo('inventory');}
+
+/* openDrawer() resolves an APPOINTMENT id first and only falls back to a job
+   id, so a scheduled job must be opened by its appointment or the drawer
+   silently does nothing. apptForJob() (v48) is that lookup. */
+function recvOpenJob(jobId){
+  const ap=apptForJob(jobId);
+  openDrawer(ap?ap.id:jobId);}
 
 /* job_id -> note count, for the card badges. null means "not loaded yet";
    buildReceiving sets it to {} before firing the fetch so the re-render that
@@ -2778,7 +2838,9 @@ function recvCard(j,showSchedule){
           :'<span class="lbadge out">Pending</span>')+'</div>'
       +'</div>';}).join('');
   const tag=j.scheduled?' <span class="rtype">Scheduled</span>':'';
-  return '<div class="rcard"><div class="rhead"><div>'
+  /* Anchor id so the bridge can scroll straight to this card, and the focus
+     ring when it is the pinned one. */
+  return '<div class="rcard'+(recvFocus===j.id?' rfocus':'')+'" id="rcard-'+j.id+'"><div class="rhead"><div>'
       +'<div class="rcust">'+esc(j.cust)+' <span class="rtype">'+esc(j.type)+'</span>'+tag+'</div>'
       +'<div class="rsub">'+esc(j.dealer)+' &middot; '+esc(j.addr)+'</div></div>'
       +'<div class="rprog">'+done+'/'+tot+' delivered</div></div>'
@@ -2789,6 +2851,11 @@ function recvCard(j,showSchedule){
            so the secondary look uses light tokens inline instead. */
         +'<button class="btn sm" style="background:none;border:1px solid var(--border);color:var(--muted)" onclick="recvNotes(\''+j.id+'\')">Notes'
         +(nNotes?' ('+nNotes+')':'')+'</button>'
+        /* Receiving was a dead end: no route to customer details, dealer or
+           pricing. This is that route. A BUTTON rather than a click on the
+           whole card, deliberately — the card is mostly check-off targets and
+           a stray tap must never open a drawer instead of ticking a line. */
+        +'<button class="btn sm" style="margin-left:8px;background:none;border:1px solid var(--border);color:var(--muted)" onclick="recvOpenJob(\''+j.id+'\')">Open job</button>'
         +(showSchedule
           ?'<button class="btn sm" style="margin-left:8px" onclick="scheduleAnyway(\''+j.id+'\')">Schedule anyway (partial)</button>'
           :'')
@@ -2803,9 +2870,24 @@ function buildReceiving(){const g=$('genericView');
   /* Set to {} BEFORE the fetch starts, so the re-render recvLoadNoteCounts
      triggers on completion does not see null and fire a second one. */
   if(RECV_NOTE_N===null){RECV_NOTE_N={};recvLoadNoteCounts();}
-  const awaiting=queue.filter(stillAwaiting);
+  /* Focus mode short-circuits everything below: one job, drawn from the FULL
+     pool so it is reachable whether it is awaiting, received, scheduled, or
+     invisible to this user's normal filter. */
+  if(recvFocus){
+    const fj=recvFind(recvFocus);
+    g.innerHTML='<div class="gp-head">Receiving</div>'
+      +'<div class="gp-sub">Showing one job you came here to correct.</div>'
+      +'<div class="rfbar"><span>'+(fj?'Pinned to <b>'+esc(fj.cust)+'</b>':'That job is no longer in receiving')+'</span>'
+      +'<button class="btn sm" style="margin-left:auto" onclick="recvClearFocus()">Show all receiving</button></div>'
+      +(fj?recvCard(fj,false)
+          :'<div class="empty"><h3>Not found</h3><p>It may have no line items, or the page has been reloaded since.</p></div>');
+    const el=$('rcard-'+recvFocus);
+    if(el&&el.scrollIntoView)el.scrollIntoView({block:'nearest'});
+    return;}
+
+  const awaiting=queue.filter(stillAwaiting).filter(recvMatch);
   const ready=queue.filter(readyToSchedule);
-  const received=recvPool().filter(recvFullyReceived);
+  const received=recvPool().filter(recvFullyReceived).filter(recvMatch);
 
   let list,empty;
   if(recvFilter==='received'){
@@ -2821,6 +2903,10 @@ function buildReceiving(){const g=$('genericView');
     list=awaiting.map(function(j){return recvCard(j,true);}).join('');
     empty='<div class="empty"><h3>Nothing in receiving</h3><p>No jobs are waiting on product right now.</p></div>';
   }
+  /* Say WHY the list is empty. "Nothing in receiving" while a search is
+     active reads as "there are no jobs", which would be a lie. */
+  if(!list&&(recvQuery||recvDealer))
+    empty='<div class="empty"><h3>No matches</h3><p>No job in this view matches that customer or dealer.</p></div>';
 
   /* Styled inline against the LIGHT palette, NOT with .seg/.seg.ghost.
      Receiving renders inside #genericView, which is white, and .seg.ghost
@@ -2846,12 +2932,44 @@ function buildReceiving(){const g=$('genericView');
     +seg('all','All')
     +'</div></div>';
 
+  /* .rate-search is the existing LIGHT search input from Service Rates — the
+     right palette for this page, and no new CSS. Its width:100% and bottom
+     margin are overridden inline so it can share a row with the dealer select.
+     esc() on the value: an unescaped quote would break out of the attribute
+     (the Rates page interpolates rateSearch raw — not copied here). */
+  const dealers=recvDealerList();
+  const search='<div class="rsrow">'
+    +'<input class="rate-search" id="recvSearch" style="width:auto;flex:1;min-width:200px;margin:0" '
+      +'placeholder="Search by customer or dealer…" value="'+esc(recvQuery)+'">'
+    +'<select class="rate-search" id="recvDealerSel" style="width:auto;margin:0;min-width:170px">'
+      +'<option value="">All dealers</option>'
+      +dealers.map(function(d){
+        return '<option value="'+esc(d)+'"'+(recvDealer===d?' selected':'')+'>'+esc(d)+'</option>';}).join('')
+    +'</select>'
+    +((recvQuery||recvDealer)
+      ?'<button class="btn sm" style="background:none;border:1px solid var(--border);color:var(--muted)" onclick="recvResetSearch()">Clear</button>'
+      :'')
+    +'</div>';
+
   g.innerHTML='<div class="gp-head">Receiving</div>'
     +'<div class="gp-sub">Check off line items as product arrives. When all line items are delivered, the job moves to Ready to Schedule automatically. Use <b>Received</b> to pull a job back up and correct a mistaken check-off.</div>'
     +filters
+    +search
     +'<div class="inv-bar"><div class="inv-stat hl"><b>'+awaiting.length+'</b><span>Awaiting product</span></div>'
     +'<div class="inv-stat"><b>'+ready.length+'</b><span>Ready to schedule</span></div></div>'
-    +(list||empty);}
+    +(list||empty);
+
+  /* Same re-render-and-restore dance the Service Rates search uses: the page
+     is rebuilt from innerHTML on every keystroke, which destroys the input, so
+     the caret position is carried across by hand. */
+  const si=$('recvSearch');
+  if(si)si.oninput=function(){const p=si.selectionStart;recvQuery=si.value;
+    buildReceiving();
+    const nx=$('recvSearch');if(nx){nx.focus();try{nx.setSelectionRange(p,p);}catch(e){}}};
+  const ds=$('recvDealerSel');
+  if(ds)ds.onchange=function(){setRecvDealer(ds.value);};}
+
+function recvResetSearch(){recvQuery='';recvDealer='';buildReceiving();}
 
 /* ===== Check-off, and the gate on undoing one (v48) ====================
    Checking a line ON stays one tap: it is additive, and the warehouse does it
@@ -2928,7 +3046,11 @@ async function scheduleAnyway(jobId){const j=queue.find(x=>x.id===jobId);if(!j)r
   if(error){toast('Update failed',true);console.error(error);return;}
   j.override=true;buildReceiving();renderQueue();toast(`<b>${j.cust}</b> released to schedule — flagged awaiting product`);}
 
-document.querySelectorAll('.nav-item').forEach(n=>n.onclick=()=>navTo(n.dataset.page));
+/* Clicking Receiving in the nav means "show me everything", so it drops any
+   job the Go to Receiving bridge had pinned. recvGoto() sets recvFocus and
+   then calls navTo() directly, bypassing this, which is what keeps the pin
+   alive for the bridge but never for a manual visit. */
+document.querySelectorAll('.nav-item').forEach(n=>n.onclick=()=>{recvFocus=null;navTo(n.dataset.page);});
 document.querySelectorAll('#viewSeg button').forEach(b=>b.onclick=()=>setView(b.dataset.v));
 function stepDay(d){selectedDay+=d;if(selectedDay<0){selectedDay=6;weekOffset--}if(selectedDay>6){selectedDay=0;weekOffset++}}
 /* Today respects the ACTIVE view: day jumps to today, week to this week,
