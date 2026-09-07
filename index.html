@@ -54,7 +54,10 @@
   .settings-menu .div{height:1px;background:var(--side-border);margin:5px 4px}
 
   /* MAIN */
-  .main{flex:1;display:flex;flex-direction:column;min-width:0}
+  /* min-height:0 alongside the existing min-width:0. .work already carries it;
+     .main did not, so the column could refuse to shrink and push .generic past
+     the viewport instead of letting it scroll. */
+  .main{flex:1;display:flex;flex-direction:column;min-width:0;min-height:0}
   .topbar{height:60px;flex-shrink:0;border-bottom:1px solid var(--side-border);display:flex;align-items:center;gap:14px;padding:0 22px;background:var(--side)}
   .page-title{font-size:17px;font-weight:700;color:var(--sand-ink)}.page-title span{color:var(--sand-dim);font-weight:500;font-size:13px;margin-left:8px}
   .seg{display:flex;background:rgba(255,255,255,.05);border:1px solid var(--side-border);border-radius:9px;padding:3px}
@@ -79,7 +82,9 @@
   .queue-head h3{font-size:14px;font-weight:700;display:flex;align-items:center;gap:8px;color:var(--stage-ink)}
   .queue-head .count{background:var(--sand);color:#211b10;font-size:11px;font-weight:700;border-radius:20px;padding:1px 8px}
   .queue-head p{font-size:11.5px;color:var(--stage-mut);margin-top:4px}
-  .queue-list{flex:1;overflow-y:auto;padding:10px}
+  /* Same flex-column-with-a-scrolling-child pattern as the drawer: .queue is
+     display:flex;flex-direction:column and this is the scrolling child. */
+  .queue-list{flex:1 1 auto;min-height:0;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;padding:10px}
   .job{position:relative;background:linear-gradient(180deg,rgba(255,255,255,.05),rgba(255,255,255,.015));border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:11px 12px 11px 15px;margin-bottom:9px;cursor:grab;transition:.16s;color:var(--stage-ink)}
   .job .jspine{position:absolute;left:0;top:10px;bottom:10px;width:3px;border-radius:3px}
   .job:hover{border-color:rgba(255,255,255,.16);transform:translateY(-1px)}
@@ -139,7 +144,9 @@
   .mchip .mbang{color:#e08a86;font-weight:800;margin-left:3px}
 
   /* GENERIC PAGES (light) */
-  .generic{flex:1;overflow:auto;padding:28px 32px}
+  /* Receiving / To Schedule / Dealers / Rates / Reports all render here, and it
+     is the scrolling child of .main (display:flex;flex-direction:column). */
+  .generic{flex:1 1 auto;min-height:0;overflow:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;padding:28px 32px}
   .gp-head{font-size:20px;font-weight:800;margin-bottom:4px}
   .gp-sub{font-size:13px;color:var(--muted);margin-bottom:22px}
   .gcards{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:14px}
@@ -189,12 +196,18 @@
   /* DRAWER (dark popover style) */
   .drawer{position:fixed;top:0;right:0;height:100vh;width:386px;background:var(--side-2);border-left:1px solid var(--side-border);box-shadow:-24px 0 60px rgba(0,0,0,.5);transform:translateX(100%);transition:transform .26s cubic-bezier(.4,0,.2,1);z-index:50;display:flex;flex-direction:column;color:var(--sand-ink)}
   .drawer.open{transform:translateX(0)}
-  .dr-head{padding:18px 22px;border-bottom:1px solid var(--side-border);display:flex;align-items:flex-start;gap:12px}
+  .dr-head{flex:0 0 auto;padding:18px 22px;border-bottom:1px solid var(--side-border);display:flex;align-items:flex-start;gap:12px}
   .dr-head .typetag{font-size:9.5px;font-weight:800;letter-spacing:.8px;text-transform:uppercase;padding:3px 8px;border-radius:5px;display:inline-block;margin-bottom:7px}
   .dr-head .x{margin-left:auto;background:var(--side-3);border:1px solid var(--side-border);color:var(--sand-dim);width:30px;height:30px;border-radius:8px;cursor:pointer;font-size:18px;line-height:1}
   .dr-head .x:hover{color:var(--sand-ink);border-color:var(--accent-line)}
   .dr-head h2{font-size:18px;font-weight:700;color:#fff}.dr-head .sub{font-size:12.5px;color:var(--sand-dim);margin-top:3px}
-  .dr-body{padding:18px 22px;overflow-y:auto;flex:1}
+  /* min-height:0 (v55): .drawer is a column flex container, and a column flex
+     item defaults to min-height:auto - it refuses to shrink below its content,
+     so the scroll area can grow past the drawer instead of scrolling inside
+     it. overscroll-behavior:contain stops a bottomed-out scroll chaining into
+     the unscrollable body, which is what stranded the gesture after scrolling
+     down into the files area. */
+  .dr-body{padding:18px 22px;overflow-y:auto;flex:1 1 auto;min-height:0;overscroll-behavior:contain;-webkit-overflow-scrolling:touch}
   .issue-banner{display:none;align-items:center;gap:10px;background:rgba(217,96,92,.12);border:1px solid rgba(217,96,92,.4);color:#e89490;border-radius:10px;padding:11px 13px;margin-bottom:16px;font-size:12.5px;font-weight:600}
   .issue-banner.show{display:flex}.issue-banner svg{width:17px;height:17px;flex-shrink:0}
   .issue-banner button{margin-left:auto;background:#d9605c;color:#fff;border:none;font:inherit;font-size:11.5px;font-weight:700;padding:6px 11px;border-radius:7px;cursor:pointer;white-space:nowrap}
@@ -214,7 +227,7 @@
   .chips{display:flex;gap:7px}
   .chip{padding:7px 12px;border-radius:8px;font-size:12px;font-weight:700;border:1px solid var(--side-border);background:var(--side-3);color:var(--sand-dim);cursor:pointer;transition:.14s}
   .chip:hover{border-color:var(--accent-line)}.chip.on{color:#211b10;border-color:transparent}
-  .dr-foot{padding:15px 22px;border-top:1px solid var(--side-border);display:flex;gap:10px}
+  .dr-foot{flex:0 0 auto;padding:15px 22px;border-top:1px solid var(--side-border);display:flex;gap:10px}
   .dr-foot .btn{flex:1;justify-content:center}
   .del{background:var(--side-3);color:#e08a86;border:1px solid var(--side-border)}.del:hover{border-color:#d9605c}
 
@@ -352,7 +365,7 @@
   .combo{position:relative}
   .combo>input{width:100%;background:var(--side-3);border:1px solid var(--side-border);color:var(--sand-ink);font:inherit;font-size:13.5px;padding:9px 11px;border-radius:8px;outline:none}
   .combo>input:focus{border-color:var(--accent)}
-  .combo-list{position:absolute;top:calc(100% + 4px);left:0;right:0;max-height:230px;overflow:auto;background:var(--side-2);border:1px solid var(--side-border);border-radius:10px;box-shadow:0 14px 34px rgba(0,0,0,.55);z-index:8;display:none}
+  .combo-list{position:absolute;top:calc(100% + 4px);left:0;right:0;max-height:230px;overflow:auto;overscroll-behavior:contain;background:var(--side-2);border:1px solid var(--side-border);border-radius:10px;box-shadow:0 14px 34px rgba(0,0,0,.55);z-index:8;display:none}
   .combo-list.open{display:block}
   .combo-item{padding:9px 12px;font-size:13px;cursor:pointer;color:var(--sand-ink)}
   .combo-item:hover{background:var(--side-3)}
@@ -387,16 +400,39 @@
   .svc-active input{width:16px;height:16px;accent-color:var(--accent)}
 
   /* MODALS (dark popover style) */
-  .modal-bg{position:fixed;inset:0;background:rgba(8,8,10,.6);backdrop-filter:blur(4px);display:flex;align-items:center;justify-content:center;opacity:0;pointer-events:none;transition:.18s;z-index:60}
+  /* -webkit- pair was missing here and present on the other three
+     backdrop-filter rules in this file. Safari needs it. */
+  .modal-bg{position:fixed;inset:0;background:rgba(8,8,10,.6);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);display:flex;align-items:center;justify-content:center;opacity:0;pointer-events:none;transition:.18s;z-index:60}
   .modal-bg.open{opacity:1;pointer-events:auto}
-  .modal{width:480px;max-width:92vw;max-height:86vh;overflow:auto;background:var(--side-2);border:1px solid var(--side-border);border-radius:16px;box-shadow:0 30px 80px rgba(0,0,0,.6);transform:translateY(12px);transition:.2s;color:var(--sand-ink)}
+  /* ===== Modal scroll shell (v55) =========================================
+     The modal used to be the scroller itself (overflow:auto on this box), so
+     .modal-b had no height bound of its own and the header and footer scrolled
+     away with the content. On a long form that put the Save button at the very
+     end of a 1500px scroll with no other way to reach it - which is what made
+     the two report forms unusable on a phone rather than merely awkward.
+
+     Now it is a flex COLUMN: header and footer are fixed-size, .modal-b is the
+     single scroll area. min-height:0 on that child is the load-bearing part -
+     a column flex item defaults to min-height:auto, which refuses to shrink
+     below its content, so the scroll area can be pushed past the box instead
+     of scrolling inside it.
+
+     overflow:hidden here (not auto) is deliberate: exactly ONE scroller in the
+     chain. Leaving auto on both would nest two scrollers and reintroduce the
+     gesture conflict this change exists to remove. ==================== */
+  .modal{width:480px;max-width:92vw;max-height:86vh;display:flex;flex-direction:column;overflow:hidden;background:var(--side-2);border:1px solid var(--side-border);border-radius:16px;box-shadow:0 30px 80px rgba(0,0,0,.6);transform:translateY(12px);transition:.2s;color:var(--sand-ink)}
   .modal-bg.open .modal{transform:translateY(0)}
-  .modal-h{padding:18px 22px;border-bottom:1px solid var(--side-border);display:flex;align-items:center;gap:10px}
+  /* flex:none so the header keeps its height and never scrolls away - the X
+     stays reachable no matter how long the body is. */
+  .modal-h{flex:0 0 auto;padding:18px 22px;border-bottom:1px solid var(--side-border);display:flex;align-items:center;gap:10px}
   .modal-h .mi{width:34px;height:34px;border-radius:9px;background:var(--accent-soft);display:flex;align-items:center;justify-content:center}
   .modal-h .mi svg{width:18px;height:18px;color:var(--sand)}
   .modal-h h3{font-size:16px;font-weight:700;color:#fff}.modal-h .ms{font-size:12px;color:var(--sand-dim)}
   .modal-h .x{margin-left:auto;background:var(--side-3);border:1px solid var(--side-border);color:var(--sand-dim);width:30px;height:30px;border-radius:8px;cursor:pointer;font-size:18px}
-  .modal-b{padding:20px 22px}
+  /* The one scroll area. min-height:0 defeats the flex min-height:auto default;
+     overscroll-behavior:contain stops a bottomed-out scroll from chaining into
+     body, which is overflow:hidden and cannot scroll. */
+  .modal-b{flex:1 1 auto;min-height:0;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;padding:20px 22px}
   .mtable{width:100%;border-collapse:collapse;font-size:13px;margin-top:6px}
   .mtable th{text-align:left;font-size:10.5px;letter-spacing:.8px;text-transform:uppercase;color:var(--sand-dim);padding:6px 8px;border-bottom:1px solid var(--side-border)}
   .mtable td{padding:8px;border-bottom:1px solid var(--side-border)}.mtable input{width:100%;background:var(--side-3);border:1px solid var(--side-border);border-radius:6px;padding:5px 7px;font:inherit;font-size:12.5px;color:var(--sand-ink)}
@@ -475,7 +511,9 @@
   .crack{border:1px solid var(--border);background:var(--raised);border-radius:11px;padding:13px 14px;margin-top:6px}
   .crack.signed{border-color:#4d7010;background:rgba(77,112,16,.07)}
 
-  .modal-f{padding:14px 22px;border-top:1px solid var(--side-border);display:flex;justify-content:flex-end;gap:10px}
+  /* flex:none: Save / Send is always on screen, so reaching it never depends
+     on scrolling to the end of the form. */
+  .modal-f{flex:0 0 auto;padding:14px 22px;border-top:1px solid var(--side-border);display:flex;justify-content:flex-end;gap:10px}
 
   .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(20px);background:var(--side);color:var(--sand-ink);padding:11px 20px;border-radius:11px;font-size:13px;font-weight:600;opacity:0;transition:.25s;z-index:99;box-shadow:0 10px 30px rgba(0,0,0,.5);border:1px solid var(--side-border)}
   .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}.toast b{color:var(--sand)}
@@ -530,7 +568,7 @@ body.role-installer [data-admin]{display:none!important}
 .dl-search{padding:10px;border-bottom:1px solid var(--border-soft)}
 .dl-input{width:100%;box-sizing:border-box;background:var(--raised);border:1px solid var(--border);color:var(--ink);font:inherit;font-size:13px;padding:9px 11px;border-radius:9px;outline:none}
 .dl-input:focus{border-color:var(--accent-line)}
-.dl-rows{max-height:60vh;overflow-y:auto}
+.dl-rows{max-height:60vh;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch}
 .dl-row{display:flex;align-items:center;gap:10px;padding:10px 13px;cursor:pointer;border-bottom:1px solid var(--border-soft)}
 .dl-row:last-child{border-bottom:none}
 .dl-row:hover{background:var(--raised)}
@@ -707,7 +745,7 @@ body.role-installer [data-admin]{display:none!important}
   /* --- Sidebar -> off-canvas panel --- */
   .sidebar{position:fixed;top:0;left:0;bottom:0;width:264px;max-width:82vw;height:100dvh;
     transform:translateX(-100%);transition:transform .24s cubic-bezier(.4,0,.2,1);
-    overflow-y:auto;box-shadow:16px 0 40px rgba(0,0,0,.5)}
+    overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;box-shadow:16px 0 40px rgba(0,0,0,.5)}
   body.navopen .sidebar{transform:translateX(0)}
   /* Scrim as a pseudo-element so the mobile pass adds no DOM node beyond the button.
      z-index 29 keeps it under .sidebar (30) and under drawer/modals (50/60). */
@@ -738,7 +776,7 @@ body.role-installer [data-admin]{display:none!important}
   .queue-head::after{content:"\25be";margin-left:auto;font-size:13px;color:var(--stage-mut);transition:transform .2s}
   body.queueopen .queue-head::after{transform:rotate(180deg)}
   .queue-list{display:none}
-  body.queueopen .queue-list{display:block;max-height:38dvh;overflow-y:auto}
+  body.queueopen .queue-list{display:block;max-height:38dvh;overflow-y:auto;overscroll-behavior:contain}
 
   /* --- Calendar. Day view fits via buildDay's min(520px,100%); week/month still
          scroll horizontally by design in pass 1. No --row-h here. --- */
