@@ -843,6 +843,22 @@ body.role-installer [data-admin]{display:none!important}
     <div class="modal-f"><button class="btn ghost" id="dlrCancel">Close</button></div>
   </div></div>
 
+  <div class="modal-bg" id="unrecvBg"><div class="modal">
+    <div class="modal-h"><div><h3>Undo this check-off?</h3><div class="ms">Correcting received stock</div></div><button class="x" id="unrecvClose">&times;</button></div>
+    <div class="modal-b" id="unrecvBody"></div>
+    <div class="modal-f"><button class="btn ghost" id="unrecvCancel">Keep it received</button><button class="btn" id="unrecvGo">Yes, un-receive</button></div>
+  </div></div>
+
+  <div class="modal-bg" id="rnoteBg"><div class="modal">
+    <div class="modal-h"><div><h3 id="rnoteName">&mdash;</h3><div class="ms">Receiving notes</div></div><button class="x" id="rnoteClose">&times;</button></div>
+    <div class="modal-b">
+      <div class="fld"><label>Add a note</label><textarea id="rnoteNew" placeholder="e.g. 3 of 7 roller shades received Tuesday, 4 backordered"></textarea>
+        <div style="display:flex;justify-content:flex-end;margin-top:8px"><button class="btn" id="rnoteAdd">Add Note</button></div>
+        <div id="rnoteFeed" style="margin-top:10px"></div></div>
+    </div>
+    <div class="modal-f"><button class="btn ghost" id="rnoteCancel">Close</button></div>
+  </div></div>
+
   <div class="modal-bg" id="modalBg"><div class="modal">
     <div class="modal-h"><div class="mi" id="modalIcon"></div><div><h3 id="modalTitle">—</h3><div class="ms" id="modalSub">—</div></div><button class="x" id="modalClose">×</button></div>
     <div class="modal-b" id="modalBody"></div>
@@ -1138,7 +1154,7 @@ function openDrawer(id){let a=appts.find(x=>x.id===id),mode='appt';if(!a){a=queu
   renderDrPricing(a);drCancelEdit();
   $('drScope').value=a.scope||'';
   /* Notes are their own append-only feed as of v44; nothing to prefill. */
-  $('drNoteNew').value='';noteLoad();
+  $('drNoteNew').value='';noteLoad(NOTE_DRAWER,currentJobId());
   fillDur($('drDurH'),$('drDurM'),(mode==='appt'?a.dur*60:(a.estMins||defaultMins(a.type))));
   document.querySelectorAll('#drType .chip').forEach(c=>{const on=c.dataset.t===a.type;c.classList.toggle('on',on);c.style.background=on?TYPES[a.type].c:''});
   drTypeShow(a.type);
@@ -1253,7 +1269,19 @@ $('drTypeEdit').onclick=drTypeEditOn;
    no edit or delete affordance below, and adding one would not work if there
    were — a blocked write returns 0 rows rather than an error.
    ======================================================================== */
-let NOTE_ROWS=[];
+/* v48: this feed is no longer drawer-only — Receiving shows it too, for a
+   different job. Each surface owns a CONTEXT: its element ids plus its own row
+   array. The single NOTE_ROWS global could only ever hold one job's notes, so
+   two surfaces sharing it would have overwritten each other's feed.
+
+   NOTE_DRAWER keeps the exact ids the v44 markup already uses, so the drawer
+   behaves as before. NOTE_RECV points at the Receiving notes modal, which
+   reuses the DARK modal shell — the same palette the drawer uses — so the row
+   markup below needs no light-palette variant. Rendering this feed directly
+   onto the white Receiving page would have hit the palette landmine in
+   CLAUDE.md: --sand-ink on --card is invisible. */
+const NOTE_DRAWER={feed:'drNoteFeed',input:'drNoteNew',btn:'drNoteAdd',rows:[],jobId:null};
+const NOTE_RECV={feed:'rnoteFeed',input:'rnoteNew',btn:'rnoteAdd',rows:[],jobId:null};
 
 /* Same derivation the user chip uses, so the feed says "Mike" exactly as the
    sidebar does. '(migrated)' is the marker the backfill wrote for notes that
@@ -1268,33 +1296,40 @@ function noteWhen(ts){const d=new Date(ts);
   if(isNaN(d.getTime()))return '';
   return d.toLocaleString(undefined,{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'});}
 
-function noteRender(){const box=$('drNoteFeed');if(!box)return;
-  const dim='font-size:12.5px;color:var(--sand-dim)';
-  if(!NOTE_ROWS.length){box.innerHTML='<div style="'+dim+'">No notes yet.</div>';return;}
-  box.innerHTML=NOTE_ROWS.map(function(n){
-    return '<div style="padding:10px 0;border-top:1px solid var(--side-border)">'
-      +'<div style="font-size:13px;line-height:1.5;color:var(--sand-ink);white-space:pre-wrap">'+esc(n.body)+'</div>'
-      +'<div style="'+dim+';margin-top:5px">'+esc(noteWho(n.author_email))+' · '+esc(noteWhen(n.created_at))+'</div>'
-      +'</div>';}).join('');}
+/* One row, one place. Both surfaces render identical rows; extracting this is
+   what lets Receiving reuse the feed instead of growing a second copy. */
+function noteRowHtml(n){const dim='font-size:12.5px;color:var(--sand-dim)';
+  return '<div style="padding:10px 0;border-top:1px solid var(--side-border)">'
+    +'<div style="font-size:13px;line-height:1.5;color:var(--sand-ink);white-space:pre-wrap">'+esc(n.body)+'</div>'
+    +'<div style="'+dim+';margin-top:5px">'+esc(noteWho(n.author_email))+' · '+esc(noteWhen(n.created_at))+'</div>'
+    +'</div>';}
 
-async function noteLoad(){const box=$('drNoteFeed');if(!box)return;
+function noteRender(ctx){const box=$(ctx.feed);if(!box)return;
   const dim='font-size:12.5px;color:var(--sand-dim)';
-  NOTE_ROWS=[];
-  const jobId=currentJobId();
-  if(!jobId){box.innerHTML='<div style="'+dim+'">Save the job first to add notes.</div>';return;}
+  if(!ctx.rows.length){box.innerHTML='<div style="'+dim+'">No notes yet.</div>';return;}
+  box.innerHTML=ctx.rows.map(noteRowHtml).join('');}
+
+async function noteLoad(ctx,jobId){const box=$(ctx.feed);if(!box)return;
+  const dim='font-size:12.5px;color:var(--sand-dim)';
+  ctx.rows=[];ctx.jobId=jobId||null;
+  if(!ctx.jobId){box.innerHTML='<div style="'+dim+'">Save the job first to add notes.</div>';return;}
   box.innerHTML='<div style="'+dim+'">Loading notes…</div>';
   const {data,error}=await sb.from('job_notes')
     .select('id,body,author_email,created_at')
-    .eq('job_id',jobId)
+    .eq('job_id',ctx.jobId)
     .order('created_at',{ascending:false});
   if(error){console.error('noteLoad',error);
     box.innerHTML='<div style="font-size:12.5px;color:#e08a86">Could not load notes.</div>';return;}
-  NOTE_ROWS=data||[];noteRender();}
+  /* Late response for a job the surface has since moved off — opening two
+     Receiving cards quickly, or reopening the drawer on another job. Dropping
+     it stops an older job's notes from landing under a newer job's heading. */
+  if(ctx.jobId!==jobId)return;
+  ctx.rows=data||[];noteRender(ctx);}
 
-async function noteAdd(){
-  const jobId=currentJobId();
+async function noteAdd(ctx){
+  const jobId=ctx.jobId;
   if(!jobId){toast('Save the job first',true);return;}
-  const ta=$('drNoteNew'),btn=$('drNoteAdd');
+  const ta=$(ctx.input),btn=$(ctx.btn);
   const body=(ta?ta.value:'').trim();
   if(!body){toast('Type a note first');return;}
   const lbl=btn?btn.textContent:'Add Note';
@@ -1302,7 +1337,14 @@ async function noteAdd(){
   /* job_id and body ONLY. tenant_id, created_by and author_email are filled by
      database defaults from the caller's own JWT, so the client cannot claim to
      be someone else — unlike files.uploaded_by, which the client sends as the
-     hardcoded string 'M. Lake'. */
+     hardcoded string 'M. Lake'.
+
+     Receiving notes are deliberately written UNTAGGED (v48) — no "[Receiving]"
+     prefix. job_notes is append-only: its RLS grants SELECT and INSERT and no
+     UPDATE or DELETE at all, so a prefix written into body could never be
+     edited out again. author_email plus the timestamp already say who logged
+     it. If tagging is ever genuinely needed, a real source column added then
+     leaves historical rows honestly NULL instead of retroactively mislabelled. */
   const {data,error}=await sb.from('job_notes')
     .insert({job_id:jobId,body})
     .select('id,body,author_email,created_at')
@@ -1313,9 +1355,14 @@ async function noteAdd(){
   /* Prepend the row the database actually returned rather than re-fetching —
      one round trip instead of two, and the author and timestamp shown are the
      ones the DB assigned, not a local guess. */
-  NOTE_ROWS.unshift(data);noteRender();
+  ctx.rows.unshift(data);noteRender(ctx);
+  /* Keep the Receiving card note count honest without another round trip. */
+  if(RECV_NOTE_N)RECV_NOTE_N[jobId]=(RECV_NOTE_N[jobId]||0)+1;
+  if(page==='inventory')buildReceiving();
   toast('Note added');}
-$('drNoteAdd').onclick=noteAdd;
+/* Re-resolves the job at click time exactly as the v44 version did, so a
+   drawer reopened on another job cannot post a note against the old one. */
+$('drNoteAdd').onclick=function(){NOTE_DRAWER.jobId=currentJobId();noteAdd(NOTE_DRAWER);};
 /* ===== Confirm Stock Received (v46) ====================================
    Replaces a hardcoded placeholder: three invented order lines that rendered
    identically on every job, with checkboxes that persisted nothing. An
@@ -1327,10 +1374,14 @@ $('drNoteAdd').onclick=noteAdd;
    delivered, delivered_by and delivered_at all already exist, and the Receiving
    page has been writing them all along.
 
-   READ-ONLY, and not only by preference. toggleLine(), the existing write path,
-   begins with queue.find(x => x.id === jobId) — a SCHEDULED job is no longer in
-   the queue, so calling it from an install drawer would find nothing and
-   silently do nothing. Making this writable means new code, not reuse.
+   READ-ONLY, by deliberate scope rather than by obstacle. When this was written
+   in v46 the reason was mechanical: toggleLine() began with
+   queue.find(x => x.id === jobId), and a SCHEDULED job is no longer in the
+   queue, so calling it from an install drawer found nothing and silently did
+   nothing. v47 replaced that lookup with recvFind(), which resolves scheduled
+   jobs too — so the obstacle is gone, and this panel stays read-only only
+   because correcting stock belongs on the Receiving page, behind the v48
+   confirmation, rather than one stray tap away in an installer's drawer.
 
    Re-queried on open rather than read from the in-memory copy: stale stock is
    the exact failure this screen exists to prevent, and the warehouse may check
@@ -2493,7 +2544,7 @@ function buildGeneric(p){const g=$('genericView');
     g.innerHTML=`<div class="ts-wrap"><div class="ts-main"><div class="gp-head">To Schedule</div><div class="gp-sub">${ready.length} jobs ready to book.${awaiting?` ${awaiting} more awaiting product in Receiving.`:''}</div>${ready.map(j=>{const aw=partialAwaiting(j)?`<span class="awtag light">⏳ awaiting product</span>`:'';return `<div class="grow" style="cursor:pointer" onclick="openDrawer('${j.id}')"><span class="gt" style="background:rgba(216,198,160,.28);color:#7a6c45">${j.type}</span><div style="flex:1"><div class="gname">${j.cust} ${aw}</div><div class="gmeta">${j.scope} · ${j.addr}</div></div><div class="gmeta">${j.dealer}</div></div>`}).join('')||'<div class="empty"><h3>Queue is clear</h3><p>No jobs ready to schedule.</p></div>'}</div><div class="ts-side">${miniCal()}</div></div>`;return}
   if(p==='installers'){markConflicts();g.innerHTML=`<div class="gp-head">Installers</div><div class="gp-sub">Crew load &amp; pay setup. Pay type drives cost and margin.</div><div class="gcards">${INSTALLERS.filter(i=>i.id!=='un').map(i=>{const jobs=appts.filter(a=>a.installer===i.id);const conf=jobs.filter(a=>a._conflict).length;const pay=i.payType==='sub_1099'?`1099 · ${i.payRate||0}% of price`:`${i.payType==='salary'?'Salary':'Hourly'} · ${fmtMoney(i.payRate||0)}/hr`;return `<div class="gcard"><h4><span class="dot" style="background:${i.color}"></span>${i.name}<button class="pedit" onclick="editInstaller('${i.id}')">Edit pay</button></h4><div class="gstat"><div><b>${jobs.length}</b>jobs this week</div><div><b style="color:${conf?'#d9605c':'var(--ink)'}">${conf}</b>conflicts</div></div><div class="ipay">${pay}</div></div>`}).join('')}</div>`;return}
   if(p==='dealers'){buildDealers();return}
-  if(p==='inventory'){buildReceiving();return}
+  if(p==='inventory'){RECV_NOTE_N=null;buildReceiving();return}
   if(p==='rates'){buildRates();return}
   if(p==='reports'){buildReports();return}}
 
@@ -2633,6 +2684,56 @@ let recvFilter='awaiting';
 
 function setRecvFilter(f){recvFilter=f;buildReceiving();}
 
+/* job_id -> note count, for the card badges. null means "not loaded yet";
+   buildReceiving sets it to {} before firing the fetch so the re-render that
+   fetch triggers on completion cannot start a second one. Reset on nav to
+   Receiving so a fresh visit picks up notes added from a drawer meanwhile. */
+let RECV_NOTE_N=null;
+async function recvLoadNoteCounts(){
+  /* One query for the whole page instead of one per card. RLS already scopes
+     job_notes to this tenant, so this cannot reach another tenant's rows. */
+  const {data,error}=await sb.from('job_notes').select('job_id');
+  if(error){console.error('recvLoadNoteCounts',error);return;}
+  const m={};(data||[]).forEach(function(r){m[r.job_id]=(m[r.job_id]||0)+1;});
+  RECV_NOTE_N=m;
+  if(page==='inventory')buildReceiving();}
+
+/* The signed-in user, derived exactly as the notes feed and the sidebar chip
+   derive it, so one person reads identically everywhere. Falls back to the old
+   'Warehouse' literal only if there is somehow no profile. */
+function recvWho(){const e=PROFILE&&PROFILE.email;return e?noteWho(e):'Warehouse';}
+
+function apptForJob(jobId){return appts.find(function(a){return a.jobId===jobId;})||null;}
+
+/* dateKey is 'YYYY-MM-DD' and start is a fractional hour. Parsed as LOCAL
+   parts deliberately — new Date('2026-09-08') is parsed as UTC and shows the
+   previous day west of Greenwich. */
+function apptWhen(a){const p=String(a.dateKey||'').split('-').map(Number);
+  if(p.length!==3||!p[0])return 'a scheduled date';
+  const d=new Date(p[0],p[1]-1,p[2]);
+  const hh=Math.floor(a.start||0);
+  d.setHours(hh,Math.round(((a.start||0)-hh)*60),0,0);
+  if(isNaN(d.getTime()))return 'a scheduled date';
+  return d.toLocaleString(undefined,{weekday:'short',month:'short',day:'numeric',hour:'numeric',minute:'2-digit'});}
+
+/* ===== Receiving notes (v48) ===========================================
+   Reuses the job_notes feed built for the drawer in v44 — same table, same
+   loader, same renderer, through NOTE_RECV. No new schema and no second feed.
+   Shown in the shared DARK modal shell, which is why the feed's own dark
+   styling applies unchanged. Keyed on the JOB, so a note logged by the
+   warehouse here is the same note the dispatcher reads in the drawer.
+   ==================================================================== */
+function recvNotes(jobId){const j=recvFind(jobId);if(!j)return;
+  $('rnoteName').textContent=j.cust;
+  const ta=$('rnoteNew');if(ta)ta.value='';
+  $('rnoteBg').classList.add('open');
+  noteLoad(NOTE_RECV,jobId);}
+function recvNotesClose(){$('rnoteBg').classList.remove('open');}
+$('rnoteClose').onclick=recvNotesClose;
+$('rnoteCancel').onclick=recvNotesClose;
+$('rnoteAdd').onclick=function(){noteAdd(NOTE_RECV);};
+$('rnoteBg').addEventListener('click',function(e){if(e.target.id==='rnoteBg')recvNotesClose();});
+
 /* queue plus the scheduled jobs, deduped by job id. The lineItems array is
    passed by REFERENCE, not copied — that is what lets toggleLine mutate the
    underlying appointment's copy and have every view agree afterwards. */
@@ -2663,6 +2764,7 @@ function recvFullyReceived(j){
 
 function recvCard(j,showSchedule){
   const done=j.lineItems.filter(function(li){return li.delivered;}).length,tot=j.lineItems.length;
+  const nNotes=(RECV_NOTE_N&&RECV_NOTE_N[j.id])||0;
   const lines=j.lineItems.map(function(li){
     return '<div class="lrow '+(li.delivered?'on':'')+'">'
       +'<button class="lck" onclick="toggleLine(\''+j.id+'\',\''+li.id+'\')">'
@@ -2681,9 +2783,16 @@ function recvCard(j,showSchedule){
       +'<div class="rsub">'+esc(j.dealer)+' &middot; '+esc(j.addr)+'</div></div>'
       +'<div class="rprog">'+done+'/'+tot+' delivered</div></div>'
       +'<div class="lines">'+lines+'</div>'
-      +(showSchedule
-        ?'<div class="ract"><button class="btn sm" onclick="scheduleAnyway(\''+j.id+'\')">Schedule anyway (partial)</button></div>'
-        :'')
+      +'<div class="ract">'
+        /* Neutral against the LIGHT page: .btn.ghost is dark-palette only
+           (--sand-ink on translucent white) and would be near-invisible here,
+           so the secondary look uses light tokens inline instead. */
+        +'<button class="btn sm" style="background:none;border:1px solid var(--border);color:var(--muted)" onclick="recvNotes(\''+j.id+'\')">Notes'
+        +(nNotes?' ('+nNotes+')':'')+'</button>'
+        +(showSchedule
+          ?'<button class="btn sm" style="margin-left:8px" onclick="scheduleAnyway(\''+j.id+'\')">Schedule anyway (partial)</button>'
+          :'')
+      +'</div>'
       +'</div>';
 }
 
@@ -2691,6 +2800,9 @@ function buildReceiving(){const g=$('genericView');
   /* Fails closed: an installer never sees the correction views, and cannot be
      left in one by stale state either. */
   if(!IS_ADMIN)recvFilter='awaiting';
+  /* Set to {} BEFORE the fetch starts, so the re-render recvLoadNoteCounts
+     triggers on completion does not see null and fire a second one. */
+  if(RECV_NOTE_N===null){RECV_NOTE_N={};recvLoadNoteCounts();}
   const awaiting=queue.filter(stillAwaiting);
   const ready=queue.filter(readyToSchedule);
   const received=recvPool().filter(recvFullyReceived);
@@ -2741,12 +2853,63 @@ function buildReceiving(){const g=$('genericView');
     +'<div class="inv-stat"><b>'+ready.length+'</b><span>Ready to schedule</span></div></div>'
     +(list||empty);}
 
-async function toggleLine(jobId,lineId){
+/* ===== Check-off, and the gate on undoing one (v48) ====================
+   Checking a line ON stays one tap: it is additive, and the warehouse does it
+   dozens of times a day. UNDOING a check-off is the destructive direction — it
+   un-inventories stock somebody already physically verified — so that one goes
+   through a confirmation first.
+
+   toggleLine() now only DECIDES; applyLineToggle() writes. Both directions land
+   in the one writer, so there is still exactly one place that touches
+   line_items. toggleLine is deliberately NOT async any more: it either
+   delegates or opens a modal, and awaiting it would mean nothing.
+   ==================================================================== */
+let _unrecv=null;
+
+function toggleLine(jobId,lineId){
   /* recvFind, not queue.find: a scheduled job is no longer in the queue, and
      before v47 this returned undefined and the click did nothing at all. */
   const j=recvFind(jobId);if(!j)return;
   const li=j.lineItems.find(function(l){return l.id===lineId;});if(!li)return;
-  const nowDel=!li.delivered;const by=nowDel?'Warehouse · '+shortDate():null;
+  if(!li.delivered){applyLineToggle(jobId,lineId,true);return;}
+
+  _unrecv={jobId:jobId,lineId:lineId};
+  const who=li.by?esc(li.by):'not recorded';
+  let h='<p style="font-size:13px;line-height:1.6;color:var(--sand-ink);margin:0">'
+    +'<b>'+esc(li.desc)+'</b> is marked received — '+who+'.'
+    +' Un-receiving puts it back to <b>Pending</b> on <b>'+esc(j.cust)+'</b>.</p>';
+  /* Looked up from appts directly rather than from j.scheduled, so the warning
+     is right whichever pool the card was drawn from. */
+  const ap=apptForJob(jobId);
+  if(ap){
+    h+='<p style="font-size:12.5px;line-height:1.55;color:#EEA504;'
+      +'background:rgba(238,165,4,.10);border:1px solid rgba(238,165,4,.35);'
+      +'border-radius:9px;padding:10px 12px;margin:12px 0 0">'
+      +'This job is <b>scheduled</b> for '+esc(apptWhen(ap))+' with <b>'
+      +esc(instById(ap.installer).name)+'</b>. It stays on the calendar — '
+      +'un-receiving does not cancel or move the appointment. The card will show '
+      +'the ⏳ product flag again so dispatch can see the stock is no longer '
+      +'confirmed.</p>';}
+  $('unrecvBody').innerHTML=h;
+  $('unrecvBg').classList.add('open');}
+
+function unrecvClosePopup(){_unrecv=null;$('unrecvBg').classList.remove('open');}
+$('unrecvClose').onclick=unrecvClosePopup;
+$('unrecvCancel').onclick=unrecvClosePopup;
+$('unrecvBg').addEventListener('click',function(e){if(e.target.id==='unrecvBg')unrecvClosePopup();});
+$('unrecvGo').onclick=function(){const t=_unrecv;
+  _unrecv=null;$('unrecvBg').classList.remove('open');
+  if(t)applyLineToggle(t.jobId,t.lineId,false);};
+
+async function applyLineToggle(jobId,lineId,nowDel){
+  const j=recvFind(jobId);if(!j)return;
+  const li=j.lineItems.find(function(l){return l.id===lineId;});if(!li)return;
+  /* v48: the real signed-in user, not the hardcoded 'Warehouse'. The
+     'Name · Sep 2' shape is KEPT because stockWhen() in the drawer reads
+     delivered_by and shows it INSTEAD of delivered_at, on the assumption that
+     it already carries its own date. delivered_at is still written alongside
+     as the machine-readable copy. */
+  const by=nowDel?recvWho()+' · '+shortDate():null;
   const {error}=await sb.from('line_items')
     .update({delivered:nowDel,delivered_by:by,delivered_at:nowDel?new Date().toISOString():null})
     .eq('id',lineId);
