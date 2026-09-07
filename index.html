@@ -1185,7 +1185,10 @@ async function uploadFile(jobId,file,kind){const safe=file.name.replace(/[^\w.\-
    Signed URLs work on a public bucket too, which is what lets v39 ship BEFORE
    the bucket flips private. See 2026-09-06-storage-03-bucket-private.sql. */
 const SIGNED_URL_TTL=3600;   /* seconds — reopening the drawer re-signs */
-async function loadFiles(jobId){const {data,error}=await sb.from('files').select('id,kind,name,storage_path').eq('job_id',jobId).order('uploaded_at');
+/* uploaded_at is SELECTED as of v50, not just ordered by: the work-order PDF
+   picker lists each file by name and date. Reading a column the query was
+   already sorting on is not new schema. */
+async function loadFiles(jobId){const {data,error}=await sb.from('files').select('id,kind,name,storage_path,uploaded_at').eq('job_id',jobId).order('uploaded_at');
   if(error){console.error(error);return[];}
   const rows=data||[];if(!rows.length)return[];
   const paths=rows.map(f=>f.storage_path);
@@ -1199,7 +1202,7 @@ async function loadFiles(jobId){const {data,error}=await sb.from('files').select
   if(se)console.error('createSignedUrls',se);
   const byPath=new Map();
   (signed||[]).forEach((s,i)=>{if(s&&s.signedUrl)byPath.set(s.path||paths[i],s.signedUrl);});
-  return rows.map(f=>({id:f.id,kind:f.kind,name:f.name,url:byPath.get(f.storage_path)||null,path:f.storage_path}));}
+  return rows.map(f=>({id:f.id,kind:f.kind,name:f.name,url:byPath.get(f.storage_path)||null,path:f.storage_path,uploaded:f.uploaded_at||null}));}
 async function deleteFile(fileId,path){try{await sb.storage.from('job-files').remove([path]);await sb.from('files').delete().eq('id',fileId);refreshFiles();toast('File removed');}catch(e){console.error(e);toast('Could not remove file',true);}}
 async function refreshFiles(){const a=currentItem();if(!a)return;const jobId=currentJobId();
   if(!jobId){$('drFiles').innerHTML='<div class="fileempty">Save the job first to attach files.</div>';return;}
@@ -1543,6 +1546,10 @@ $('drStatus').addEventListener('change',e=>$('issueBanner').classList.toggle('sh
 function modalBodyFor(ic){const a=appts.find(x=>x.id===selectedId)||{};
   if(ic==='ruler')return `<div class="mshead"><h4>Measure sheet</h4><span class="mscount" id="msCount"></span><button class="msbtn ms-pdf" id="msPdf">Generate PDF</button></div><div id="msList"></div><button class="msadd" id="msAdd">+ Add line item</button>`;
   if(ic==='box')return `<div id="stockBody"><p style="font-size:12.5px;color:var(--sand-dim)">Checking stock…</p></div>`;
+  /* ic 'doc' is shared: Install uses it for "Open Install Work Order" and
+     Return Trip for "Open return-trip report". Only the Install one becomes
+     the PDF list; the return-trip placeholder is left exactly as it was. */
+  if(ic==='doc'&&woIsInstall())return '<div id="woDocBody"><p style="font-size:12.5px;color:var(--sand-dim)">Loading PDFs…</p></div>';
   if(ic==='doc')return `<table class="mtable"><tr><th>Line</th><th>Item</th><th>Qty</th></tr><tr><td>1</td><td>${a.scope||'Window covering'}</td><td>—</td></tr></table><div class="fld" style="margin-top:14px"><label>Crew notes</label><textarea placeholder="Ladder access, pets, etc."></textarea></div>`;
   if(ic==='check')return `<div class="fld"><label>Customer signature</label><div style="height:80px;border:1px dashed var(--side-border);border-radius:9px;display:flex;align-items:center;justify-content:center;color:var(--sand-dim);font-size:12px">Sign here</div></div><div class="mcheck"><input type="checkbox">All windows installed & operating</div><div class="mcheck"><input type="checkbox">Job site cleaned</div>`;
   if(ic==='cam')return `<p style="font-size:12.5px;color:var(--sand-dim);margin-bottom:6px">Choose several at once — the picker allows multi-select, and Take Photo still works for a single shot. Tap a chosen photo to remove it.</p><p id="camCount" style="font-size:12.5px;color:var(--sand-dim);margin-bottom:12px">No photos chosen yet.</p><input type="file" id="camInput" accept="image/*" multiple hidden><div class="photogrid" id="camGrid"></div>`;
@@ -1551,6 +1558,70 @@ function modalBodyFor(ic){const a=appts.find(x=>x.id===selectedId)||{};
   if(ic==='send')return `<div id="sdBody"><p style="font-size:12.5px;color:var(--sand-dim)">Loading measure sheets…</p></div>`;
   if(ic==='flag')return `<div class="fld"><label>Reason for return</label><select><option>Wrong bracket / hardware</option><option>Manufacturer defect</option><option>Measurement error</option><option>Customer change</option></select></div><div class="fld"><label>Details</label><textarea></textarea></div>`;
   return '<p>—</p>';}
+/* ===== Open Install Work Order (v50) ===================================
+   A shortcut to the dealer's work-order PDF, which the admin already uploads
+   at job creation through the existing + PDF path. This button neither
+   uploads nor stores anything — it just saves the installer scrolling to the
+   Files section, which on a phone is most of the drawer away.
+
+   One PDF opens straight into the viewer. Several show a picker. None shows a
+   plain message rather than an empty box.
+
+   Re-reads the files rather than trusting a.files, for the reason sdInit()
+   gives: openDrawer() fires refreshFiles() WITHOUT awaiting it, so a tap made
+   quickly after opening the drawer could otherwise read the previous job's
+   cache, or nothing at all, and wrongly report "No PDF uploads available".
+   The fresh rows are written back into a.files because openViewer() resolves
+   its file id from there — a picker built off rows the viewer cannot see
+   would open nothing. ================================================= */
+function woIsInstall(){const a=currentItem();return !!(a&&a.type==='Install');}
+
+/* Newest first, matching the drawer's own PDF list. filter() returns a fresh
+   array, so reverse() cannot disturb a.files. */
+function woPdfsOf(files){return (files||[]).filter(function(f){return f.kind==='pdf';}).reverse();}
+
+/* noteWhen() is the feed's formatter — same shape, "Sep 6, 2:14 PM". */
+function woWhen(f){return f.uploaded?noteWhen(f.uploaded):'Date unknown';}
+
+function woOpen(fileId){openViewer(fileId);}
+
+async function woInit(){
+  const box=$('woDocBody');if(!box)return;   /* not the Install variant */
+  const dim='font-size:12.5px;color:var(--sand-dim);line-height:1.55';
+  const a=currentItem(),jobId=currentJobId();
+  if(!jobId){box.innerHTML='<p style="'+dim+'">Save the job first.</p>';return;}
+  let files=[];
+  try{files=await loadFiles(jobId);}catch(err){console.error('woInit',err);
+    box.innerHTML='<p style="font-size:12.5px;color:#e08a86">Could not load the job\'s files.</p>';return;}
+  if(a)a.files=files;
+  const pdfs=woPdfsOf(files);
+
+  if(!pdfs.length){
+    box.innerHTML='<p style="font-size:13px;color:var(--sand-ink);line-height:1.55">No PDF uploads available.</p>'
+      +'<p style="'+dim+';margin-top:10px">The dealer\'s work order is attached when the job is created. '
+      +'It can also be added with <b>+ PDF</b> in the drawer\'s Files section.</p>';
+    return;}
+
+  /* Exactly one: skip the picker entirely. The modal closes first so closing
+     the viewer returns to the drawer rather than to a list of one. */
+  if(pdfs.length===1){closeModal();openViewer(pdfs[0].id);return;}
+
+  /* Several: the picker stays open UNDER the viewer (#viewBg sits later in the
+     DOM at the same z-index, so it paints on top), which makes closing the
+     viewer land back on the list to try another. */
+  const rows=pdfs.map(function(f){
+    const tag=sdIsMeasureSheet(f)?' &middot; Measure sheet':'';
+    return '<div class="mcheck" style="cursor:pointer;align-items:flex-start" onclick="woOpen(\''+esc(f.id)+'\')">'
+      +'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:17px;height:17px;flex:none;margin-top:1px;color:var(--sand-dim)">'
+      +'<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>'
+      +'<div style="flex:1;min-width:0">'
+        +'<div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(f.name)+'</div>'
+        +'<div style="font-size:11.5px;font-weight:500;color:var(--sand-dim);margin-top:3px">'+esc(woWhen(f))+tag+'</div>'
+      +'</div>'
+      +'<span style="font-size:12px;font-weight:600;color:var(--sand-dim);flex:none">View ›</span>'
+      +'</div>';}).join('');
+  box.innerHTML='<p style="'+dim+';margin-bottom:12px">'+pdfs.length+' PDFs on this job — newest first. Tap one to open it.</p>'+rows;}
+
 /* ===== Measure sheet — fillable line items persisted to measure_lines.
    Vertical stackable cards, one open at a time. Save-per-card so a dropped
    connection on site never loses more than the line being edited, with an
@@ -2198,6 +2269,12 @@ function openModal(ic,label){currentModalIc=ic;modalPdf=null;const a=currentItem
      the bridge to the Receiving page instead. */
   $('modalSave').textContent=ic==='send'?'Send':(ic==='box'?'Go to Receiving':'Save');
   $('modalSave').disabled=false;
+  /* The Install work-order list is a read-only shortcut — there is nothing to
+     save, so the footer button is hidden rather than left to fire the generic
+     "Saved to work order" toast. Reset every open, or it would stay hidden on
+     the next modal that does need it. */
+  $('modalSave').style.display=(ic==='doc'&&woIsInstall())?'none':'';
+  if(ic==='doc')woInit();
   if(ic==='send')sdInit();
   if(ic==='box')stockInit();
   $('modalBody').querySelectorAll('input[type=file]').forEach(inp=>inp.onchange=e=>{const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=ev=>{
