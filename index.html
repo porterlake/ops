@@ -460,6 +460,20 @@
   .msadd:hover{border-color:var(--accent-line);color:var(--ink)}
   .msadd:disabled{opacity:.5;cursor:default}
   .msempty{font-size:12.5px;color:var(--muted);padding:8px 0 12px}
+  /* Completion report (v54). Reuses the .mslight surface and .msf/.msbtn
+     wholesale; these are the only rules it needs of its own. Light palette
+     throughout - this renders inside the light .mslight body, so no
+     --sand-* variable may appear here. Nothing sets --row-h. */
+  .msbtn.on{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+  .crgroup{font-size:10.5px;letter-spacing:1.2px;text-transform:uppercase;color:var(--muted);
+    font-weight:800;margin:20px 0 10px;padding-bottom:6px;border-bottom:1px solid var(--border)}
+  .crgroup:first-child{margin-top:0}
+  /* Conditional follow-ups sit indented under their trigger so the
+     relationship is visible without reading the labels. */
+  .crsub{margin-left:14px;padding-left:12px;border-left:2px solid var(--border-soft)}
+  .crpay{display:flex;gap:7px;flex-wrap:wrap}
+  .crack{border:1px solid var(--border);background:var(--raised);border-radius:11px;padding:13px 14px;margin-top:6px}
+  .crack.signed{border-color:#4d7010;background:rgba(77,112,16,.07)}
 
   .modal-f{padding:14px 22px;border-top:1px solid var(--side-border);display:flex;justify-content:flex-end;gap:10px}
 
@@ -985,9 +999,10 @@ const statusColor=k=>STATUS_LIGHT[k]||(STATUS[k]?STATUS[k].color:"#6E757E");
    Floor is now 5.12:1. Dots keep the brighter STATUS_LIGHT value, text reads here. */
 const STATUS_TEXT={rts:"#636971",hold:"#8A6742",scheduled:"#41627F",otw:"#8b6004",progress:"#1F7A6B",done:"#4d7010",issue:"#a3211d"};
 const statusText=k=>STATUS_TEXT[k]||statusColor(k);
-const ICONS={phone:'<path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1.9.3 1.8.6 2.6a2 2 0 0 1-.5 2.1L8 9.6a16 16 0 0 0 6 6l1.2-1.2a2 2 0 0 1 2.1-.5c.8.3 1.7.5 2.6.6a2 2 0 0 1 1.7 2z"/>',chat:'<path d="M21 11.5a8.4 8.4 0 0 1-9 8.4 8.5 8.5 0 0 1-3.8-.9L3 21l1.9-5.7A8.4 8.4 0 0 1 4 11.5a8.5 8.5 0 0 1 17 0z"/>',ruler:'<path d="M3 11l8-8 10 10-8 8z"/><path d="M7 9l2 2M11 7l2 2M9 13l2 2"/>',send:'<path d="M22 2L11 13M22 2l-7 20-4-9-9-4z"/>',cam:'<path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/>',doc:'<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M9 13h6M9 17h6"/>',box:'<path d="M21 16V8a2 2 0 0 0-1-1.7l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.7l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><path d="M3.3 7L12 12l8.7-5M12 22V12"/>',check:'<path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>',link:'<path d="M10 13a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1.5 1.5"/><path d="M14 11a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1.5-1.5"/>',asr:'<path d="M9 2h6a2 2 0 0 1 2 2v1h1a2 2 0 0 1 2 2v13a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h1V4a2 2 0 0 1 2-2z"/><path d="M9 12h6M9 16h4"/>',
+const ICONS={phone:'<path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1.9.3 1.8.6 2.6a2 2 0 0 1-.5 2.1L8 9.6a16 16 0 0 0 6 6l1.2-1.2a2 2 0 0 1 2.1-.5c.8.3 1.7.5 2.6.6a2 2 0 0 1 1.7 2z"/>',chat:'<path d="M21 11.5a8.4 8.4 0 0 1-9 8.4 8.5 8.5 0 0 1-3.8-.9L3 21l1.9-5.7A8.4 8.4 0 0 1 4 11.5a8.5 8.5 0 0 1 17 0z"/>',ruler:'<path d="M3 11l8-8 10 10-8 8z"/><path d="M7 9l2 2M11 7l2 2M9 13l2 2"/>',send:'<path d="M22 2L11 13M22 2l-7 20-4-9-9-4z"/>',cam:'<path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/>',doc:'<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M9 13h6M9 17h6"/>',box:'<path d="M21 16V8a2 2 0 0 0-1-1.7l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.7l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><path d="M3.3 7L12 12l8.7-5M12 22V12"/>',check:'<path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>',link:'<path d="M10 13a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1.5 1.5"/><path d="M14 11a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1.5-1.5"/>',cr:'<path d="M9 11l3 3 5-6"/><path d="M21 12a9 9 0 1 1-6.2-8.6"/>',
+  asr:'<path d="M9 2h6a2 2 0 0 1 2 2v1h1a2 2 0 0 1 2 2v13a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h1V4a2 2 0 0 1 2-2z"/><path d="M9 12h6M9 16h4"/>',
   flag:'<path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><path d="M4 22v-7"/>',chart:'<path d="M3 3v18h18"/><path d="M7 14l4-4 3 3 5-6"/>'};
-const WO={"Measure":{color:"#5b9bd5",actions:[{ic:"ruler",label:"Open Measure Sheet"},{ic:"cam",label:"Attach Photos"},{ic:"send",label:"Send to Dealer"}]},"Install":{color:"#3a6fb0",actions:[{ic:"doc",label:"Open Install Work Order"},{ic:"box",label:"Confirm Stock Received"},{ic:"asr",label:"Additional Services Report"},{ic:"sendasr",label:"Send Services Report"},{ic:"cam",label:"Attach Job Photos"},{ic:"check",label:"Capture Sign-off & Completion"}]},"Return Trip":{color:"#d9605c",actions:[{ic:"link",label:"Open original job"},{ic:"doc",label:"Open return-trip report"},{ic:"flag",label:"Log reason for return"}]}};
+const WO={"Measure":{color:"#5b9bd5",actions:[{ic:"ruler",label:"Open Measure Sheet"},{ic:"cam",label:"Attach Photos"},{ic:"send",label:"Send to Dealer"}]},"Install":{color:"#3a6fb0",actions:[{ic:"doc",label:"Open Install Work Order"},{ic:"box",label:"Confirm Stock Received"},{ic:"asr",label:"Additional Services Report"},{ic:"sendasr",label:"Send Services Report"},{ic:"cam",label:"Attach Job Photos"},{ic:"cr",label:"Completion Report"},{ic:"sendcr",label:"Send Completion Report"},{ic:"check",label:"Capture Sign-off & Completion"}]},"Return Trip":{color:"#d9605c",actions:[{ic:"link",label:"Open original job"},{ic:"doc",label:"Open return-trip report"},{ic:"cr",label:"Completion Report"},{ic:"sendcr",label:"Send Completion Report"},{ic:"flag",label:"Log reason for return"}]}};
 
 const DEALERS=[];
 let custCache=[];
@@ -1244,7 +1259,15 @@ async function removeQueueJob(){const j=queue.find(x=>x.id===selectedId);
   queue=queue.filter(x=>x.id!==selectedId);renderQueue();if(page==='toschedule')buildGeneric('toschedule');if(page==='inventory')buildReceiving();toast(`<b>${j?j.cust:'Job'}</b> removed`);closeDrawer();}
 async function unschedule(){const a=appts.find(x=>x.id===selectedId);if(!a)return;
   const {error}=await sb.from('appointments').delete().eq('id',a.id);
-  if(error){toast('Could not unschedule',true);console.error(error);return;}
+  if(error){console.error(error);
+    /* 23503 is a foreign-key violation. The only FK pointing at appointments
+       is completion_reports.appointment_id, declared ON DELETE RESTRICT so an
+       unschedule can never destroy or orphan a signed completion report. Say
+       that in plain words rather than showing a raw database error. */
+    if(error.code==='23503')
+      toast('Can\'t unschedule — a <b>completion report</b> has been filled in for this visit. Delete that report first if this really needs to come off the calendar.',true);
+    else toast('Could not unschedule',true);
+    return;}
   queue.unshift({id:a.jobId,type:a.type,customerId:a.customerId,cust:a.cust,dealerId:a.dealerId,dealer:a.dealer,addr:a.addr,phone:a.phone,scope:a.scope,awaitingProduct:a.awaitingProduct,override:a.override,lineItems:a.lineItems||[],dealerDiscount:a.dealerDiscount||0,files:a.files||[]});
   appts=appts.filter(x=>x.id!==selectedId);renderQueue();render();toast(`<b>${a.cust}</b> returned to queue`);closeDrawer();}
 function logResolution(){const a=appts.find(x=>x.id===selectedId);if(!a)return;a.status='done';$('drStatus').value='done';$('issueBanner').classList.remove('show');render();toast('Resolution logged — marked completed');}
@@ -1547,6 +1570,8 @@ $('drStatus').addEventListener('change',e=>$('issueBanner').classList.toggle('sh
 function modalBodyFor(ic){const a=appts.find(x=>x.id===selectedId)||{};
   if(ic==='ruler')return `<div class="mshead"><h4>Measure sheet</h4><span class="mscount" id="msCount"></span><button class="msbtn ms-pdf" id="msPdf">Generate PDF</button></div><div id="msList"></div><button class="msadd" id="msAdd">+ Add line item</button>`;
   if(ic==='asr')return '<div class="mshead"><h4>Additional services report</h4><span class="mscount" id="asrCount"></span><button class="msbtn ms-pdf" id="asrPdf">Generate PDF</button></div><div id="asrList"></div><button class="msadd" id="asrAdd">+ Add line item</button>';
+  if(ic==='cr')return '<div class="mshead"><h4>Completion report</h4><span class="mscount" id="crCount"></span><button class="msbtn ms-pdf" id="crPdf">Generate PDF</button></div><div id="crForm"></div>';
+  if(ic==='sendcr')return `<div id="sdBody"><p style="font-size:12.5px;color:var(--sand-dim)">Loading reports…</p></div>`;
   if(ic==='sendasr')return `<div id="sdBody"><p style="font-size:12.5px;color:var(--sand-dim)">Loading reports…</p></div>`;
   if(ic==='box')return `<div id="stockBody"><p style="font-size:12.5px;color:var(--sand-dim)">Checking stock…</p></div>`;
   /* ic 'doc' is shared: Install uses it for "Open Install Work Order" and
@@ -2236,6 +2261,464 @@ async function asrGeneratePdf(){
   }catch(err){console.error(err);toast('Could not generate the PDF',true);}
   finally{if(btn){btn.disabled=false;btn.textContent=label||'Generate PDF';}}}
 
+/* ===== Completion Report (v54) =========================================
+   A survey filled in when an INSTALL or RETURN TRIP visit is finished.
+
+   STRUCTURALLY DIFFERENT FROM THE OTHER TWO REPORTS: this is ONE record per
+   appointment, not a list of line items. So there are no .mscard cards, no
+   add-a-line button and no per-card save - one form, one row, one save. That
+   is also why the measure sheet's delegated handlers need no new guard: they
+   bail at e.target.closest('.mscard'), and this form has none.
+
+   Keyed on (job_id, appointment_id). An install and a return trip on the same
+   job each get their own report. appointment_id is NULL when the drawer was
+   opened from the queue on an unscheduled job; the table's
+   UNIQUE NULLS NOT DISTINCT constraint still allows only one such row.
+
+   Written with an explicit load-then-insert-or-update rather than upsert():
+   the row id is already in hand from the load, and a conflict target
+   containing a NULL is exactly the kind of thing worth not relying on a REST
+   layer to infer. A 23505 on insert means another tab won the race, so it
+   re-reads and updates instead of failing.
+
+   Nothing here touches ROW, --row-h or the calendar.
+   ==================================================================== */
+const CRCOLS='id,job_id,appointment_id,picked_up_offsite,special_access,gateway_setup,'
+  +'hard_surface,hard_surface_count,over_10ft,over_10ft_count,over_15ft_count,over_20ft_count,'
+  +'take_downs,take_down_units,haul_away,ceiling_mounted,ceiling_mounted_count,'
+  +'oversized_horizontal,oversized_count,products_modified,modified_detail,'
+  +'extra_products,extra_detail,balance_collected,balance_total,payment_method,'
+  +'balance_reason,notes,ack_name,ack_at';
+const CR_PAY=['Cash','Check','Card','Other'];
+let CR_ROW=null;         /* the loaded row, or null when none exists yet */
+let CR_PAYSEL=null;      /* selected payment method, mirrored out of the row */
+let CR_ACK=null;         /* {name, at} once signed */
+
+/* The appointment this report belongs to. NULL in queue mode, which is a
+   legitimate state, not an error - see the table comment. */
+function crApptId(){return (drawerMode==='appt'&&selectedId)?selectedId:null;}
+
+/* Yes/No <-> boolean. '' is 'not answered', which is NULL, and is different
+   from 'No' - a survey needs all three. */
+function crYN(v){return v===true?'Yes':v===false?'No':'';}
+function crBool(s){return s==='Yes'?true:s==='No'?false:null;}
+function crInt(v){const t=String(v==null?'':v).trim();if(!t)return null;
+  const k=parseInt(t,10);return isNaN(k)?null:k;}
+function crNum(v){const t=String(v==null?'':v).trim().replace(/[$,]/g,'');
+  if(!t)return null;const k=Number(t);return isNaN(k)||k<0?null:Math.round(k*100)/100;}
+
+function crYNField(cls,label,val){
+  return '<div class="msf"><label>'+label+'</label><select class="dl-input '+cls+'">'
+    +'<option value="">-</option>'
+    +'<option value="Yes"'+(val==='Yes'?' selected':'')+'>Yes</option>'
+    +'<option value="No"'+(val==='No'?' selected':'')+'>No</option>'
+    +'</select></div>';}
+function crNumOpts(cls,label,val,max){
+  let o='<option value="">-</option>';
+  for(let i=1;i<=max;i++)o+='<option value="'+i+'"'+(String(val)===String(i)?' selected':'')+'>'+i+'</option>';
+  return '<div class="msf"><label>'+label+'</label><select class="dl-input '+cls+'">'+o+'</select></div>';}
+function crTextField(cls,label,val,ph){
+  return '<div class="msf"><label>'+label+'</label><input class="dl-input '+cls+'" value="'
+    +msEsc(val)+'" placeholder="'+msEsc(ph||'')+'"></div>';}
+
+function crFormHTML(r){r=r||{};
+  const g='<div class="crgroup">';
+  let o='';
+  o+=g+'Site &amp; access</div>';
+  o+=crYNField('cr-pickup','1. Product picked up from another facility?',crYN(r.picked_up_offsite));
+  o+=crYNField('cr-access','2. Special access (building over 2 stories)?',crYN(r.special_access));
+  o+=crYNField('cr-gateway','3. Gateway / hub setup?',crYN(r.gateway_setup));
+
+  o+=g+'Installation</div>';
+  o+=crYNField('cr-hard','4. Line items installed into hard surfaces (concrete / brick / metal / tile)?',crYN(r.hard_surface));
+  o+='<div class="crsub cr-hardf">'
+    +crTextField('cr-hardn','Number of items installed into hard surface',r.hard_surface_count,'e.g. 3 into brick, 2 into tile')
+    +'</div>';
+  o+=crYNField('cr-h10','5. Line items installed over 10 ft height?',crYN(r.over_10ft));
+  o+='<div class="crsub cr-h10f">'
+    +crNumOpts('cr-n10','How many over 10 ft',r.over_10ft_count,10)
+    +crNumOpts('cr-n15','How many over 15 ft',r.over_15ft_count,10)
+    +crNumOpts('cr-n20','How many over 20 ft',r.over_20ft_count,10)
+    +'</div>';
+  o+=crYNField('cr-take','6. Any take downs?',crYN(r.take_downs));
+  o+='<div class="crsub cr-takef">'
+    +crNumOpts('cr-taken','How many units?',r.take_down_units,50)
+    +crYNField('cr-haul','Haul away units?',crYN(r.haul_away))
+    +'</div>';
+  o+=crYNField('cr-ceil','7. Line items ceiling mounted?',crYN(r.ceiling_mounted));
+  o+='<div class="crsub cr-ceilf">'
+    +crTextField('cr-ceiln','Number ceiling mounted',r.ceiling_mounted_count,'e.g. 4')
+    +'</div>';
+  /* The two emphasised words are the whole point of the question - a 105 in.
+     VERTICAL product is unremarkable, a horizontal one is a freight problem. */
+  o+='<div class="msf"><label>8. Any <u><b>HORIZONTAL</b></u> products over 105" in <u><b>WIDTH</b></u>?</label>'
+    +'<select class="dl-input cr-over"><option value="">-</option>'
+    +'<option value="Yes"'+(crYN(r.oversized_horizontal)==='Yes'?' selected':'')+'>Yes</option>'
+    +'<option value="No"'+(crYN(r.oversized_horizontal)==='No'?' selected':'')+'>No</option>'
+    +'</select></div>';
+  o+='<div class="crsub cr-overf">'
+    +crNumOpts('cr-overn','Number of oversized items',r.oversized_count,50)
+    +'</div>';
+  o+=crYNField('cr-mod','9. Products modified / changed to install properly?',crYN(r.products_modified));
+  o+='<div class="crsub cr-modf">'
+    +crTextField('cr-modn','Number of items modified, and why',r.modified_detail,'What was changed and why')
+    +'</div>';
+  o+=crYNField('cr-extra','10. Products installed that were not on the work order / job description?',crYN(r.extra_products));
+  o+='<div class="crsub cr-extraf">'
+    +crTextField('cr-extran','List additional items installed',r.extra_detail,'What else went in')
+    +'</div>';
+
+  o+=g+'Payment</div>';
+  const bc=r.balance_collected||'';
+  o+='<div class="msf"><label>11. Remaining balance collected?</label>'
+    +'<select class="dl-input cr-bal"><option value="">-</option>'
+    +['Yes','No','N.A.'].map(function(v){
+        return '<option value="'+v+'"'+(bc===v?' selected':'')+'>'+v+'</option>';}).join('')
+    +'</select></div>';
+  o+='<div class="crsub cr-balyes">'
+    +crTextField('cr-baltot','Balance total',r.balance_total==null?'':r.balance_total,'e.g. 1250.00')
+    +'<div class="msf"><label>Payment method</label><div class="crpay">'
+    +CR_PAY.map(function(p){
+        return '<button type="button" class="msbtn cr-pay'+(r.payment_method===p?' on':'')
+          +'" data-pay="'+p+'">'+p+'</button>';}).join('')
+    +'</div></div></div>';
+  o+='<div class="crsub cr-balno">'
+    +crTextField('cr-balwhy','Why the balance could not be collected',r.balance_reason,'Reason')
+    +'</div>';
+
+  o+=g+'Notes &amp; acknowledgement</div>';
+  o+=crTextField('cr-notes','12. Additional notes / feedback for the dealer or customer',r.notes,'Optional');
+  o+='<div class="msf"><label>13. Installer acknowledgement</label><div class="crack" id="crAckBox"></div></div>';
+  o+='<div class="msrow"><button class="msbtn pri cr-save">Save report</button></div>';
+  return o;}
+
+/* The signature block is re-rendered on its own so signing does not rebuild
+   the whole form and lose anything typed but unsaved. */
+function crAckRender(){const box=$('crAckBox');if(!box)return;
+  const who=(PROFILE&&PROFILE.email)?noteWho(PROFILE.email):'';
+  if(CR_ACK&&CR_ACK.name){
+    box.className='crack signed';
+    box.innerHTML='<div style="font-size:13px;line-height:1.55;color:var(--ink)">'
+      +'I, <b>'+msEsc(CR_ACK.name)+'</b>, acknowledge that all information provided is true '
+      +'and accurate to the best of my knowledge.</div>'
+      +'<div style="font-size:11.5px;color:var(--muted);margin-top:7px">Signed '+msEsc(noteWhen(CR_ACK.at))+'</div>'
+      +'<div style="margin-top:10px"><button type="button" class="msbtn cr-unsign">Clear signature</button></div>';
+    return;}
+  box.className='crack';
+  box.innerHTML='<div style="font-size:13px;line-height:1.55;color:var(--ink)">'
+    +'I, <b>[your name]</b>, acknowledge that all information provided is true and '
+    +'accurate to the best of my knowledge.</div>'
+    +'<div style="margin-top:10px"><input class="dl-input cr-ackname" value="'+msEsc(who)+'" placeholder="Type your full name"></div>'
+    +'<div style="margin-top:9px"><button type="button" class="msbtn pri cr-sign">Confirm &amp; sign</button></div>';}
+
+/* Every conditional in one place. Called on open and on every change, so the
+   form can never be left showing a follow-up whose trigger has moved on. */
+function crSync(){const f=$('crForm');if(!f)return;
+  const v=function(s){const el=f.querySelector(s);return el?el.value:'';};
+  const show=function(s,on){const el=f.querySelector(s);if(el)el.hidden=!on;};
+  show('.cr-hardf', v('.cr-hard')==='Yes');
+  show('.cr-h10f',  v('.cr-h10')==='Yes');
+  show('.cr-takef', v('.cr-take')==='Yes');
+  show('.cr-ceilf', v('.cr-ceil')==='Yes');
+  show('.cr-overf', v('.cr-over')==='Yes');
+  show('.cr-modf',  v('.cr-mod')==='Yes');
+  show('.cr-extraf',v('.cr-extra')==='Yes');
+  const bal=v('.cr-bal');
+  show('.cr-balyes',bal==='Yes');
+  show('.cr-balno', bal==='No');
+  const c=$('crCount');
+  if(c)c.textContent=CR_ROW&&CR_ROW.id?(CR_ACK&&CR_ACK.name?'Signed':'Saved'):'Not saved yet';}
+
+/* Hidden follow-ups are NOT cleared. The value stays in the DOM and in the
+   row, so a mis-tap on a Yes/No control cannot destroy typed text - which is
+   what the column comments on the table promise. The PDF is what decides not
+   to print them. */
+function crCollect(){const f=$('crForm');
+  const v=function(s){const el=f.querySelector(s);return el?el.value:'';};
+  return {
+    job_id:currentJobId(),appointment_id:crApptId(),
+    picked_up_offsite:crBool(v('.cr-pickup')),
+    special_access:crBool(v('.cr-access')),
+    gateway_setup:crBool(v('.cr-gateway')),
+    hard_surface:crBool(v('.cr-hard')),
+    hard_surface_count:v('.cr-hardn').trim()||null,
+    over_10ft:crBool(v('.cr-h10')),
+    over_10ft_count:crInt(v('.cr-n10')),
+    over_15ft_count:crInt(v('.cr-n15')),
+    over_20ft_count:crInt(v('.cr-n20')),
+    take_downs:crBool(v('.cr-take')),
+    take_down_units:crInt(v('.cr-taken')),
+    haul_away:crBool(v('.cr-haul')),
+    ceiling_mounted:crBool(v('.cr-ceil')),
+    ceiling_mounted_count:v('.cr-ceiln').trim()||null,
+    oversized_horizontal:crBool(v('.cr-over')),
+    oversized_count:crInt(v('.cr-overn')),
+    products_modified:crBool(v('.cr-mod')),
+    modified_detail:v('.cr-modn').trim()||null,
+    extra_products:crBool(v('.cr-extra')),
+    extra_detail:v('.cr-extran').trim()||null,
+    balance_collected:v('.cr-bal')||null,
+    balance_total:crNum(v('.cr-baltot')),
+    payment_method:CR_PAYSEL||null,
+    balance_reason:v('.cr-balwhy').trim()||null,
+    notes:v('.cr-notes').trim()||null,
+    /* cr_ack_pair_chk: both or neither. Never send one without the other. */
+    ack_name:(CR_ACK&&CR_ACK.name)?CR_ACK.name:null,
+    ack_at:(CR_ACK&&CR_ACK.name)?CR_ACK.at:null};}
+
+async function crSave(silent){
+  const jobId=currentJobId();
+  if(!jobId){toast('Save the job first',true);return false;}
+  const payload=crCollect();
+  const btn=$('crForm')?$('crForm').querySelector('.cr-save'):null;
+  if(btn){btn.disabled=true;btn.textContent='Saving\u2026';}
+  try{
+    if(CR_ROW&&CR_ROW.id){
+      const r=await sb.from('completion_reports').update(payload).eq('id',CR_ROW.id).select(CRCOLS).single();
+      if(r.error)throw r.error;CR_ROW=r.data;
+    }else{
+      const r=await sb.from('completion_reports').insert(payload).select(CRCOLS).single();
+      if(r.error){
+        /* 23505: another tab created the row for this (job, appointment)
+           between our load and this insert. Re-read and update rather than
+           failing - the unique constraint did its job. */
+        if(r.error.code==='23505'){
+          const again=await crFetch(jobId);
+          if(again&&again.id){
+            const u=await sb.from('completion_reports').update(payload).eq('id',again.id).select(CRCOLS).single();
+            if(u.error)throw u.error;CR_ROW=u.data;
+          }else throw r.error;
+        }else throw r.error;
+      }else CR_ROW=r.data;
+    }
+    crSync();
+    if(!silent)toast('Completion report saved');
+    return true;
+  }catch(err){console.error('crSave',err);
+    if(!silent)toast('Could not save the completion report',true);
+    return false;}
+  finally{if(btn){btn.disabled=false;btn.textContent='Save report';}}}
+
+/* appointment_id needs is() for NULL and eq() otherwise - .eq(col,null) does
+   not match NULL rows in PostgREST. */
+async function crFetch(jobId){
+  let q=sb.from('completion_reports').select(CRCOLS).eq('job_id',jobId);
+  const ap=crApptId();
+  q=ap?q.eq('appointment_id',ap):q.is('appointment_id',null);
+  const {data,error}=await q.maybeSingle();
+  if(error){console.error('crFetch',error);return null;}
+  return data||null;}
+
+async function crInit(){const f=$('crForm');if(!f)return;
+  msEnsurePdfLib();
+  CR_ROW=null;CR_PAYSEL=null;CR_ACK=null;
+  const jobId=currentJobId();
+  if(!jobId){f.innerHTML='<div class="msempty">Save the job first - the report attaches to a saved job.</div>';return;}
+  f.innerHTML='<div class="msempty">Loading\u2026</div>';
+  const row=await crFetch(jobId);
+  CR_ROW=row;
+  CR_PAYSEL=row?(row.payment_method||null):null;
+  CR_ACK=(row&&row.ack_name)?{name:row.ack_name,at:row.ack_at}:null;
+  f.innerHTML=crFormHTML(row||{});
+  crAckRender();crSync();}
+
+/* Delegated and scoped to #crForm. The measure sheet's handlers bail before
+   this because they look for .mscard, which this form has none of. */
+document.addEventListener('click',function(e){
+  if(!e.target.closest('#crForm'))return;
+  const pay=e.target.closest('.cr-pay');
+  if(pay){
+    /* Tapping the selected method again clears it - there is no other way to
+       undo a mis-tap on a button group. */
+    CR_PAYSEL=(CR_PAYSEL===pay.dataset.pay)?null:pay.dataset.pay;
+    $('crForm').querySelectorAll('.cr-pay').forEach(function(b){
+      b.classList.toggle('on',b.dataset.pay===CR_PAYSEL);});
+    return;}
+  if(e.target.closest('.cr-sign')){
+    const el=$('crForm').querySelector('.cr-ackname');
+    const nm=el?el.value.trim():'';
+    if(!nm){toast('Type your name to sign',true);return;}
+    CR_ACK={name:nm,at:new Date().toISOString()};
+    crAckRender();crSync();crSave();return;}
+  if(e.target.closest('.cr-unsign')){CR_ACK=null;crAckRender();crSync();return;}
+  if(e.target.closest('.cr-save')){crSave();return;}});
+['input','change'].forEach(function(ev){document.addEventListener(ev,function(e){
+  if(e.target.closest('#crForm'))crSync();});});
+document.addEventListener('click',function(e){
+  if(e.target.closest('#crPdf'))crGeneratePdf();});
+
+/* ===== Completion report PDF ===========================================
+   A survey prints badly as a form dump: thirteen questions of which most are
+   'No' is a wall of noise a dealer will not read. So it is a grouped two
+   column Q&A, and A FOLLOW-UP IS ONLY PRINTED WHEN ITS TRIGGER FIRED - the
+   same 'only push a row when the value is real' rule the other documents use.
+   An unanswered question is skipped entirely; 'No' is printed, because a
+   deliberate no is information.
+   ==================================================================== */
+function crPdfFilename(){const d=new Date(),p=function(x){return String(x).padStart(2,'0');};
+  return 'Completion Report \u2014 '+d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate())
+    +' '+p(d.getHours())+'-'+p(d.getMinutes())+'.pdf';}
+function crYesNo(v){return v===true?'Yes':v===false?'No':null;}
+
+function crBuildPdf(r){
+  const {jsPDF}=window.jspdf;
+  const doc=new jsPDF({unit:'mm',format:'letter',orientation:'portrait'});
+  const PW=doc.internal.pageSize.getWidth(),PH=doc.internal.pageSize.getHeight(),M=14;
+  const SAND=[216,198,160],INK=[39,36,31],MUT=[140,135,125],LINE=[229,227,219],ALT=[250,250,247];
+  const item=currentItem()||{};
+  const drawHeader=pdfLetterhead(doc,PW,M);
+  drawHeader();
+  doc.setFont('helvetica','bold');doc.setFontSize(15);doc.setTextColor(INK[0],INK[1],INK[2]);
+  doc.text('COMPLETION REPORT',M,61);
+  const ctx=[],push=function(l,v){if(v&&String(v).trim()&&String(v).trim()!=='\u2014')ctx.push([l,String(v).trim()]);};
+  push('Customer',item.cust);
+  push('Dealer',item.dealer);
+  push('Date completed',item.dateKey?msFmtDate(item.dateKey):msFmtDate(new Date()));
+  push('Completed by',(item.installer&&item.installer!=='un')?instById(item.installer).name:null);
+  push('Job address',item.addr);
+  const startY=pdfContext(doc,PW,M,ctx);
+
+  const body=[];
+  /* Group headings are DEFERRED, not pushed on sight: a heading is only
+     emitted once a row actually follows it. A survey where nothing in a
+     section was answered would otherwise print an empty sand band. */
+  let pendingGrp=null;
+  const grp=function(t){pendingGrp=t;};
+  const emit=function(row){
+    if(pendingGrp){body.push([{content:pendingGrp,colSpan:2,
+      styles:{fillColor:SAND,textColor:INK,fontStyle:'bold',fontSize:8.5}}]);
+      pendingGrp=null;}
+    body.push(row);};
+  /* q() drops the whole row when the question was never answered. */
+  const q=function(label,val){const s=(val==null||val==='')?null:String(val);
+    if(s)emit([label,s]);};
+  /* sub() is the conditional: printed ONLY when its trigger is true AND it
+     has a value. This is what stops the report becoming a wall of blanks. */
+  const sub=function(on,label,val){if(on!==true)return;
+    const s=(val==null||val==='')?null:String(val);
+    if(s)emit(['    '+label,s]);};
+
+  grp('SITE & ACCESS');
+  q('Product picked up from another facility?',crYesNo(r.picked_up_offsite));
+  q('Special access (building over 2 stories)?',crYesNo(r.special_access));
+  q('Gateway / hub setup?',crYesNo(r.gateway_setup));
+
+  grp('INSTALLATION');
+  q('Installed into hard surfaces (concrete / brick / metal / tile)?',crYesNo(r.hard_surface));
+  sub(r.hard_surface,'Number into hard surface',r.hard_surface_count);
+  q('Installed over 10 ft height?',crYesNo(r.over_10ft));
+  /* The three height counts collapse to one row - three near-identical lines
+     read as padding. An em dash marks a height that was not counted. */
+  if(r.over_10ft===true){
+    const hs=[r.over_10ft_count,r.over_15ft_count,r.over_20ft_count];
+    if(hs.some(function(x){return x!=null;}))
+      emit(['    Over 10 ft / 15 ft / 20 ft',
+        hs.map(function(x){return x==null?'\u2014':String(x);}).join('  /  ')]);}
+  q('Any take downs?',crYesNo(r.take_downs));
+  sub(r.take_downs,'How many units',r.take_down_units);
+  sub(r.take_downs,'Haul away units?',crYesNo(r.haul_away));
+  q('Line items ceiling mounted?',crYesNo(r.ceiling_mounted));
+  sub(r.ceiling_mounted,'Number ceiling mounted',r.ceiling_mounted_count);
+  /* Capitals carry the emphasis the form shows with an underline - autoTable
+     has no inline styling inside a cell. */
+  q('Any HORIZONTAL products over 105 in. in WIDTH?',crYesNo(r.oversized_horizontal));
+  sub(r.oversized_horizontal,'Number of oversized items',r.oversized_count);
+  q('Products modified / changed to install properly?',crYesNo(r.products_modified));
+  sub(r.products_modified,'Items modified, and why',r.modified_detail);
+  q('Products installed not on the work order?',crYesNo(r.extra_products));
+  sub(r.extra_products,'Additional items installed',r.extra_detail);
+
+  grp('PAYMENT');
+  q('Remaining balance collected?',r.balance_collected);
+  if(r.balance_collected==='Yes'){
+    if(r.balance_total!=null)emit(['    Balance total','$'+Number(r.balance_total).toFixed(2)]);
+    if(r.payment_method)emit(['    Payment method',r.payment_method]);}
+  if(r.balance_collected==='No'&&r.balance_reason)
+    emit(['    Why it could not be collected',r.balance_reason]);
+
+  if(r.notes&&String(r.notes).trim()){
+    grp('NOTES');
+    emit([{content:String(r.notes).trim(),colSpan:2}]);}
+
+  /* A report with nothing answered at all produces an EMPTY body, because
+     the group headings are deferred. Drawing a table with no rows renders a
+     stray hairline and makes autoTable log a width complaint, so skip it -
+     the letterhead, the job context and the acknowledgement box still print,
+     which is exactly what an unfilled report should look like. */
+  if(body.length)doc.autoTable({startY:startY,body:body,theme:'grid',
+    styles:{font:'helvetica',fontSize:9,cellPadding:2.4,textColor:INK,lineColor:LINE,
+      lineWidth:0.15,overflow:'linebreak',valign:'top'},
+    alternateRowStyles:{fillColor:ALT},
+    /* BOTH widths are fixed (118 + 69.9 = 187.9mm, the content width).
+       cellWidth:'auto' on column 1 crashes autoTable with "Invalid arguments
+       passed to jsPDF.rect" when EVERY row spans both columns - which is
+       exactly what a report with nothing answered produces. Fixed widths
+       remove that failure mode. The two widths sum to exactly the 187.9mm
+       content width on purpose: autoTable reports any SHORTFALL as "could not
+       fit page", so underfilling is what makes it complain, not overfilling.
+       remove that failure mode rather than relying on a row shape. */
+    columnStyles:{0:{cellWidth:118},1:{cellWidth:69.9,fontStyle:'bold'}},
+    margin:{left:M,right:M,top:57},didDrawPage:drawHeader});
+
+  /* The acknowledgement, always printed. An UNSIGNED report must say so
+     loudly - a dealer reading one needs to know at a glance. */
+  let y=(doc.lastAutoTable?doc.lastAutoTable.finalY:startY)+10;
+  if(y>PH-46){doc.addPage();drawHeader();y=62;}
+  doc.setDrawColor(SAND[0],SAND[1],SAND[2]);doc.setLineWidth(0.5);
+  doc.roundedRect(M,y,PW-M*2,26,2,2);
+  doc.setFont('helvetica','bold');doc.setFontSize(7.5);doc.setTextColor(MUT[0],MUT[1],MUT[2]);
+  doc.text('INSTALLER ACKNOWLEDGEMENT',M+4,y+6);
+  if(r.ack_name){
+    doc.setFont('helvetica','normal');doc.setFontSize(9.5);doc.setTextColor(INK[0],INK[1],INK[2]);
+    doc.text('I, '+r.ack_name+', acknowledge that all information provided is true and',M+4,y+13);
+    doc.text('accurate to the best of my knowledge.',M+4,y+18);
+    doc.setFontSize(8);doc.setTextColor(MUT[0],MUT[1],MUT[2]);
+    doc.text('Signed '+(r.ack_at?new Date(r.ack_at).toLocaleString():''),M+4,y+23);
+  }else{
+    doc.setFont('helvetica','bold');doc.setFontSize(10);doc.setTextColor(163,33,29);
+    doc.text('NOT YET ACKNOWLEDGED',M+4,y+14);
+    doc.setFont('helvetica','normal');doc.setFontSize(8);doc.setTextColor(MUT[0],MUT[1],MUT[2]);
+    doc.text('No installer has signed this report.',M+4,y+20);}
+
+  const pages=doc.internal.getNumberOfPages(),gen=msFmtDate(new Date());
+  for(let p=1;p<=pages;p++){doc.setPage(p);
+    doc.setDrawColor(SAND[0],SAND[1],SAND[2]);doc.setLineWidth(0.5);doc.line(M,PH-18,PW-M,PH-18);
+    doc.setFont('helvetica','normal');doc.setFontSize(8.5);doc.setTextColor(MUT[0],MUT[1],MUT[2]);
+    doc.text('Completion reported by Porter Lake Shading Systems',M,PH-13);
+    doc.text('Generated '+gen,M,PH-8.8);
+    doc.text('Page '+p+' of '+pages,PW-M,PH-8.8,{align:'right'});}
+  return {doc:doc,filename:crPdfFilename()};}
+
+async function crGeneratePdf(){
+  const jobId=currentJobId();
+  if(!jobId){toast('Save the job first',true);return;}
+  const btn=$('crPdf'),label=btn?btn.textContent:'';
+  if(btn){btn.disabled=true;btn.textContent='Preparing\u2026';}
+  try{
+    /* Save first: the PDF is built from the STORED row, so what the dealer
+       receives is exactly what the database holds - never a half-typed form. */
+    if(!await crSave(true)){toast('Could not save the report, so nothing was generated',true);return;}
+    const ok=await msEnsurePdfLib();
+    if(!ok){toast('Could not load the PDF tool - check your connection and try again. Your report is saved.',true);return;}
+    const row=CR_ROW;
+    if(!row){toast('Nothing to export yet',true);return;}
+    const built=crBuildPdf(row);
+    let saved=false;
+    try{
+      if(btn)btn.textContent='Saving\u2026';
+      const blob=built.doc.output('blob');
+      let file;
+      try{file=new File([blob],built.filename,{type:'application/pdf'});}
+      catch(e){file=blob;file.name=built.filename;}
+      await uploadFile(jobId,file,'pdf');
+      saved=true;
+    }catch(err){console.error('cr upload',err);}
+    built.doc.save(built.filename);
+    if(saved){toast('Completion report saved to the job and downloaded');refreshFiles();}
+    else toast('Downloaded - but it could NOT be saved to the job. Check your connection and generate again.',true);
+  }catch(err){console.error(err);toast('Could not generate the PDF',true);}
+  finally{if(btn){btn.disabled=false;btn.textContent=label||'Generate PDF';}}}
+
 /* ===== Attach photos — multi-select (v38) ===============================
    ONE capability, three entry points: the drawer's "+ Photos" button, the
    Measure work order's "Attach window photos" and the Install work order's
@@ -2382,6 +2865,12 @@ const SD_KINDS={
     match:function(f){return /^Measure Sheet\b/i.test(f&&f.name||'');},
     none:'No measure sheet has been generated for this job yet.',
     hint:'Open the measure sheet, then tap <b>Generate PDF</b>. That saves it to the job and makes it sendable.'},
+  completion_report:{
+    key:'completion_report',one:'completion report',
+    which:'Which completion report',pick:'Choose a completion report to send',
+    match:function(f){return /^Completion Report\b/i.test(f&&f.name||'');},
+    none:'No completion report has been generated for this job yet.',
+    hint:'Open <b>Completion Report</b>, fill in the survey, sign it, then tap <b>Generate PDF</b>. That saves it to the job and makes it sendable.'},
   additional_services_report:{
     key:'additional_services_report',one:'additional services report',
     which:'Which report',pick:'Choose a report to send',
@@ -2622,16 +3111,17 @@ function openModal(ic,label){currentModalIc=ic;modalPdf=null;const a=currentItem
   /* The additional services report is the same light working surface as the
      measure sheet, so it takes the same class and inherits every .mslight
      rule rather than growing a second stylesheet. */
-  $('modalBody').classList.toggle('mslight',ic==='ruler'||ic==='asr');
+  $('modalBody').classList.toggle('mslight',ic==='ruler'||ic==='asr'||ic==='cr');
   if(ic==='ruler')msInit();
   if(ic==='asr')asrInit();
+  if(ic==='cr')crInit();
   /* The footer button is shared by every tile, so its label and enabled state
      are set per-modal here. sdInit() may then disable it if the job has no
      measure sheet to send. */
   /* The stock panel is read-only, so its footer button has no save to do — it
      used to fire a "Saved to work order" toast that was simply untrue. It is
      the bridge to the Receiving page instead. */
-  $('modalSave').textContent=(ic==='send'||ic==='sendasr')?'Send':(ic==='box'?'Go to Receiving':'Save');
+  $('modalSave').textContent=(ic==='send'||ic==='sendasr'||ic==='sendcr')?'Send':(ic==='box'?'Go to Receiving':'Save');
   $('modalSave').disabled=false;
   /* The Install work-order list is a read-only shortcut — there is nothing to
      save, so the footer button is hidden rather than left to fire the generic
@@ -2641,8 +3131,9 @@ function openModal(ic,label){currentModalIc=ic;modalPdf=null;const a=currentItem
   if(ic==='doc')woInit();
   /* One send modal, two document kinds. SD_KIND is read by sdInit and sdSend;
      it is set BEFORE sdInit so the first render already knows what it lists. */
-  SD_KIND=(ic==='sendasr')?'additional_services_report':'measure_sheet';
-  if(ic==='send'||ic==='sendasr')sdInit();
+  SD_KIND=(ic==='sendasr')?'additional_services_report'
+         :(ic==='sendcr')?'completion_report':'measure_sheet';
+  if(ic==='send'||ic==='sendasr'||ic==='sendcr')sdInit();
   if(ic==='box')stockInit();
   $('modalBody').querySelectorAll('input[type=file]').forEach(inp=>inp.onchange=e=>{const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=ev=>{
     if(f.type==='application/pdf'){modalPdf={name:f.name,url:ev.target.result};const dz=inp.closest('.pdfdrop');if(dz){dz.classList.add('has');dz.querySelector('.pdfname').textContent=f.name}}
@@ -2656,7 +3147,15 @@ $('modalSave').onclick=async()=>{
   /* Read the job id BEFORE recvGoto closes the drawer — closeDrawer() nulls
      selectedId, and currentJobId() derives from it. */
   if(currentModalIc==='box'){recvGoto(currentJobId());return;}
-  if(currentModalIc==='send'||currentModalIc==='sendasr'){await sdSend();return;}
+  if(currentModalIc==='send'||currentModalIc==='sendasr'||currentModalIc==='sendcr'){await sdSend();return;}
+  /* One form, not a list of cards: the footer just saves it. */
+  if(currentModalIc==='cr'){const btn=$('modalSave');
+    btn.textContent='Saving…';btn.disabled=true;
+    const ok=await crSave(true);
+    btn.textContent='Save';btn.disabled=false;
+    if(ok){toast('Completion report saved');closeModal();}
+    else toast('Could not save the completion report',true);
+    return;}
   /* Mirrors the measure sheet's safety net: every card saves itself, this
      catches anything still flagged Unsaved when the footer is tapped. */
   if(currentModalIc==='asr'){const dirty=asrDirtyCards();
