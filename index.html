@@ -780,6 +780,54 @@ body.role-installer [data-admin]{display:none!important}
    emphasised; on light it has to go DARKER to hold that same rank. */
 .queue .job .dealer{color:var(--ink)}
 
+
+/* ===== DESKTOP SELECT POLISH (v65) ====================================
+   Status, Installer and the Duration hr/min selects rendered as default
+   Windows controls with the OS blue highlight. Scoped to min-width:641px so
+   the mobile pass is untouched - phones already look right and iOS renders
+   its own wheel regardless.
+
+   TWO LAYERS, because a native <select> can only be taken so far:
+     1. The CLOSED control is fully styleable everywhere. appearance:none
+        plus a sand chevron and a sand hover/focus border gets it on-brand
+        in every browser. This layer is guaranteed.
+     2. The OPEN option list is drawn by the OS, and its highlight colour
+        is NOT reachable from classic CSS - option:hover/:checked are
+        ignored for the popup on Windows. appearance:base-select (Chrome
+        135+) is the only thing that opts the popup into CSS, which is why
+        the sand highlight lives behind @supports. Anywhere it is not
+        supported the control still looks right and the list stays native.
+
+   COLOUR AND AFFORDANCE ONLY. No geometry, and per golden rule 6 nothing
+   here sets --row-h. Placed BEFORE the mobile block so that block's
+   "delete from this comment to the end" note stays true.
+   ===================================================================== */
+@media (min-width:641px){
+  .fld select,.durrow select{
+    -webkit-appearance:none;-moz-appearance:none;appearance:none;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23a99c7e' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+    background-repeat:no-repeat;background-position:right 10px center;background-size:12px;
+    padding-right:30px;cursor:pointer}
+  .fld select:hover,.durrow select:hover{border-color:var(--accent-line)}
+  .fld select option,.durrow select option{background:var(--side-2);color:var(--sand-ink)}
+
+  @supports (appearance:base-select){
+    /* base-select draws its own ::picker-icon, so the background chevron
+       would otherwise double up. */
+    .fld select,.durrow select{appearance:base-select;background-image:none;padding-right:11px}
+    .fld select::picker-icon,.durrow select::picker-icon{color:var(--sand-dim);transition:transform .16s}
+    .fld select:open::picker-icon,.durrow select:open::picker-icon{transform:rotate(180deg)}
+    .fld select::picker(select),.durrow select::picker(select){
+      appearance:base-select;background:var(--side-2);border:1px solid var(--side-border);
+      border-radius:10px;box-shadow:0 14px 34px rgba(0,0,0,.55);padding:5px;margin-top:4px}
+    .fld select option,.durrow select option{
+      border-radius:7px;padding:8px 10px;font-size:13.5px}
+    .fld select option:hover,.durrow select option:hover{background:var(--accent-soft)}
+    .fld select option:checked,.durrow select option:checked{background:var(--accent);color:var(--accent-ink)}
+    .fld select option::checkmark,.durrow select option::checkmark{display:none}
+  }
+}
+
 /* ============================================================================
    MOBILE PASS 1 (v22). Additive and self-contained: deleting from this comment
    to the end of this stylesheet (plus the .navtoggle button, its JS block, and the buildDay
@@ -942,7 +990,7 @@ body.role-installer [data-admin]{display:none!important}
       <div class="fld"><label>Dealer (account)</label><div class="val" id="drDealer" style="cursor:pointer;text-decoration:underline;text-decoration-style:dotted;text-underline-offset:3px">—</div></div>
       <div class="fld"><label>Site address (homeowner)</label><div class="val dim" id="drAddr">—</div></div>
       <div class="fld"><label>Contact</label><div class="val dim" id="drPhone">—</div></div>
-      <div class="fld" id="drProductFld" style="display:none"><label>Product status</label><div class="val dim" id="drProduct">—</div></div>
+      <div class="fld" id="drProductFld" style="display:none"><label>Product status</label><div class="val dim" id="drProduct" style="cursor:pointer;text-decoration:underline;text-decoration-style:dotted;text-underline-offset:3px">&mdash;</div></div>
       <div class="fld" id="drPricingFld" data-admin style="display:none"><label>Pricing <button class="pedit" id="drPriceEditBtn" type="button">Edit</button></label>
         <div id="drPricing"></div>
         <div id="drPriceEdit" style="display:none">
@@ -1136,7 +1184,7 @@ const ICONS={phone:'<path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 
    Receiving bridge the Install tile opens: modalBodyFor, stockInit, the
    footer label and recvGoto are all keyed on ic alone, so nothing about it
    was re-implemented or forked for this job type. */
-const WO={"Measure":{color:"#5b9bd5",actions:[{ic:"ruler",label:"Open Measure Sheet"},{ic:"cam",label:"Attach Photos"},{ic:"send",label:"Send to Dealer"}]},"Install":{color:"#3a6fb0",actions:[{ic:"doc",label:"Open Install Work Order"},{ic:"box",label:"Confirm Stock Received"},{ic:"asr",label:"Additional Services Report"},{ic:"cam",label:"Attach Job Photos"},{ic:"cr",label:"Completion Report"},{ic:"check",label:"Capture Sign-off & Completion"},{ic:"send",label:"Send to Dealer"}]},"Return Trip":{color:"#d9605c",actions:[{ic:"link",label:"Open Previous Job Documents"},{ic:"box",label:"Confirm Stock Received"},{ic:"asr",label:"Additional Services Report"},{ic:"cr",label:"Completion Report"},{ic:"check",label:"Capture Sign-off & Completion"},{ic:"send",label:"Send to Dealer"}]}};
+const WO={"Measure":{color:"#5b9bd5",actions:[{ic:"ruler",label:"Open Measure Sheet"},{ic:"cam",label:"Attach Photos"},{ic:"send",label:"Send to Dealer"}]},"Install":{color:"#3a6fb0",actions:[{ic:"doc",label:"Open Install Work Order"},{ic:"asr",label:"Additional Services Report"},{ic:"cam",label:"Attach Job Photos"},{ic:"cr",label:"Completion Report"},{ic:"check",label:"Capture Sign-off & Completion"},{ic:"send",label:"Send to Dealer"}]},"Return Trip":{color:"#d9605c",actions:[{ic:"link",label:"Open Previous Job Documents"},{ic:"asr",label:"Additional Services Report"},{ic:"cr",label:"Completion Report"},{ic:"check",label:"Capture Sign-off & Completion"},{ic:"send",label:"Send to Dealer"}]}};
 
 const DEALERS=[];
 let custCache=[];
@@ -1736,6 +1784,14 @@ function dlrOpen(){
 }
 function dlrClosePopup(){$('dlrBg').classList.remove('open');}
 $('drDealer').onclick=dlrOpen;
+/* Product status is now the way in to the stock view (v65), replacing the
+   Confirm Stock Received button that used to sit on the Install and Return
+   Trip tiles. Same component, same modal, same Go to Receiving bridge - the
+   only thing that changed is where it is reached from. openModal dispatches
+   on ic alone, so this needs no per-type wiring and works in the queue
+   drawer too. The field is only rendered when the job HAS line items, which
+   is exactly when the stock view has anything to say. */
+$('drProduct').onclick=function(){openModal('box','Confirm Stock Received');};
 $('dlrClose').onclick=dlrClosePopup;$('dlrCancel').onclick=dlrClosePopup;
 $('dlrBg').addEventListener('click',e=>{if(e.target.id==='dlrBg')dlrClosePopup()});
 
@@ -3296,7 +3352,7 @@ async function invokeFn(name,body){
 /* Every error code the function can return, in installer language. Anything
    unmapped falls back to the function's own message rather than a shrug. */
 const SD_ERRORS={
-  DEALER_EMAIL_MISSING:'This dealer has no email on file. Add one to the dealer record, or type a different address below.',
+  DEALER_EMAIL_MISSING:'This dealer has no email on file. Add one to the dealer record \u2014 an additional recipient is copied in alongside the dealer, not instead of them.',
   DEALER_MISSING:'This job has no dealer, so there is nobody to send it to.',
   JOB_NOT_FOUND:'Could not find this job. Refresh and try again.',
   FILE_NOT_ON_JOB:'One of the attachments is no longer on this job. Close the drawer, reopen it and try again.',
@@ -3752,9 +3808,21 @@ async function sdInit(){
       +'<div id="sdPhotoNote" style="'+dim+';margin-top:9px">Preparing photos\u2026</div></div>';
   }
 
-  html+='<div class="fld"><label>Send to a different email (optional)</label>'
+  /* ADDITIONAL RECIPIENT (v65). The Edge Function has always accepted a cc
+     array, and it is ALREADY DEPLOYED - but it rejects cc from a non-admin
+     with FORBIDDEN_OVERRIDE, while to_override is deliberately open to
+     everyone so an installer can mail a sheet to a second contact without
+     an admin. So the one field means different things by role, and says so
+     rather than letting an installer discover it through a 403:
+       admin      -> cc, dealer stays the primary recipient (one email)
+       installer  -> to_override, exactly the behaviour this field had. */
+  const ccMode=!!IS_ADMIN;
+  html+='<div class="fld"><label>'+(ccMode?'Additional recipient (optional)':'Send to a different email (optional)')+'</label>'
     +'<input id="sdTo" type="email" inputmode="email" autocomplete="off" autocapitalize="off" '
-    +'spellcheck="false" placeholder="Leave blank to use the dealer\'s email"></div>';
+    +'spellcheck="false" placeholder="'+(ccMode?'Copy a manager or accounts team':'Leave blank to use the dealer\'s email')+'">'
+    +'<div style="'+dim+';margin-top:6px">'+(ccMode
+      ?'The dealer stays the main recipient. This address is copied in (CC) on the <b>same</b> email, with the same attachments.'
+      :'Sends to that address <b>instead of</b> the dealer\u2019s on-file address.')+'</div></div>';
   box.innerHTML=html;
 
   if(!photos.length){
@@ -3879,7 +3947,8 @@ async function sdSend(){
   const body={job_id:jobId,file_ids:ids,document_type:sdDocumentType(sel)};
   const msg=sdMessage(sel);
   if(msg)body.message=msg;
-  if(override)body.to_override=override;
+  /* Same box, two payloads - see the ccMode note in sdInit. */
+  if(override){if(IS_ADMIN)body.cc=[override];else body.to_override=override;}
   const res=await invokeFn('send-documents',body);
   SD_BUSY=false;
   if(res.ok){
@@ -3887,7 +3956,9 @@ async function sdSend(){
     const parts=[];
     if(sel.docs.length)parts.push(sel.docs.length+(sel.docs.length===1?' document':' documents'));
     if(sel.photos.length)parts.push(sel.photos.length+(sel.photos.length===1?' photo':' photos'));
-    toast('Sent to <b>'+esc(to)+'</b> \u2014 '+parts.join(' and '));
+    let line='Sent to <b>'+esc(to)+'</b> \u2014 '+parts.join(' and ');
+    if(IS_ADMIN&&override)line+=', copied to <b>'+esc(override)+'</b>';
+    toast(line);
     refreshFiles();closeModal();return;}
   sdSyncButton();
   console.error('send-documents',res);
