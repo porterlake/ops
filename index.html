@@ -1116,8 +1116,15 @@ const ICONS={phone:'<path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 
    constrains jobs.type. Do not add a type gate to make these "return-trip
    versions": one component, two job types, is the point.
    'flag' (Log reason for return) was removed as not part of the workflow; its
-   modalBodyFor branch went with it. ICONS.flag is left in the shared map. */
-const WO={"Measure":{color:"#5b9bd5",actions:[{ic:"ruler",label:"Open Measure Sheet"},{ic:"cam",label:"Attach Photos"},{ic:"send",label:"Send to Dealer"}]},"Install":{color:"#3a6fb0",actions:[{ic:"doc",label:"Open Install Work Order"},{ic:"box",label:"Confirm Stock Received"},{ic:"asr",label:"Additional Services Report"},{ic:"cam",label:"Attach Job Photos"},{ic:"cr",label:"Completion Report"},{ic:"check",label:"Capture Sign-off & Completion"},{ic:"send",label:"Send to Dealer"}]},"Return Trip":{color:"#d9605c",actions:[{ic:"link",label:"Open Previous Job Documents"},{ic:"doc",label:"Open return-trip report"},{ic:"asr",label:"Additional Services Report"},{ic:"cr",label:"Completion Report"},{ic:"check",label:"Capture Sign-off & Completion"},{ic:"send",label:"Send to Dealer"}]}};
+   modalBodyFor branch went with it. ICONS.flag is left in the shared map.
+
+   v63: 'doc' (Open return-trip report) removed as redundant - the scope it
+   showed is already on the drawer below - and 'box' (Confirm Stock Received)
+   put in its place. box is the same read-only stock list plus the same Go to
+   Receiving bridge the Install tile opens: modalBodyFor, stockInit, the
+   footer label and recvGoto are all keyed on ic alone, so nothing about it
+   was re-implemented or forked for this job type. */
+const WO={"Measure":{color:"#5b9bd5",actions:[{ic:"ruler",label:"Open Measure Sheet"},{ic:"cam",label:"Attach Photos"},{ic:"send",label:"Send to Dealer"}]},"Install":{color:"#3a6fb0",actions:[{ic:"doc",label:"Open Install Work Order"},{ic:"box",label:"Confirm Stock Received"},{ic:"asr",label:"Additional Services Report"},{ic:"cam",label:"Attach Job Photos"},{ic:"cr",label:"Completion Report"},{ic:"check",label:"Capture Sign-off & Completion"},{ic:"send",label:"Send to Dealer"}]},"Return Trip":{color:"#d9605c",actions:[{ic:"link",label:"Open Previous Job Documents"},{ic:"box",label:"Confirm Stock Received"},{ic:"asr",label:"Additional Services Report"},{ic:"cr",label:"Completion Report"},{ic:"check",label:"Capture Sign-off & Completion"},{ic:"send",label:"Send to Dealer"}]}};
 
 const DEALERS=[];
 let custCache=[];
@@ -1724,9 +1731,11 @@ function modalBodyFor(ic){const a=appts.find(x=>x.id===selectedId)||{};
   if(ic==='asr')return '<div class="mshead"><h4>Additional services report</h4><span class="mscount" id="asrCount"></span><button class="msbtn ms-pdf" id="asrPdf">Generate PDF</button></div><div id="asrList"></div><button class="msadd" id="asrAdd">+ Add line item</button>';
   if(ic==='cr')return '<div class="mshead"><h4>Completion report</h4><span class="mscount" id="crCount"></span><button class="msbtn ms-pdf" id="crPdf">Generate PDF</button></div><div id="crForm"></div>';
   if(ic==='box')return `<div id="stockBody"><p style="font-size:12.5px;color:var(--sand-dim)">Checking stock…</p></div>`;
-  /* ic 'doc' is shared: Install uses it for "Open Install Work Order" and
-     Return Trip for "Open return-trip report". Only the Install one becomes
-     the PDF list; the return-trip placeholder is left exactly as it was. */
+  /* ic 'doc' is now INSTALL-ONLY - Return Trip dropped it in v63. The second
+     branch below is therefore no longer reached by any work-order button and
+     survives only as the defensive path for a 'doc' opened while
+     currentItem() is missing, which is what makes woIsInstall() false. Left
+     in deliberately: deleting it would turn that state into a blank modal. */
   if(ic==='doc'&&woIsInstall())return '<div id="woDocBody"><p style="font-size:12.5px;color:var(--sand-dim)">Loading PDFs…</p></div>';
   if(ic==='doc')return `<table class="mtable"><tr><th>Line</th><th>Item</th><th>Qty</th></tr><tr><td>1</td><td>${a.scope||'Window covering'}</td><td>—</td></tr></table><div class="fld" style="margin-top:14px"><label>Crew notes</label><textarea placeholder="Ladder access, pets, etc."></textarea></div>`;
   /* Same structure as the placeholder it replaces - signature .fld at the top,
