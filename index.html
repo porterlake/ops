@@ -465,6 +465,23 @@
   .mtable td{padding:8px;border-bottom:1px solid var(--side-border)}.mtable input{width:100%;background:var(--side-3);border:1px solid var(--side-border);border-radius:6px;padding:5px 7px;font:inherit;font-size:12.5px;color:var(--sand-ink)}
   .mcheck{display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid var(--side-border);border-radius:9px;margin-bottom:8px;font-size:13px;font-weight:600}
   .mcheck input{width:17px;height:17px;accent-color:var(--sand)}
+  /* ===== Customer sign-off pad (v59) =====================================
+     The popup keeps its existing shape: the same .fld label, the same dashed
+     rounded box in the same position, the same .mcheck rows underneath. Only
+     the inside of the box changes, because dark ink on the dark modal is not
+     signable - a customer expects to sign on something paper-like.
+
+     touch-action:none is REQUIRED here and is scoped to the pad alone: a
+     finger dragging to draw must not scroll the modal. Nothing else in the
+     file sets touch-action, and the v55 scroll work is untouched. */
+  .sgpad{position:relative;height:150px;border:1px dashed var(--side-border);
+    border-radius:9px;background:#fff;overflow:hidden;touch-action:none}
+  .sgpad canvas{display:block;width:100%;height:100%;touch-action:none;cursor:crosshair}
+  .sghint{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+    color:#9a948a;font-size:12px;pointer-events:none}
+  .sgpad.inked .sghint{display:none}
+  .sgrow{display:flex;align-items:center;gap:9px;margin-top:8px}
+  .sgwhen{font-size:11.5px;color:var(--sand-dim);flex:1;min-width:0}
   .photogrid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
   .phototile{aspect-ratio:1;border:1.5px dashed var(--side-border);border-radius:10px;display:flex;align-items:center;justify-content:center;color:var(--sand-dim);font-size:22px;cursor:pointer;background-size:cover;background-position:center;transition:.14s}
   .phototile:hover{border-color:var(--accent-line);color:var(--sand)}
@@ -840,6 +857,8 @@ body.role-installer [data-admin]{display:none!important}
   .modal-b{padding:16px}
   .modal-f{padding:12px 16px}
   .filegrid,.photogrid{grid-template-columns:repeat(3,1fr)}
+  /* More room to sign with a finger, which is the whole point on a phone. */
+  .sgpad{height:210px}
 
   /* --- Dealers master/detail stacks: list above, detail below --- */
   .dl-wrap{flex-direction:column;gap:14px}
@@ -1694,7 +1713,21 @@ function modalBodyFor(ic){const a=appts.find(x=>x.id===selectedId)||{};
      the PDF list; the return-trip placeholder is left exactly as it was. */
   if(ic==='doc'&&woIsInstall())return '<div id="woDocBody"><p style="font-size:12.5px;color:var(--sand-dim)">Loading PDFs…</p></div>';
   if(ic==='doc')return `<table class="mtable"><tr><th>Line</th><th>Item</th><th>Qty</th></tr><tr><td>1</td><td>${a.scope||'Window covering'}</td><td>—</td></tr></table><div class="fld" style="margin-top:14px"><label>Crew notes</label><textarea placeholder="Ladder access, pets, etc."></textarea></div>`;
-  if(ic==='check')return `<div class="fld"><label>Customer signature</label><div style="height:80px;border:1px dashed var(--side-border);border-radius:9px;display:flex;align-items:center;justify-content:center;color:var(--sand-dim);font-size:12px">Sign here</div></div><div class="mcheck"><input type="checkbox">All windows installed & operating</div><div class="mcheck"><input type="checkbox">Job site cleaned</div>`;
+  /* Same structure as the placeholder it replaces - signature .fld at the top,
+     .mcheck rows beneath - with the box now holding a real canvas and each
+     row followed by the explanation it reveals. The .mcheck rows became
+     <label>s so the text is tappable, which on a phone is the difference
+     between hitting a 17px box and hitting the whole row. */
+  if(ic==='check')return '<div class="fld"><label>Customer signature</label>'
+    +'<div class="sgpad" id="sgPad"><canvas id="sgCanvas"></canvas><div class="sghint">Sign here</div></div>'
+    +'<div class="sgrow"><button type="button" class="msbtn sg-clear">Clear</button>'
+    +'<span class="sgwhen" id="sgWhen"></span></div></div>'
+    +'<label class="mcheck" style="cursor:pointer"><input type="checkbox" class="sg-install" checked>All Window Coverings Installed &amp; Operating</label>'
+    +'<div class="fld sg-installf" hidden><label>Please explain</label><input class="sg-installn" placeholder="What is still outstanding?"></div>'
+    +'<label class="mcheck" style="cursor:pointer"><input type="checkbox" class="sg-clean" checked>Job Site is Cleaned to My Satisfaction</label>'
+    +'<div class="fld sg-cleanf" hidden><label>Please explain</label><input class="sg-cleann" placeholder="What needs attention?"></div>'
+    +'<div class="fld" style="margin-top:14px"><label>Customer notes</label>'
+    +'<textarea class="sg-notes" placeholder="Anything the customer would like noted (optional)"></textarea></div>';
   if(ic==='cam')return `<p style="font-size:12.5px;color:var(--sand-dim);margin-bottom:6px">Choose several at once — the picker allows multi-select, and Take Photo still works for a single shot. Tap a chosen photo to remove it.</p><p id="camCount" style="font-size:12.5px;color:var(--sand-dim);margin-bottom:12px">No photos chosen yet.</p><input type="file" id="camInput" accept="image/*" multiple hidden><div class="photogrid" id="camGrid"></div>`;
   if(ic==='upload')return `<label class="pdfdrop"><input type="file" accept="application/pdf" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12"/></svg><div>Tap to choose a PDF</div><div class="pdfname">No file chosen</div></label>`;
   if(ic==='link')return `<p style="font-size:13px">Linked to original job <b>${a.cust}</b> — ${a.dealer}.</p><p style="font-size:12px;color:var(--sand-dim);margin-top:8px">Opening will pull the original measure & install records.</p>`;
@@ -2403,7 +2436,9 @@ const CRCOLS='id,job_id,appointment_id,picked_up_offsite,special_access,gateway_
   +'take_downs,take_down_units,haul_away,ceiling_mounted,ceiling_mounted_count,'
   +'oversized_horizontal,oversized_count,products_modified,modified_detail,'
   +'extra_products,extra_detail,balance_collected,balance_total,payment_method,'
-  +'balance_reason,notes,ack_name,ack_at';
+  +'balance_reason,notes,ack_name,ack_at,'
+  +'install_confirmed,install_issue,site_clean_confirmed,site_clean_issue,'
+  +'customer_notes,customer_signature,customer_signed_at';
 const CR_PAY=['Cash','Check','Card','Other'];
 let CR_ROW=null;         /* the loaded row, or null when none exists yet */
 let CR_PAYSEL=null;      /* selected payment method, mirrored out of the row */
@@ -2581,6 +2616,27 @@ function crCollect(){const f=$('crForm');
     ack_name:(CR_ACK&&CR_ACK.name)?CR_ACK.name:null,
     ack_at:(CR_ACK&&CR_ACK.name)?CR_ACK.at:null};}
 
+/* One writer for the completion_reports row, shared by the survey form and the
+   sign-off popup. Both send PARTIAL payloads - PostgREST only sets the keys it
+   is given - so the survey save can never blank a signature and the sign-off
+   save can never blank the survey.
+
+   Extracted from crSave so the 23505 recovery is written once: a unique
+   violation means another tab created the row for this (job, appointment)
+   between the load and the insert, so it re-reads and updates rather than
+   failing - the constraint did its job. */
+async function crWriteRow(jobId,payload,existingId){
+  if(existingId){
+    const r=await sb.from('completion_reports').update(payload).eq('id',existingId).select(CRCOLS).single();
+    if(r.error)throw r.error;return r.data;}
+  const r=await sb.from('completion_reports').insert(payload).select(CRCOLS).single();
+  if(!r.error)return r.data;
+  if(r.error.code!=='23505')throw r.error;
+  const again=await crFetch(jobId);
+  if(!again||!again.id)throw r.error;
+  const u=await sb.from('completion_reports').update(payload).eq('id',again.id).select(CRCOLS).single();
+  if(u.error)throw u.error;return u.data;}
+
 async function crSave(silent){
   const jobId=currentJobId();
   if(!jobId){toast('Save the job first',true);return false;}
@@ -2588,24 +2644,7 @@ async function crSave(silent){
   const btn=$('crForm')?$('crForm').querySelector('.cr-save'):null;
   if(btn){btn.disabled=true;btn.textContent='Saving\u2026';}
   try{
-    if(CR_ROW&&CR_ROW.id){
-      const r=await sb.from('completion_reports').update(payload).eq('id',CR_ROW.id).select(CRCOLS).single();
-      if(r.error)throw r.error;CR_ROW=r.data;
-    }else{
-      const r=await sb.from('completion_reports').insert(payload).select(CRCOLS).single();
-      if(r.error){
-        /* 23505: another tab created the row for this (job, appointment)
-           between our load and this insert. Re-read and update rather than
-           failing - the unique constraint did its job. */
-        if(r.error.code==='23505'){
-          const again=await crFetch(jobId);
-          if(again&&again.id){
-            const u=await sb.from('completion_reports').update(payload).eq('id',again.id).select(CRCOLS).single();
-            if(u.error)throw u.error;CR_ROW=u.data;
-          }else throw r.error;
-        }else throw r.error;
-      }else CR_ROW=r.data;
-    }
+    CR_ROW=await crWriteRow(jobId,payload,CR_ROW&&CR_ROW.id);
     crSync();
     if(!silent)toast('Completion report saved');
     return true;
@@ -2795,6 +2834,62 @@ function crBuildPdf(r){
     doc.setFont('helvetica','normal');doc.setFontSize(8);doc.setTextColor(MUT[0],MUT[1],MUT[2]);
     doc.text('No installer has signed this report.',M+4,y+20);}
 
+  /* ===== Customer sign-off block =======================================
+     Printed only when a signature exists - an unsigned report should not grow
+     an empty box, and the installer acknowledgement above already says its
+     own piece when unsigned.
+
+     A tick or a cross rather than the words Yes/No, so a dealer scanning the
+     page sees the exception immediately; an unticked line prints its
+     explanation indented beneath and is omitted when there is nothing to
+     explain. The signature is stored normalised to 3:1, so it is drawn at a
+     fixed 72 x 24mm and can never come out stretched.
+     ================================================================= */
+  if(r.customer_signature){
+    const rows=[];
+    rows.push([r.install_confirmed===false?'x':'v','All window coverings installed & operating']);
+    if(r.install_confirmed===false&&r.install_issue)rows.push(['',String(r.install_issue).trim()]);
+    rows.push([r.site_clean_confirmed===false?'x':'v','Job site cleaned to my satisfaction']);
+    if(r.site_clean_confirmed===false&&r.site_clean_issue)rows.push(['',String(r.site_clean_issue).trim()]);
+    const notes=String(r.customer_notes||'').trim();
+    /* 26mm of confirmations plus a 24mm signature and its caption; start a
+       fresh page rather than let the block straddle the footer rule. */
+    const need=30+rows.length*6+(notes?14:0)+34;
+    if(y>PH-need){doc.addPage();drawHeader();y=62;}else{y+=10;}
+    doc.setFont('helvetica','bold');doc.setFontSize(7.5);doc.setTextColor(MUT[0],MUT[1],MUT[2]);
+    doc.text('CUSTOMER SIGN-OFF',M,y);
+    doc.setDrawColor(SAND[0],SAND[1],SAND[2]);doc.setLineWidth(0.5);
+    doc.line(M,y+2,PW-M,y+2);
+    let cy2=y+9;
+    rows.forEach(function(rw){
+      if(rw[0]){
+        doc.setFont('helvetica','bold');doc.setFontSize(10);
+        doc.setTextColor(rw[0]==='x'?163:77,rw[0]==='x'?33:112,rw[0]==='x'?29:16);
+        doc.text(rw[0]==='x'?'\u00d7':'\u2713',M+1,cy2);
+        doc.setFont('helvetica','normal');doc.setFontSize(9.5);doc.setTextColor(INK[0],INK[1],INK[2]);
+        doc.text(rw[1],M+7,cy2);
+      }else{
+        doc.setFont('helvetica','italic');doc.setFontSize(9);doc.setTextColor(MUT[0],MUT[1],MUT[2]);
+        doc.text(doc.splitTextToSize(rw[1],PW-M*2-14),M+14,cy2);
+      }
+      cy2+=6;});
+    if(notes){
+      cy2+=2;
+      doc.setFont('helvetica','bold');doc.setFontSize(7.5);doc.setTextColor(MUT[0],MUT[1],MUT[2]);
+      doc.text('CUSTOMER NOTES',M,cy2);cy2+=5;
+      doc.setFont('helvetica','normal');doc.setFontSize(9.5);doc.setTextColor(INK[0],INK[1],INK[2]);
+      const wrapped=doc.splitTextToSize(notes,PW-M*2);
+      doc.text(wrapped,M,cy2);cy2+=wrapped.length*4.6;}
+    cy2+=4;
+    try{doc.addImage(r.customer_signature,'PNG',M,cy2,72,24);}
+    catch(err){console.error('signature image',err);}
+    doc.setDrawColor(LINE[0],LINE[1],LINE[2]);doc.setLineWidth(0.3);
+    doc.line(M,cy2+25,M+72,cy2+25);
+    doc.setFont('helvetica','normal');doc.setFontSize(8);doc.setTextColor(MUT[0],MUT[1],MUT[2]);
+    doc.text('Customer signature \u00b7 signed '
+      +(r.customer_signed_at?new Date(r.customer_signed_at).toLocaleString():''),M,cy2+29);
+  }
+
   const pages=doc.internal.getNumberOfPages(),gen=msFmtDate(new Date());
   for(let p=1;p<=pages;p++){doc.setPage(p);
     doc.setDrawColor(SAND[0],SAND[1],SAND[2]);doc.setLineWidth(0.5);doc.line(M,PH-18,PW-M,PH-18);
@@ -2968,6 +3063,214 @@ const SD_ERRORS={
   NETWORK:'Could not reach the server. Check your connection and try again.',
   INTERNAL_ERROR:'Something went wrong sending the email.'
 };
+
+/* ===== Customer sign-off (v59) =========================================
+   Makes the existing Capture Sign-off popup functional. It writes to the SAME
+   completion_reports row as the survey form, keyed (job_id, appointment_id),
+   through the shared crWriteRow. Both send PARTIAL payloads, so neither can
+   blank the other's columns.
+
+   This is the CUSTOMER's sign-off. The survey's ack_name/ack_at is the
+   INSTALLER typing their own name. They are separate columns and neither
+   implies the other.
+
+   RE-SIGNABLE: Clear wipes the pad, a new drawing overwrites
+   customer_signature, and customer_signed_at moves to the real re-sign time.
+   Nothing locks a signed report.
+   ==================================================================== */
+const SG_EXPORT_W=600,SG_EXPORT_H=200;   /* every signature is stored 3:1 */
+let SG_ROW=null,SG_CTX=null,SG_INKED=false,SG_LOADED_SIG=null,SG_SIGNED_AT=null;
+
+function sgPad(){return $('sgPad');}
+function sgCanvas(){return $('sgCanvas');}
+
+/* The backing store is sized in DEVICE pixels and the context scaled, or the
+   stroke is a blurry approximation of where the finger went on a 2x/3x phone. */
+function sgResize(keep){
+  const c=sgCanvas();if(!c)return;
+  const prev=SG_INKED?c.toDataURL('image/png'):null;
+  const r=c.getBoundingClientRect();
+  const dpr=window.devicePixelRatio||1;
+  c.width=Math.max(1,Math.round(r.width*dpr));
+  c.height=Math.max(1,Math.round(r.height*dpr));
+  const ctx=c.getContext('2d');
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  ctx.lineWidth=2.2;ctx.lineCap='round';ctx.lineJoin='round';ctx.strokeStyle='#12100d';
+  SG_CTX=ctx;
+  if(keep&&prev)sgDrawDataUrl(prev);
+}
+
+/* Paints a stored signature back onto the pad, scaled to fit. Used when a
+   signed report is reopened and after a resize. */
+function sgDrawDataUrl(url){
+  const c=sgCanvas();if(!c||!url)return;
+  const img=new Image();
+  img.onload=function(){
+    const r=c.getBoundingClientRect();
+    const s=Math.min(r.width/img.width,r.height/img.height);
+    const w=img.width*s,ht=img.height*s;
+    SG_CTX.drawImage(img,(r.width-w)/2,(r.height-ht)/2,w,ht);
+    sgSetInked(true);
+  };
+  img.src=url;
+}
+
+function sgSetInked(on){
+  SG_INKED=!!on;
+  const p=sgPad();if(p)p.classList.toggle('inked',SG_INKED);
+}
+
+function sgClear(){
+  const c=sgCanvas();if(!c||!SG_CTX)return;
+  const r=c.getBoundingClientRect();
+  SG_CTX.clearRect(0,0,r.width,r.height);
+  sgSetInked(false);
+  /* Clearing DETACHES the stored signature: saving now writes NULL to both
+     signature columns, which cr_customer_sig_pair_chk requires to move
+     together. Re-drawing sets a fresh timestamp. */
+  SG_LOADED_SIG=null;SG_SIGNED_AT=null;
+  sgWhen();
+}
+
+function sgWhen(){
+  const el=$('sgWhen');if(!el)return;
+  el.textContent=SG_SIGNED_AT?('Signed '+noteWhen(SG_SIGNED_AT))
+    :(SG_INKED?'Not saved yet':'');
+}
+
+/* Pointer events cover finger, stylus and mouse in one path, and pointer
+   capture keeps the stroke alive if the finger leaves the pad mid-signature. */
+function sgBind(){
+  const c=sgCanvas();if(!c)return;
+  let drawing=false;
+  const at=function(e){const r=c.getBoundingClientRect();
+    return {x:e.clientX-r.left,y:e.clientY-r.top};};
+  c.onpointerdown=function(e){
+    if(!SG_CTX)return;
+    drawing=true;
+    try{c.setPointerCapture(e.pointerId);}catch(err){}
+    const p=at(e);SG_CTX.beginPath();SG_CTX.moveTo(p.x,p.y);
+    /* A tap with no movement should still leave a mark. */
+    SG_CTX.lineTo(p.x+0.01,p.y);SG_CTX.stroke();
+    sgSetInked(true);
+    if(SG_SIGNED_AT){SG_SIGNED_AT=null;sgWhen();}   /* re-signing */
+    e.preventDefault();
+  };
+  c.onpointermove=function(e){
+    if(!drawing||!SG_CTX)return;
+    const p=at(e);SG_CTX.lineTo(p.x,p.y);SG_CTX.stroke();
+    e.preventDefault();
+  };
+  const stop=function(e){
+    if(!drawing)return;drawing=false;
+    try{c.releasePointerCapture(e.pointerId);}catch(err){}
+    sgWhen();
+  };
+  c.onpointerup=stop;c.onpointercancel=stop;c.onpointerleave=stop;
+}
+
+/* Normalised to a fixed 600x200 so the PDF can draw it at a known ratio with
+   no stored aspect column and no risk of a stretched signature. The source is
+   letterboxed, never squashed, and the background is painted white because a
+   transparent PNG composites unpredictably through jsPDF. */
+function sgExport(){
+  const c=sgCanvas();if(!c||!SG_INKED)return null;
+  const out=document.createElement('canvas');
+  out.width=SG_EXPORT_W;out.height=SG_EXPORT_H;
+  const o=out.getContext('2d');
+  o.fillStyle='#ffffff';o.fillRect(0,0,SG_EXPORT_W,SG_EXPORT_H);
+  const s=Math.min(SG_EXPORT_W/c.width,SG_EXPORT_H/c.height);
+  const w=c.width*s,ht=c.height*s;
+  o.drawImage(c,(SG_EXPORT_W-w)/2,(SG_EXPORT_H-ht)/2,w,ht);
+  return out.toDataURL('image/png');
+}
+
+function sgSync(){
+  const b=$('modalBody');if(!b)return;
+  const inst=b.querySelector('.sg-install'),cln=b.querySelector('.sg-clean');
+  const f1=b.querySelector('.sg-installf'),f2=b.querySelector('.sg-cleanf');
+  if(f1&&inst)f1.hidden=!!inst.checked;
+  if(f2&&cln)f2.hidden=!!cln.checked;
+}
+
+async function sgInit(){
+  const b=$('modalBody');if(!b||!b.querySelector('.sgpad'))return;
+  SG_ROW=null;SG_CTX=null;SG_INKED=false;SG_LOADED_SIG=null;SG_SIGNED_AT=null;
+  sgResize(false);sgBind();sgSync();sgWhen();
+  const jobId=currentJobId();
+  if(!jobId)return;
+  const row=await crFetch(jobId);
+  SG_ROW=row;
+  if(!row)return;
+  const inst=b.querySelector('.sg-install'),cln=b.querySelector('.sg-clean');
+  /* A stored answer wins; otherwise the form default of BOTH TICKED stands.
+     The columns carry no database default precisely so this stays a form
+     decision and an unsigned report never claims a confirmation. */
+  if(inst&&row.install_confirmed!=null)inst.checked=!!row.install_confirmed;
+  if(cln&&row.site_clean_confirmed!=null)cln.checked=!!row.site_clean_confirmed;
+  const i1=b.querySelector('.sg-installn'),i2=b.querySelector('.sg-cleann'),nt=b.querySelector('.sg-notes');
+  if(i1)i1.value=row.install_issue||'';
+  if(i2)i2.value=row.site_clean_issue||'';
+  if(nt)nt.value=row.customer_notes||'';
+  if(row.customer_signature){
+    SG_LOADED_SIG=row.customer_signature;SG_SIGNED_AT=row.customer_signed_at||null;
+    sgDrawDataUrl(row.customer_signature);
+  }
+  sgSync();sgWhen();
+}
+
+async function sgSave(){
+  const jobId=currentJobId();
+  if(!jobId){toast('Save the job first',true);return false;}
+  const b=$('modalBody');
+  const v=function(s){const el=b.querySelector(s);return el?el.value.trim():'';};
+  const chk=function(s){const el=b.querySelector(s);return el?!!el.checked:null;};
+  const inst=chk('.sg-install'),cln=chk('.sg-clean');
+  const instIssue=v('.sg-installn'),clnIssue=v('.sg-cleann');
+
+  /* A NEW drawing wins; an untouched pad keeps whatever was loaded. */
+  const fresh=(SG_INKED&&!SG_SIGNED_AT)?sgExport():null;
+  const sig=fresh||(SG_INKED?SG_LOADED_SIG:null);
+  const signedAt=fresh?new Date().toISOString():(sig?SG_SIGNED_AT:null);
+
+  /* cr_install_issue_chk and cr_site_clean_issue_chk only bind once signed, so
+     this is checked here too - a database error is not a useful thing to show
+     a customer standing in their hallway. */
+  if(sig){
+    if(inst===false&&!instIssue){toast('Add a brief explanation for the window coverings',true);return false;}
+    if(cln===false&&!clnIssue){toast('Add a brief explanation for the job site',true);return false;}
+  }
+
+  const payload={job_id:jobId,appointment_id:crApptId(),
+    install_confirmed:inst,install_issue:instIssue||null,
+    site_clean_confirmed:cln,site_clean_issue:clnIssue||null,
+    customer_notes:v('.sg-notes')||null,
+    customer_signature:sig||null,
+    customer_signed_at:sig?signedAt:null};
+  try{
+    SG_ROW=await crWriteRow(jobId,payload,SG_ROW&&SG_ROW.id);
+    SG_LOADED_SIG=SG_ROW.customer_signature||null;
+    SG_SIGNED_AT=SG_ROW.customer_signed_at||null;
+    sgWhen();
+    toast(sig?'Sign-off saved':'Sign-off saved \u2014 no signature yet');
+    return true;
+  }catch(err){console.error('sgSave',err);
+    toast('Could not save the sign-off',true);return false;}
+}
+
+/* Delegated so the pad can be rebuilt with the modal. */
+document.addEventListener('click',function(e){
+  if(e.target.closest('.sg-clear')){sgClear();return;}
+});
+document.addEventListener('change',function(e){
+  if(e.target.closest('.sg-install')||e.target.closest('.sg-clean'))sgSync();
+});
+/* The pad has a percentage width, so a rotation changes its pixel size and the
+   backing store has to follow or the stroke lands in the wrong place. */
+window.addEventListener('resize',function(){
+  const p=sgPad();
+  if(p&&document.getElementById('modalBg').classList.contains('open'))sgResize(true);
+});
 
 /* ===== Sendable document registry (v57) ================================
    ONE picker for every drawer. Adding a document type is ONE entry here -
@@ -3353,6 +3656,7 @@ function openModal(ic,label){currentModalIc=ic;modalPdf=null;const a=currentItem
   if(ic==='ruler')msInit();
   if(ic==='asr')asrInit();
   if(ic==='cr')crInit();
+  if(ic==='check')sgInit();
   /* The footer button is shared by every tile, so its label and enabled state
      are set per-modal here. sdInit() may then disable it if the job has no
      measure sheet to send. */
@@ -3384,6 +3688,12 @@ $('modalSave').onclick=async()=>{
      selectedId, and currentJobId() derives from it. */
   if(currentModalIc==='box'){recvGoto(currentJobId());return;}
   if(currentModalIc==='send'){await sdSend();return;}
+  if(currentModalIc==='check'){const btn=$('modalSave');
+    btn.textContent='Saving\u2026';btn.disabled=true;
+    const ok=await sgSave();
+    btn.textContent='Save';btn.disabled=false;
+    if(ok)closeModal();
+    return;}
   /* One form, not a list of cards: the footer just saves it. */
   if(currentModalIc==='cr'){const btn=$('modalSave');
     btn.textContent='Saving…';btn.disabled=true;
