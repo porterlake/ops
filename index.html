@@ -460,6 +460,22 @@
   .phototile{aspect-ratio:1;border:1.5px dashed var(--side-border);border-radius:10px;display:flex;align-items:center;justify-content:center;color:var(--sand-dim);font-size:22px;cursor:pointer;background-size:cover;background-position:center;transition:.14s}
   .phototile:hover{border-color:var(--accent-line);color:var(--sand)}
   .phototile.has{border-style:solid;border-color:#4cbf86}.phototile.has span{display:none}
+  /* Send picker (v57): a tick badge on each selectable photo. .phototile
+     already carries the frame and the .has selected state, so this is the
+     only new rule the picker needs. */
+  .phototile .tick{position:absolute;right:4px;top:4px;width:19px;height:19px;border-radius:6px;
+    background:rgba(8,8,10,.55);border:1px solid rgba(255,255,255,.4);color:#fff;font-size:12px;
+    display:flex;align-items:center;justify-content:center;line-height:1}
+  .phototile{position:relative}
+  .phototile.has .tick{background:#4cbf86;border-color:#4cbf86}
+  .sdgrp{font-size:10.5px;letter-spacing:1.1px;text-transform:uppercase;color:var(--sand-dim);
+    font-weight:700;margin:0 0 8px}
+  .sdrow{display:flex;align-items:center;gap:10px;padding:9px 11px;border:1px solid var(--side-border);
+    border-radius:9px;margin-bottom:7px;cursor:pointer;font-size:13px;color:var(--sand-ink)}
+  .sdrow.on{border-color:var(--accent);background:rgba(216,198,160,.10)}
+  .sdrow input{width:17px;height:17px;accent-color:var(--sand);flex:none}
+  .sdrow .nm{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .sdrow .wh{flex:none;font-size:11.5px;color:var(--sand-dim)}
 
   /* ===== Measure sheet — a LIGHT working surface inside the dark modal shell.
      Everything is scoped under .mslight, so the other seven modal actions keep
@@ -1062,7 +1078,7 @@ const statusText=k=>STATUS_TEXT[k]||statusColor(k);
 const ICONS={phone:'<path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1.9.3 1.8.6 2.6a2 2 0 0 1-.5 2.1L8 9.6a16 16 0 0 0 6 6l1.2-1.2a2 2 0 0 1 2.1-.5c.8.3 1.7.5 2.6.6a2 2 0 0 1 1.7 2z"/>',chat:'<path d="M21 11.5a8.4 8.4 0 0 1-9 8.4 8.5 8.5 0 0 1-3.8-.9L3 21l1.9-5.7A8.4 8.4 0 0 1 4 11.5a8.5 8.5 0 0 1 17 0z"/>',ruler:'<path d="M3 11l8-8 10 10-8 8z"/><path d="M7 9l2 2M11 7l2 2M9 13l2 2"/>',send:'<path d="M22 2L11 13M22 2l-7 20-4-9-9-4z"/>',cam:'<path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/>',doc:'<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M9 13h6M9 17h6"/>',box:'<path d="M21 16V8a2 2 0 0 0-1-1.7l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.7l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><path d="M3.3 7L12 12l8.7-5M12 22V12"/>',check:'<path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>',link:'<path d="M10 13a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1.5 1.5"/><path d="M14 11a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1.5-1.5"/>',cr:'<path d="M9 11l3 3 5-6"/><path d="M21 12a9 9 0 1 1-6.2-8.6"/>',
   asr:'<path d="M9 2h6a2 2 0 0 1 2 2v1h1a2 2 0 0 1 2 2v13a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h1V4a2 2 0 0 1 2-2z"/><path d="M9 12h6M9 16h4"/>',
   flag:'<path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><path d="M4 22v-7"/>',chart:'<path d="M3 3v18h18"/><path d="M7 14l4-4 3 3 5-6"/>'};
-const WO={"Measure":{color:"#5b9bd5",actions:[{ic:"ruler",label:"Open Measure Sheet"},{ic:"cam",label:"Attach Photos"},{ic:"send",label:"Send to Dealer"}]},"Install":{color:"#3a6fb0",actions:[{ic:"doc",label:"Open Install Work Order"},{ic:"box",label:"Confirm Stock Received"},{ic:"asr",label:"Additional Services Report"},{ic:"sendasr",label:"Send Services Report"},{ic:"cam",label:"Attach Job Photos"},{ic:"cr",label:"Completion Report"},{ic:"sendcr",label:"Send Completion Report"},{ic:"check",label:"Capture Sign-off & Completion"}]},"Return Trip":{color:"#d9605c",actions:[{ic:"link",label:"Open original job"},{ic:"doc",label:"Open return-trip report"},{ic:"cr",label:"Completion Report"},{ic:"sendcr",label:"Send Completion Report"},{ic:"flag",label:"Log reason for return"}]}};
+const WO={"Measure":{color:"#5b9bd5",actions:[{ic:"ruler",label:"Open Measure Sheet"},{ic:"cam",label:"Attach Photos"},{ic:"send",label:"Send to Dealer"}]},"Install":{color:"#3a6fb0",actions:[{ic:"doc",label:"Open Install Work Order"},{ic:"box",label:"Confirm Stock Received"},{ic:"asr",label:"Additional Services Report"},{ic:"cam",label:"Attach Job Photos"},{ic:"cr",label:"Completion Report"},{ic:"check",label:"Capture Sign-off & Completion"},{ic:"send",label:"Send to Dealer"}]},"Return Trip":{color:"#d9605c",actions:[{ic:"link",label:"Open original job"},{ic:"doc",label:"Open return-trip report"},{ic:"cr",label:"Completion Report"},{ic:"flag",label:"Log reason for return"},{ic:"send",label:"Send to Dealer"}]}};
 
 const DEALERS=[];
 let custCache=[];
@@ -1631,8 +1647,6 @@ function modalBodyFor(ic){const a=appts.find(x=>x.id===selectedId)||{};
   if(ic==='ruler')return `<div class="mshead"><h4>Measure sheet</h4><span class="mscount" id="msCount"></span><button class="msbtn ms-pdf" id="msPdf">Generate PDF</button></div><div id="msList"></div><button class="msadd" id="msAdd">+ Add line item</button>`;
   if(ic==='asr')return '<div class="mshead"><h4>Additional services report</h4><span class="mscount" id="asrCount"></span><button class="msbtn ms-pdf" id="asrPdf">Generate PDF</button></div><div id="asrList"></div><button class="msadd" id="asrAdd">+ Add line item</button>';
   if(ic==='cr')return '<div class="mshead"><h4>Completion report</h4><span class="mscount" id="crCount"></span><button class="msbtn ms-pdf" id="crPdf">Generate PDF</button></div><div id="crForm"></div>';
-  if(ic==='sendcr')return `<div id="sdBody"><p style="font-size:12.5px;color:var(--sand-dim)">Loading reports…</p></div>`;
-  if(ic==='sendasr')return `<div id="sdBody"><p style="font-size:12.5px;color:var(--sand-dim)">Loading reports…</p></div>`;
   if(ic==='box')return `<div id="stockBody"><p style="font-size:12.5px;color:var(--sand-dim)">Checking stock…</p></div>`;
   /* ic 'doc' is shared: Install uses it for "Open Install Work Order" and
      Return Trip for "Open return-trip report". Only the Install one becomes
@@ -1643,7 +1657,7 @@ function modalBodyFor(ic){const a=appts.find(x=>x.id===selectedId)||{};
   if(ic==='cam')return `<p style="font-size:12.5px;color:var(--sand-dim);margin-bottom:6px">Choose several at once — the picker allows multi-select, and Take Photo still works for a single shot. Tap a chosen photo to remove it.</p><p id="camCount" style="font-size:12.5px;color:var(--sand-dim);margin-bottom:12px">No photos chosen yet.</p><input type="file" id="camInput" accept="image/*" multiple hidden><div class="photogrid" id="camGrid"></div>`;
   if(ic==='upload')return `<label class="pdfdrop"><input type="file" accept="application/pdf" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12"/></svg><div>Tap to choose a PDF</div><div class="pdfname">No file chosen</div></label>`;
   if(ic==='link')return `<p style="font-size:13px">Linked to original job <b>${a.cust}</b> — ${a.dealer}.</p><p style="font-size:12px;color:var(--sand-dim);margin-top:8px">Opening will pull the original measure & install records.</p>`;
-  if(ic==='send')return `<div id="sdBody"><p style="font-size:12.5px;color:var(--sand-dim)">Loading measure sheets…</p></div>`;
+  if(ic==='send')return '<div id="sdBody"><p style="font-size:12.5px;color:var(--sand-dim)">Loading documents and photos…</p></div>';
   if(ic==='flag')return `<div class="fld"><label>Reason for return</label><select><option>Wrong bracket / hardware</option><option>Manufacturer defect</option><option>Measurement error</option><option>Customer change</option></select></div><div class="fld"><label>Details</label><textarea></textarea></div>`;
   return '<p>—</p>';}
 /* ===== Open Install Work Order (v50) ===================================
@@ -2872,6 +2886,10 @@ const SD_PHOTO_TARGET=400*1024;    /* per-photo goal; typical phone shot lands 2
    Gmail bounces over 25MB. 9MB of raw attachments is ~12MB encoded: inside the
    function's own 15MB cap and nowhere near anyone's bounce threshold. */
 const SD_BUDGET=9*1024*1024;
+/* Mirrors MAX_FILES in send-documents. Checked here so an over-long selection
+   is refused in the picker with a useful message, rather than after every
+   photo has been compressed and uploaded. */
+const SD_MAX_FILES=30;
 
 /* supabase-js collapses EVERY non-2xx into the same useless message
    ("Edge Function returned a non-2xx status code") and hides the real body on
@@ -2910,39 +2928,32 @@ const SD_ERRORS={
   INTERNAL_ERROR:'Something went wrong sending the email.'
 };
 
-/* Each sendable document is identified by the filename its generator writes.
-   Manually uploaded PDFs (dealer work orders and the like) match neither, and
-   are deliberately NOT offered — these buttons send documents this app made.
+/* ===== Sendable document registry (v57) ================================
+   ONE picker for every drawer. Adding a document type is ONE entry here -
+   nothing downstream names a specific document. Invoicing later is:
+     {key:'invoice',label:'Invoice',re:/^Invoice\b/i}
+   and `invoice` is already a key in the Edge Function's DOCUMENT_TYPES, so
+   an invoice-only send would get its proper subject with no function work.
 
-   `key` is the document_type the send-documents Edge Function receives. An
-   unknown key there degrades to neutral wording rather than failing, so the
-   app can ship before the function is redeployed — the email just says
-   "document" until it is. */
-const SD_KINDS={
-  measure_sheet:{
-    key:'measure_sheet',one:'measure sheet',which:'Which measure sheet',
-    pick:'Choose a measure sheet to send',
-    match:function(f){return /^Measure Sheet\b/i.test(f&&f.name||'');},
-    none:'No measure sheet has been generated for this job yet.',
-    hint:'Open the measure sheet, then tap <b>Generate PDF</b>. That saves it to the job and makes it sendable.'},
-  completion_report:{
-    key:'completion_report',one:'completion report',
-    which:'Which completion report',pick:'Choose a completion report to send',
-    match:function(f){return /^Completion Report\b/i.test(f&&f.name||'');},
-    none:'No completion report has been generated for this job yet.',
-    hint:'Open <b>Completion Report</b>, fill in the survey, sign it, then tap <b>Generate PDF</b>. That saves it to the job and makes it sendable.'},
-  additional_services_report:{
-    key:'additional_services_report',one:'additional services report',
-    which:'Which report',pick:'Choose a report to send',
-    match:function(f){return /^Additional Services Report\b/i.test(f&&f.name||'');},
-    none:'No additional services report has been generated for this job yet.',
-    hint:'Open <b>Additional Services Report</b>, fill in the line items, then tap <b>Generate PDF</b>. That saves it to the job and makes it sendable.'}
-};
-let SD_KIND='measure_sheet';
-function sdKind(){return SD_KINDS[SD_KIND]||SD_KINDS.measure_sheet;}
+   A document is identified by the filename its generator writes, which is why
+   msPdfFilename / asrPdfFilename / crPdfFilename must keep their prefixes.
+   A manually uploaded dealer work order matches nothing and is deliberately
+   not offered - these are documents this app produced.
+   ==================================================================== */
+const SEND_DOC_TYPES=[
+  {key:'measure_sheet',              label:'Measure Sheet',              re:/^Measure Sheet\b/i},
+  {key:'additional_services_report', label:'Additional Services Report', re:/^Additional Services Report\b/i},
+  {key:'completion_report',          label:'Completion Report',          re:/^Completion Report\b/i}
+];
+function sendDocTypeOf(f){const nm=(f&&f.name)||'';
+  for(let i=0;i<SEND_DOC_TYPES.length;i++)if(SEND_DOC_TYPES[i].re.test(nm))return SEND_DOC_TYPES[i];
+  return null;}
+/* Kept for the v50 work-order PDF picker, which tags measure sheets. */
+function sdIsMeasureSheet(f){return SEND_DOC_TYPES[0].re.test((f&&f.name)||'');}
 
-/* Kept as a named function: the v50 work-order PDF picker tags rows with it. */
-function sdIsMeasureSheet(f){return SD_KINDS.measure_sheet.match(f);}
+/* Picker state. SD_DOCS is every sendable PDF on the job, grouped by registry
+   order then newest-first; SD_PHOTO_SEL is the set of selected photo ids. */
+let SD_DOCS=[],SD_PHOTO_SEL=null,SD_BUSY=false;
 
 /* Prepared photo state for the modal that is currently open. Cleared on every
    open so a previous job's work can never be attached to this one. */
@@ -3005,43 +3016,69 @@ async function sdPreparePhotos(jobId,photos){
       const resp=await fetch(p.url);
       if(!resp.ok)throw new Error('http '+resp.status);
       const out=await sdShrink(await resp.blob());
-      made.push({blob:out,name:sdJpgName(p.name),bytes:out.size});
+      made.push({blob:out,name:sdJpgName(p.name),bytes:out.size,srcId:p.id,thumb:p.url});
     }catch(err){
       console.error('sdPreparePhotos',p.name,err);
       prep.skipped.push(p.name);}
     done++;note();
     if(SD_PREP!==prep)return;   /* modal moved on — abandon quietly */
   }
-  let total=0;
-  for(const m of made){
-    if(total+m.bytes>SD_BUDGET){prep.overflow.push(m.name);continue;}
-    total+=m.bytes;prep.items.push(m);}
-  prep.bytes=total;prep.ready=true;
+  /* v57: EVERY prepared photo goes into items. The size budget used to be
+     applied here, silently dropping the tail - which made sense when photos
+     were all-or-nothing. Now that they can be deselected individually, the
+     budget is checked against the SELECTION instead, so deselecting a few big
+     ones is a real way to get under it. */
+  made.forEach(function(m){prep.items.push(m);});
+  prep.bytes=made.reduce(function(s,m){return s+m.bytes;},0);
+  prep.ready=true;
+  /* Select-all by default (v57), which is what the old all-or-none checkbox
+     effectively did. Individual photos can then be deselected. */
+  SD_PHOTO_SEL=new Set(prep.items.map(function(m){return m.srcId;}));
+  sdRenderGrid();
   sdRenderNote();
   sdSyncButton();
 }
 
-function sdRenderNote(){
-  const el=$('sdPhotoNote');if(!el)return;
-  const box=$('sdInclude');
-  if(box&&!box.checked){el.textContent='Photos will not be attached.';return;}
-  if(!SD_PREP.ready){el.textContent='Preparing photos…';return;}
-  const bits=[];
-  const n=SD_PREP.items.length;
-  bits.push(n+(n===1?' photo · ':' photos · ')+sdKB(SD_PREP.bytes));
-  if(SD_PREP.overflow.length)bits.push(SD_PREP.overflow.length+' will not fit in one email and are left out — send them separately');
-  if(SD_PREP.skipped.length)bits.push(SD_PREP.skipped.length+' could not be prepared on this device');
-  el.textContent=bits.join(' · ');
+/* Everything the footer button and the note need, computed in one place from
+   the current selection rather than tracked in several. */
+function sdSelection(){
+  const docs=SD_DOCS.filter(function(d){return d.checked;});
+  const photos=(SD_PREP.ready&&SD_PHOTO_SEL)
+    ? SD_PREP.items.filter(function(p){return SD_PHOTO_SEL.has(p.srcId);}) : [];
+  const bytes=photos.reduce(function(s,p){return s+p.bytes;},0);
+  const types={};docs.forEach(function(d){types[d.type.key]=d.type;});
+  const keys=Object.keys(types);
+  return {docs:docs,photos:photos,bytes:bytes,types:types,keys:keys,
+    total:docs.length+photos.length,
+    overBudget:bytes>SD_BUDGET,
+    overCount:docs.length+photos.length>SD_MAX_FILES};
 }
 
-/* The footer button is shared by every tile, so its state is computed rather
-   than toggled from several places. */
+function sdRenderNote(){
+  const el=$('sdPhotoNote');if(!el)return;
+  if(!SD_PREP.ready){el.textContent='Preparing photos\u2026';return;}
+  const s=sdSelection();
+  const bits=[];
+  bits.push(s.photos.length+(s.photos.length===1?' photo':' photos')+' selected \u00b7 '+sdKB(s.bytes));
+  if(s.overBudget)bits.push('over the '+sdKB(SD_BUDGET)+' limit for one email \u2014 deselect a few');
+  if(s.overCount)bits.push('more than '+SD_MAX_FILES+' attachments \u2014 deselect a few');
+  if(SD_PREP.skipped.length)bits.push(SD_PREP.skipped.length+' could not be prepared on this device');
+  el.textContent=bits.join(' \u00b7 ');
+}
+
+/* The footer button is shared by every modal, so its state is computed here
+   rather than toggled from several places. */
 function sdSyncButton(){
   const btn=$('modalSave');if(!btn)return;
-  const box=$('sdInclude');
-  const waiting=box&&box.checked&&!SD_PREP.ready;
-  btn.disabled=!!waiting;
-  btn.textContent=waiting?'Preparing…':'Send';
+  if(SD_BUSY)return;                       /* mid-send: sdSend owns the label */
+  if(!SD_PREP.ready){btn.disabled=true;btn.textContent='Preparing\u2026';return;}
+  const s=sdSelection();
+  btn.disabled=s.total===0||s.overBudget||s.overCount;
+  if(s.total===0){btn.textContent='Nothing selected';return;}
+  const parts=[];
+  if(s.docs.length)parts.push(s.docs.length+(s.docs.length===1?' document':' documents'));
+  if(s.photos.length)parts.push(s.photos.length+(s.photos.length===1?' photo':' photos'));
+  btn.textContent='Send '+parts.join(' + ');
 }
 
 /* Mirrors uploadFile() deliberately rather than modifying it — same bucket,
@@ -3059,113 +3096,213 @@ async function sdUploadEmailCopy(jobId,file,i){
   return data.id;
 }
 
-/* Populates the Send modal. Called from openModal the same way msInit() is, so
-   the body is always built from a fresh read of the job's files rather than
-   whatever the drawer happened to cache. */
+/* ===== Unified Send to Dealer picker (v57) =============================
+   ONE component, mounted from ONE work-order action (ic:'send') on the
+   Measure, Install and Return Trip drawers. It replaced three separate send
+   buttons (measure's send, plus sendasr and sendcr on install/return trip),
+   each of which sent its own document in its own email.
+
+   Nothing here names a document type: the list comes from SEND_DOC_TYPES, so
+   the picker, the subject choice and the button label all extend by adding a
+   registry entry.
+
+   Everything selected goes in ONE email: PDFs first in registry order, then
+   photos newest-first. The Edge Function attaches file_ids in exactly the
+   order given, so that array IS the attachment order.
+   ==================================================================== */
 async function sdInit(){
   const box=$('sdBody');if(!box)return;
   const btn=$('modalSave');
+  SD_BUSY=false;SD_DOCS=[];SD_PHOTO_SEL=new Set();
   SD_PREP={jobId:null,ready:false,items:[],overflow:[],skipped:[],bytes:0};
   const a=currentItem()||{},jobId=currentJobId();
   const dim='font-size:12.5px;color:var(--sand-dim);line-height:1.55';
-  if(!jobId){
-    box.innerHTML='<p style="'+dim+'">Save the job first, then send.</p>';
-    if(btn)btn.disabled=true;return;}
+  if(!jobId){box.innerHTML='<p style="'+dim+'">Save the job first, then send.</p>';
+    if(btn){btn.disabled=true;btn.textContent='Send';}return;}
+  box.innerHTML='<p style="'+dim+'">Loading documents and photos\u2026</p>';
+  if(btn){btn.disabled=true;btn.textContent='Preparing\u2026';}
+
   let files=[];
   try{files=await loadFiles(jobId);}catch(err){console.error('sdInit',err);}
-  /* loadFiles orders by uploaded_at ascending, so reversing puts newest first. */
-  const K=sdKind();
-  const sheets=files.filter(f=>f.kind==='pdf'&&K.match(f)).reverse();
-  /* Newest first (v40), matching the drawer. This reverses the v37 choice of
-     chronological order. One consequence worth knowing: the size-budget split
-     below keeps photos from the START of this list, so if a job ever exceeds
-     the budget it is now the OLDEST photos that are left out, not the newest. */
-  const photos=files.filter(f=>f.kind==='photo').reverse();
-  if(!sheets.length){
-    box.innerHTML='<p style="font-size:13px;color:var(--sand-ink);line-height:1.55">'+K.none+'</p>'
-      +'<p style="'+dim+';margin-top:10px">'+K.hint+'</p>';
-    if(btn)btn.disabled=true;return;}
-  const dealer=(a.dealer&&a.dealer!=='—')?a.dealer:'the dealer on this job';
-  const rows=sheets.map(function(f,i){
-    return '<label class="mcheck" style="cursor:pointer">'
-      +'<input type="radio" name="sdPick" value="'+esc(f.id)+'"'+(i===0?' checked':'')+'>'
-      +'<span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(f.name)+'</span>'
-      +(i===0?'<span style="font-size:10px;letter-spacing:1px;color:var(--sand-dim)">NEWEST</span>':'')
-      +'</label>';
-  }).join('');
-  /* No photos on the job -> the whole option is hidden rather than shown as an
-     empty checkbox the installer has to reason about. */
-  const photoBlock=photos.length
-    ? '<div class="fld"><label class="mcheck" style="cursor:pointer;margin-bottom:8px">'
-        +'<input type="checkbox" id="sdInclude" checked>'
-        +'<span style="flex:1;min-width:0">Include job photos ('+photos.length+')</span></label>'
-      +'<div id="sdPhotoNote" style="'+dim+'">Preparing photos…</div></div>'
-    : '';
-  box.innerHTML='<div class="fld"><label>Sending to</label>'
-      +'<div class="val">'+esc(dealer)+'</div>'
-      +'<div style="'+dim+';margin-top:6px">Goes to the dealer\'s email on file.</div></div>'
-    +'<div class="fld"><label>'+(sheets.length>1?K.which:'Attachment')+'</label>'+rows+'</div>'
-    +photoBlock
-    +'<div class="fld"><label>Send to a different email (optional)</label>'
-      +'<input id="sdTo" type="email" inputmode="email" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Leave blank to use the dealer\'s email"></div>';
-  if(btn){btn.disabled=false;btn.textContent='Send';}
-  if(!photos.length)return;
-  const inc=$('sdInclude');
-  if(inc)inc.onchange=function(){sdRenderNote();sdSyncButton();};
-  sdSyncButton();
+
+  /* Documents: every sendable PDF, grouped in registry order, newest first
+     within each group. Only the NEWEST of each type starts checked - an older
+     generation is still reachable, just not the default. */
+  SEND_DOC_TYPES.forEach(function(t){
+    const of=files.filter(function(f){return f.kind==='pdf'&&sendDocTypeOf(f)===t;}).reverse();
+    of.forEach(function(f,i){
+      SD_DOCS.push({id:f.id,name:f.name,uploaded:f.uploaded,type:t,checked:i===0});});
+  });
+
+  const photos=files.filter(function(f){return f.kind==='photo';}).reverse();
+
+  const dealer=(a.dealer&&a.dealer!=='\u2014')?a.dealer:'the dealer on this job';
+  let html='<div class="fld"><label>Sending to</label>'
+    +'<div class="val">'+esc(dealer)+'</div>'
+    +'<div style="'+dim+';margin-top:6px">Goes to the dealer\'s email on file.</div></div>';
+
+  if(SD_DOCS.length){
+    html+='<div class="fld"><label>Documents</label><div id="sdDocs">'+sdDocRows()+'</div></div>';
+  }else{
+    html+='<div class="fld"><label>Documents</label>'
+      +'<div style="'+dim+'">No documents have been generated for this job yet. '
+      +'You can still send photos on their own.</div></div>';
+  }
+
+  if(photos.length){
+    html+='<div class="fld"><label>Photos ('+photos.length+')'
+      +'<span style="float:right;font-weight:600;letter-spacing:0">'
+      +'<button type="button" class="sdall" style="background:none;border:none;color:var(--sand);cursor:pointer;font:inherit;font-size:11px">Select all</button>'
+      +' <button type="button" class="sdnone" style="background:none;border:none;color:var(--sand-dim);cursor:pointer;font:inherit;font-size:11px">None</button>'
+      +'</span></label>'
+      +'<div class="photogrid" id="sdGrid"></div>'
+      +'<div id="sdPhotoNote" style="'+dim+';margin-top:9px">Preparing photos\u2026</div></div>';
+  }
+
+  html+='<div class="fld"><label>Send to a different email (optional)</label>'
+    +'<input id="sdTo" type="email" inputmode="email" autocomplete="off" autocapitalize="off" '
+    +'spellcheck="false" placeholder="Leave blank to use the dealer\'s email"></div>';
+  box.innerHTML=html;
+
+  if(!photos.length){
+    /* No photos to compress, so the picker is ready immediately. */
+    SD_PREP={jobId:jobId,ready:true,items:[],overflow:[],skipped:[],bytes:0};
+    sdSyncButton();return;}
   sdPreparePhotos(jobId,photos);
 }
 
-/* The send itself. Disables the footer button for the whole round trip — upload
-   included — so a second tap cannot produce a second email. */
+function sdDocRows(){
+  return SD_DOCS.map(function(d,i){
+    return '<label class="sdrow'+(d.checked?' on':'')+'" data-doc="'+i+'">'
+      +'<input type="checkbox"'+(d.checked?' checked':'')+'>'
+      +'<span class="nm">'+esc(d.name)+'</span>'
+      +'<span class="wh">'+esc(d.uploaded?noteWhen(d.uploaded):'')+'</span>'
+      +'</label>';}).join('');
+}
+
+/* Thumbnails come from the prepared list so the grid can only ever offer a
+   photo that actually compressed - one the browser could not decode is
+   reported in the note instead of sitting there un-sendable. */
+function sdRenderGrid(){
+  const g=$('sdGrid');if(!g)return;
+  g.innerHTML=SD_PREP.items.map(function(p){
+    const on=SD_PHOTO_SEL.has(p.srcId);
+    return '<div class="phototile'+(on?' has':'')+'" data-ph="'+esc(p.srcId)+'"'
+      +(p.thumb?' style="background-image:url('+p.thumb+')"':'')+'>'
+      +'<span class="tick">'+(on?'\u2713':'')+'</span></div>';}).join('');
+}
+
+/* Delegated: the grid and the document rows are rebuilt, so per-node wiring
+   would have to be redone each time. */
+document.addEventListener('click',function(e){
+  if(!e.target.closest('#sdBody'))return;
+  const tile=e.target.closest('.phototile[data-ph]');
+  if(tile){const id=tile.dataset.ph;
+    if(SD_PHOTO_SEL.has(id))SD_PHOTO_SEL.delete(id);else SD_PHOTO_SEL.add(id);
+    sdRenderGrid();sdRenderNote();sdSyncButton();return;}
+  if(e.target.closest('.sdall')){
+    SD_PREP.items.forEach(function(p){SD_PHOTO_SEL.add(p.srcId);});
+    sdRenderGrid();sdRenderNote();sdSyncButton();return;}
+  if(e.target.closest('.sdnone')){
+    SD_PHOTO_SEL.clear();sdRenderGrid();sdRenderNote();sdSyncButton();return;}
+});
+document.addEventListener('change',function(e){
+  const row=e.target.closest('#sdBody .sdrow[data-doc]');if(!row)return;
+  const d=SD_DOCS[+row.dataset.doc];if(!d)return;
+  d.checked=!!row.querySelector('input').checked;
+  row.classList.toggle('on',d.checked);
+  sdSyncButton();
+});
+
+/* ===== Subject and body =================================================
+   The Edge Function builds the subject from ONE document_type and the body's
+   lead sentence from that type plus the attachment counts. So:
+
+   - exactly one document type selected -> send its REAL key. Subject and body
+     are already exactly right, with no function change.
+   - a mix, or photos only -> there is no single true type. A real key would
+     make the body lie (two different documents would read as "the 2 measure
+     sheets"), so a generic key is sent and the function's documented
+     FALLBACK_DOC turns it into "the 2 documents", which is accurate.
+
+   `message` then names the documents explicitly, so the dealer never has to
+   infer what arrived from the subject line. message is NOT admin-gated;
+   subject_override is, which is why the subject is not overridden here.
+   ==================================================================== */
+function sdDocumentType(sel){
+  if(sel.keys.length===1)return sel.keys[0];
+  return sel.docs.length?'job_documents':'job_photos';
+}
+function sdMessage(sel){
+  if(!sel.docs.length)return null;
+  if(sel.keys.length===1&&sel.docs.length===1)return null;   /* the auto line already says it */
+  const lines=SEND_DOC_TYPES.filter(function(t){return sel.types[t.key];}).map(function(t){
+    const k=sel.docs.filter(function(d){return d.type===t;}).length;
+    return '\u2022 '+t.label+(k>1?' ('+k+' versions)':'');});
+  return 'Documents attached:\n'+lines.join('\n');
+}
+
+/* The send itself. The footer button is disabled for the whole round trip -
+   upload included - so a second tap cannot produce a second email. */
 async function sdSend(){
   const jobId=currentJobId();
   if(!jobId){toast('Save the job first',true);return;}
-  const picked=document.querySelector('#sdBody input[name=sdPick]:checked');
-  if(!picked){toast(sdKind().pick,true);return;}
+  const sel=sdSelection();
+  if(sel.total===0){toast('Choose at least one document or photo to send',true);return;}
+  if(sel.overBudget){toast('That is more than '+sdKB(SD_BUDGET)+' of photos for one email \u2014 deselect a few and try again',true);return;}
+  if(sel.overCount){toast('At most '+SD_MAX_FILES+' attachments in one email \u2014 deselect a few',true);return;}
   const toEl=$('sdTo'),override=toEl?toEl.value.trim():'';
   if(override&&!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(override)){
     toast('That email address does not look right',true);return;}
-  const inc=$('sdInclude');
-  /* The jobId check matters: SD_PREP is module state, and attaching a previous
-     job's prepared photos to this one would be a silent, serious mistake. */
-  const wantPhotos=!!(inc&&inc.checked&&SD_PREP.ready&&SD_PREP.jobId===jobId);
+  /* SD_PREP is module state; attaching a previous job's prepared photos to
+     this one would be a silent, serious mistake. */
+  if(sel.photos.length&&SD_PREP.jobId!==jobId){
+    toast('Photos are still being prepared for this job \u2014 try again in a moment',true);return;}
+
   const btn=$('modalSave');
+  SD_BUSY=true;
   const setBtn=function(t){if(btn){btn.disabled=true;btn.textContent=t;}};
-  setBtn('Sending…');
-  const ids=[picked.value];
+  setBtn('Sending\u2026');
+
+  /* PDFs first, in registry order (SD_DOCS is already built that way), then
+     photos newest-first. This array IS the attachment order. */
+  const ids=sel.docs.map(function(d){return d.id;});
   try{
-    if(wantPhotos&&SD_PREP.items.length){
-      for(let i=0;i<SD_PREP.items.length;i++){
-        setBtn('Uploading '+(i+1)+'/'+SD_PREP.items.length+'…');
-        const it=SD_PREP.items[i];
-        let file;
-        try{file=new File([it.blob],it.name,{type:'image/jpeg'});}
-        catch(e){file=it.blob;file.name=it.name;}
-        ids.push(await sdUploadEmailCopy(jobId,file,i));
-      }
+    for(let i=0;i<sel.photos.length;i++){
+      setBtn('Uploading '+(i+1)+'/'+sel.photos.length+'\u2026');
+      const it=sel.photos[i];
+      let file;
+      try{file=new File([it.blob],it.name,{type:'image/jpeg'});}
+      catch(e){file=it.blob;file.name=it.name;}
+      ids.push(await sdUploadEmailCopy(jobId,file,i));
     }
   }catch(err){
     console.error('sdSend upload',err);
-    if(btn){btn.disabled=false;btn.textContent='Send';}
-    toast('Could not upload the photos for emailing. Try again, or untick photos to send the sheet alone.',true);
+    SD_BUSY=false;sdSyncButton();
+    toast('Could not upload the photos for emailing. Try again, or deselect photos to send the documents alone.',true);
     return;}
-  setBtn('Sending…');
-  const body={job_id:jobId,file_ids:ids,document_type:sdKind().key};
+
+  setBtn('Sending\u2026');
+  const body={job_id:jobId,file_ids:ids,document_type:sdDocumentType(sel)};
+  const msg=sdMessage(sel);
+  if(msg)body.message=msg;
   if(override)body.to_override=override;
   const res=await invokeFn('send-documents',body);
-  if(btn){btn.disabled=false;btn.textContent='Send';}
+  SD_BUSY=false;
   if(res.ok){
     const to=(res.data&&res.data.to)||override||'the dealer';
-    const n=ids.length-1;
-    toast('Sent to <b>'+esc(to)+'</b>'+(n>0?' with '+n+' photo'+(n===1?'':'s'):''));
+    const parts=[];
+    if(sel.docs.length)parts.push(sel.docs.length+(sel.docs.length===1?' document':' documents'));
+    if(sel.photos.length)parts.push(sel.photos.length+(sel.photos.length===1?' photo':' photos'));
+    toast('Sent to <b>'+esc(to)+'</b> \u2014 '+parts.join(' and '));
     refreshFiles();closeModal();return;}
+  sdSyncButton();
   console.error('send-documents',res);
-  let msg=SD_ERRORS[res.code]||res.message||'Could not send the email.';
+  let emsg=SD_ERRORS[res.code]||res.message||'Could not send the email.';
   /* Resend's own wording ("domain is not verified") is far more actionable
      than our generic line, so it is appended rather than swallowed. */
-  if(res.code==='RESEND_FAILED'&&res.message)msg=msg+' '+esc(res.message);
-  toast(msg,true);
+  if(res.code==='RESEND_FAILED'&&res.message)emsg=emsg+' '+esc(res.message);
+  toast(emsg,true);
 }
 function openModal(ic,label){currentModalIc=ic;modalPdf=null;const a=currentItem()||{};$('modalIcon').innerHTML=`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">${ICONS[ic]||ICONS.doc}</svg>`;$('modalTitle').textContent=label;$('modalSub').textContent=`${a.cust||''} · ${a.type||''}`;$('modalBody').innerHTML=modalBodyFor(ic);
   /* The additional services report is the same light working surface as the
@@ -3181,7 +3318,7 @@ function openModal(ic,label){currentModalIc=ic;modalPdf=null;const a=currentItem
   /* The stock panel is read-only, so its footer button has no save to do — it
      used to fire a "Saved to work order" toast that was simply untrue. It is
      the bridge to the Receiving page instead. */
-  $('modalSave').textContent=(ic==='send'||ic==='sendasr'||ic==='sendcr')?'Send':(ic==='box'?'Go to Receiving':'Save');
+  $('modalSave').textContent=(ic==='send')?'Send':(ic==='box'?'Go to Receiving':'Save');
   $('modalSave').disabled=false;
   /* The Install work-order list is a read-only shortcut — there is nothing to
      save, so the footer button is hidden rather than left to fire the generic
@@ -3189,11 +3326,9 @@ function openModal(ic,label){currentModalIc=ic;modalPdf=null;const a=currentItem
      the next modal that does need it. */
   $('modalSave').style.display=(ic==='doc'&&woIsInstall())?'none':'';
   if(ic==='doc')woInit();
-  /* One send modal, two document kinds. SD_KIND is read by sdInit and sdSend;
-     it is set BEFORE sdInit so the first render already knows what it lists. */
-  SD_KIND=(ic==='sendasr')?'additional_services_report'
-         :(ic==='sendcr')?'completion_report':'measure_sheet';
-  if(ic==='send'||ic==='sendasr'||ic==='sendcr')sdInit();
+  /* ONE send picker for every drawer - it discovers what is sendable from the
+     job's files via SEND_DOC_TYPES, so it needs no per-caller configuration. */
+  if(ic==='send')sdInit();
   if(ic==='box')stockInit();
   $('modalBody').querySelectorAll('input[type=file]').forEach(inp=>inp.onchange=e=>{const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=ev=>{
     if(f.type==='application/pdf'){modalPdf={name:f.name,url:ev.target.result};const dz=inp.closest('.pdfdrop');if(dz){dz.classList.add('has');dz.querySelector('.pdfname').textContent=f.name}}
@@ -3207,7 +3342,7 @@ $('modalSave').onclick=async()=>{
   /* Read the job id BEFORE recvGoto closes the drawer — closeDrawer() nulls
      selectedId, and currentJobId() derives from it. */
   if(currentModalIc==='box'){recvGoto(currentJobId());return;}
-  if(currentModalIc==='send'||currentModalIc==='sendasr'||currentModalIc==='sendcr'){await sdSend();return;}
+  if(currentModalIc==='send'){await sdSend();return;}
   /* One form, not a list of cards: the footer just saves it. */
   if(currentModalIc==='cr'){const btn=$('modalSave');
     btn.textContent='Saving…';btn.disabled=true;
