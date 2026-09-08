@@ -389,7 +389,16 @@
   .combo-item:hover{background:var(--side-3)}
   .combo-item.new{color:var(--sand);border-top:1px solid var(--side-border);font-weight:700}
   .combo-empty{padding:10px 12px;font-size:12px;color:var(--sand-dim)}
-  .tel{color:var(--sand);text-decoration:none;font-weight:600}.tel:hover{text-decoration:underline}
+  /* .maplink is grouped with .tel rather than given its own declaration: the
+     site address and the phone number sit one above the other in the drawer
+     and are the same kind of thing - a value that opens an app - so they must
+     look identical. The class is named for what it is, so a later reader is
+     not left wondering why an address is styled as a telephone. */
+  .tel,.maplink{color:var(--sand);text-decoration:none;font-weight:600}
+  .tel:hover,.maplink:hover{text-decoration:underline}
+  /* The pin carries the affordance on touch, where there is no hover to
+     reveal the underline. */
+  .maplink svg{width:12px;height:12px;vertical-align:-1px;margin-left:3px;opacity:.85}
   .assign-banner{position:sticky;top:0;z-index:7;display:flex;align-items:center;gap:9px;background:rgba(238,165,4,.15);border-bottom:1px solid rgba(238,165,4,.5);color:#f0b53a;font-size:12.5px;font-weight:700;padding:10px 16px;cursor:pointer}
   .assign-banner:hover{background:rgba(238,165,4,.24)}
   .assign-banner svg{width:16px;height:16px;flex-shrink:0}
@@ -1083,6 +1092,36 @@ const WO={"Measure":{color:"#5b9bd5",actions:[{ic:"ruler",label:"Open Measure Sh
 const DEALERS=[];
 let custCache=[];
 function fmtPhone(v){const d=(''+v).replace(/\D/g,'').slice(0,10);if(!d)return'';if(d.length<4)return '('+d;if(d.length<7)return '('+d.slice(0,3)+') '+d.slice(3);return '('+d.slice(0,3)+') '+d.slice(3,6)+'-'+d.slice(6);}
+/* ===== Site address -> maps (v58) =======================================
+   The drawer markup is SHARED by every job type, so linking the one
+   #drAddr field covers measure, install, return trip and a queue job at
+   once - the same reason the dealer popup only had to be wired once.
+
+   The URL is Google's cross-platform Maps endpoint. On Android and iOS it
+   hands off to the installed Maps app; on iOS without Google Maps it opens
+   in Safari, which offers to open Apple Maps; on desktop it is just the web
+   map. One URL, no user-agent sniffing, no geo: fallback needed.
+
+   target=_blank is not decoration: without it the tap NAVIGATES THE APP
+   AWAY, and this is a single-page app with an open drawer - a half-typed
+   scope or an unsaved measure line would be gone on return. rel=noopener
+   because the opened tab must not get a handle on this one.
+   ==================================================================== */
+/* '\u2014' is what mapAppt writes when a job has no site_address, so it is an
+   absence, not an address. Returns null for anything unmappable, which is
+   what stops a dead link being rendered. */
+function drMapAddr(v){const s=String(v==null?'':v).trim();
+  return (!s||s==='\u2014'||s==='-')?null:s;}
+
+function drMapsUrl(addr){
+  return 'https://www.google.com/maps/search/?api=1&query='+encodeURIComponent(addr);}
+
+function drMapLink(addr){
+  return '<a class="maplink" href="'+drMapsUrl(addr)+'" target="_blank" rel="noopener"'
+    +' aria-label="Open '+esc(addr)+' in maps">'+esc(addr)
+    +'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">'
+    +'<path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg></a>';}
+
 function telDigits(v){return (''+(v||'')).replace(/\D/g,'')}
 
 let queue=[];
@@ -1246,7 +1285,9 @@ async function dropJob(key,hour,e){const id=e.dataTransfer.getData('id');const j
 function openDrawer(id){let a=appts.find(x=>x.id===id),mode='appt';if(!a){a=queue.find(x=>x.id===id);mode='queue';}if(!a)return;
   selectedId=id;drawerMode=mode;const tt=$('drTypeTag'),t=TYPES[a.type];
   tt.textContent=a.type;tt.style.background=hexA(t.c,.2);tt.style.color=t.c;
-  $('drName').textContent=a.cust;$('drSub').textContent=`${a.type} · ${a.dealer}`;$('drDealer').textContent=a.dealer;$('drAddr').textContent=a.addr;
+  $('drName').textContent=a.cust;$('drSub').textContent=`${a.type} · ${a.dealer}`;$('drDealer').textContent=a.dealer;
+  {const ad=drMapAddr(a.addr);
+    $('drAddr').innerHTML=ad?drMapLink(ad):'\u2014';}
   {const ph=a.phone||'';$('drPhone').innerHTML=ph?`<a class="tel" href="tel:${telDigits(ph)}">${ph}</a>`:'—';}
   const li=a.lineItems||[];if(li.length){const d=li.filter(x=>x.delivered).length;$('drProductFld').style.display='block';$('drProduct').innerHTML=d===li.length?`<span style="color:#7c9a3f">All ${li.length} line item${li.length>1?'s':''} delivered</span>`:`<span style="color:#caa017">${d}/${li.length} delivered — awaiting product</span>`;}else $('drProductFld').style.display='none';
   renderDrPricing(a);drCancelEdit();
