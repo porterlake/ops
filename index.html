@@ -967,6 +967,18 @@ body.role-installer [data-admin]{display:none!important}
     <div class="modal-f"><button class="btn ghost" id="dlrCancel">Close</button></div>
   </div></div>
 
+
+  <div class="modal-bg" id="ejBg"><div class="modal">
+    <div class="modal-h"><div><h3>Edit job</h3><div class="ms" id="ejSub">&mdash;</div></div><button class="x" id="ejClose">&times;</button></div>
+    <div class="modal-b" id="ejBody"></div>
+    <div class="modal-f"><button class="btn ghost" id="ejCancel">Close</button><button class="btn" id="ejSave">Save changes</button></div>
+  </div></div>
+
+  <div class="modal-bg" id="ejcBg"><div class="modal">
+    <div class="modal-h"><div><h3 id="ejcTitle">Are you sure?</h3><div class="ms" id="ejcSub">&mdash;</div></div><button class="x" id="ejcClose">&times;</button></div>
+    <div class="modal-b" id="ejcBody"></div>
+    <div class="modal-f"><button class="btn ghost" id="ejcNo">Cancel</button><button class="btn" id="ejcYes">Confirm</button></div>
+  </div></div>
   <div class="modal-bg" id="unrecvBg"><div class="modal">
     <div class="modal-h"><div><h3>Undo this check-off?</h3><div class="ms">Correcting received stock</div></div><button class="x" id="unrecvClose">&times;</button></div>
     <div class="modal-b" id="unrecvBody"></div>
@@ -1338,7 +1350,11 @@ function openDrawer(id){let a=appts.find(x=>x.id===id),mode='appt';if(!a){a=queu
   const ss=$('drStatus');ss.innerHTML='';STATUS_ORDER.forEach(k=>{const o=document.createElement('option');o.value=k;o.textContent=STATUS[k].label;ss.appendChild(o)});ss.value=a.status||'rts';
   $('issueBanner').classList.toggle('show',(a.status||'')==='issue');
   const sel=$('drInstaller');sel.innerHTML='';[...INSTALLERS,UNASSIGNED].forEach(i=>{const o=document.createElement('option');o.value=i.id;o.textContent=i.name;sel.appendChild(o)});sel.value=a.installer||'un';
-  const lb=$('drLeftBtn');if(mode==='appt'){lb.textContent='Unschedule';lb.onclick=unschedule;}else{lb.textContent='Remove';lb.onclick=removeQueueJob;}
+  /* v64: one Edit Job button in both modes. Unschedule (appt) and Remove
+     (queue) moved INSIDE the popup, each behind a confirmation - neither had
+     one before, and Remove deletes a job outright. The button loses .del
+     because opening an editor is not itself destructive. */
+  const lb=$('drLeftBtn');lb.textContent='Edit Job';lb.classList.remove('del');lb.onclick=ejOpen;
   drRenderMargin(a);
   refreshFiles();
   $('drawer').classList.add('open');render();}
@@ -1722,6 +1738,176 @@ function dlrClosePopup(){$('dlrBg').classList.remove('open');}
 $('drDealer').onclick=dlrOpen;
 $('dlrClose').onclick=dlrClosePopup;$('dlrCancel').onclick=dlrClosePopup;
 $('dlrBg').addEventListener('click',e=>{if(e.target.id==='dlrBg')dlrClosePopup()});
+
+/* ===== Edit Job (v64) ================================================
+   ONE popup behind the drawer's left footer button, shared by every drawer -
+   measure, install, return trip, and the queue drawer too - because it hangs
+   off the shared drawer chrome and reads currentItem(), never a job type.
+
+   WHAT EDITS WHAT, which is the whole subtlety here:
+     - contact number lives ONLY on the customer record. Every drawer already
+       renders it live through the jobs->customers join, so writing it once
+       propagates everywhere with no further work.
+     - site address does NOT. jobs.site_address is a per-job COPY seeded from
+       customers.default_address at creation. Writing only the customer record
+       would change nothing the user can see, so an address edit writes BOTH
+       the customer default AND every job for that customer. That is exactly
+       what the confirmation promises, and why it is worded as bluntly as it
+       is. A customer with two sites will have both flattened - the per-job
+       override that would fix that is deliberately deferred.
+     - dealer reassignment writes jobs.dealer_id for THIS JOB ONLY. It does
+       not touch the dealer's own record, and it does not move the CUSTOMER to
+       the new dealer, so the New Job customer picker still lists them under
+       the original dealer.
+
+   No schema change. Never sets --row-h, touches no calendar geometry.
+   ==================================================================== */
+let EJ_ORIG=null,EJ_MODE='appt',_ejcResolve=null;
+const EJ_DIM='font-size:12.5px;color:var(--sand-dim);line-height:1.55';
+
+/* Generic confirm on the shared modal shell. Returns a promise so each caller
+   reads as a straight line rather than a callback ladder. Resolving is funnelled
+   through ejcSettle so a backdrop tap, the X and Cancel cannot leave a caller
+   awaiting forever. */
+function ejcOpen(o){
+  $('ejcTitle').textContent=o.title||'Are you sure?';
+  $('ejcSub').textContent=o.sub||'';
+  $('ejcBody').innerHTML=o.body||'';
+  $('ejcYes').textContent=o.ok||'Confirm';
+  $('ejcNo').textContent=o.cancel||'Cancel';
+  $('ejcYes').classList.toggle('del',!!o.danger);
+  $('ejcBg').classList.add('open');
+  return new Promise(function(res){_ejcResolve=res;});}
+function ejcSettle(v){$('ejcBg').classList.remove('open');
+  const r=_ejcResolve;_ejcResolve=null;if(r)r(v);}
+
+function ejClose(){$('ejBg').classList.remove('open');}
+
+function ejOpen(){
+  const a=currentItem();if(!a){toast('No job open',true);return;}
+  EJ_MODE=drawerMode;
+  EJ_ORIG={addr:(a.addr&&a.addr!=='\u2014')?a.addr:'',phone:a.phone||'',dealerId:a.dealerId||''};
+  $('ejSub').textContent=(a.cust||'Job')+' \u00b7 '+(a.type||'');
+  const opts=DEALERS.map(function(d){
+    return '<option value="'+esc(d.id)+'"'+(d.id===EJ_ORIG.dealerId?' selected':'')+'>'+esc(d.name)+'</option>';}).join('');
+  let h='<div class="fld"><label>Site address (homeowner)</label>'
+      +'<input id="ejAddr" type="text" value="'+esc(EJ_ORIG.addr)+'" placeholder="Street, city"></div>'
+    +'<div class="fld"><label>Customer contact</label>'
+      +'<input id="ejPhone" type="text" value="'+esc(EJ_ORIG.phone)+'" placeholder="Phone number"></div>'
+    +'<p style="'+EJ_DIM+';margin:-6px 0 16px">Address and contact live on the <b>customer record</b>, so a change here applies to every job for this customer.</p>'
+    /* data-admin: reassigning a dealer changes which account is billed and
+       which discount applies, so it follows the same rule the pricing block
+       already uses. The write is guarded again in ejSave. */
+    +'<div class="fld" data-admin><label>Dealer (account)</label>'
+      +'<select id="ejDealer">'+(opts||'<option value="">No dealers loaded</option>')+'</select>'
+      +'<div style="'+EJ_DIM+';margin-top:6px">Moves this job to a different dealer. The dealer\u2019s own record is not changed.</div></div>';
+  const appt=EJ_MODE==='appt';
+  h+='<div style="border-top:1px solid var(--side-border);margin-top:6px;padding-top:14px">'
+    +'<div style="font-size:10.5px;letter-spacing:1.2px;text-transform:uppercase;color:var(--sand-dim);margin-bottom:9px">'
+    +(appt?'Scheduling':'This job')+'</div>'
+    +'<button type="button" class="btn del" id="ejDanger" style="width:100%">'
+    +(appt?'Unschedule this visit':'Remove this job')+'</button>'
+    +'<div style="'+EJ_DIM+';margin-top:8px">'
+    +(appt
+      ?'Takes the visit off the calendar and returns the job to the queue. Line items, documents and photos are kept.'
+      :'Permanently deletes this job and its line items. It has never been scheduled.')
+    +'</div></div>';
+  $('ejBody').innerHTML=h;
+  $('ejDanger').onclick=ejDanger;
+  $('ejBg').classList.add('open');}
+
+async function ejDanger(){
+  const a=currentItem();if(!a)return;
+  const sub=(a.cust||'Job')+' \u00b7 '+(a.type||'');
+  const who=esc(a.cust||'this job');
+  if(EJ_MODE==='appt'){
+    const ok=await ejcOpen({title:'Unschedule this visit?',sub:sub,danger:true,
+      ok:'Yes, unschedule',cancel:'Keep it scheduled',
+      body:'<p style="font-size:13px;line-height:1.6;color:var(--sand-ink)">This takes the visit off the calendar and returns <b>'+who+'</b> to the queue. Line items, documents and photos are kept.</p>'});
+    if(!ok)return;
+    ejClose();await unschedule();return;}
+  const ok=await ejcOpen({title:'Remove this job?',sub:sub,danger:true,
+    ok:'Yes, remove it',cancel:'Keep it',
+    body:'<p style="font-size:13px;line-height:1.6;color:var(--sand-ink)">This permanently deletes <b>'+who+'</b> and its line items. It cannot be undone.</p>'});
+  if(!ok)return;
+  ejClose();await removeQueueJob();}
+
+async function ejSave(){
+  const a=currentItem();if(!a){toast('No job open',true);return;}
+  const jobId=currentJobId();
+  if(!jobId){toast('Save the job first',true);return;}
+  const custId=a.customerId||null;
+  const addr=($('ejAddr')?$('ejAddr').value:'').trim();
+  const phone=($('ejPhone')?$('ejPhone').value:'').trim();
+  const sel=$('ejDealer');
+  const dealerId=(IS_ADMIN&&sel)?sel.value:EJ_ORIG.dealerId;
+  const addrChanged=addr!==EJ_ORIG.addr;
+  const phoneChanged=phone!==EJ_ORIG.phone;
+  const dealerChanged=!!dealerId&&dealerId!==EJ_ORIG.dealerId;
+  if(!addrChanged&&!phoneChanged&&!dealerChanged){toast('Nothing changed');return;}
+  if((addrChanged||phoneChanged)&&!custId){
+    toast('This job has no customer record, so address and contact cannot be edited here',true);return;}
+
+  if(addrChanged||phoneChanged){
+    const parts=[];
+    if(addrChanged)parts.push('site address');
+    if(phoneChanged)parts.push('contact number');
+    const ok=await ejcOpen({title:'Apply to all of this customer\u2019s records?',
+      sub:a.cust||'Customer',ok:'Confirm',cancel:'Cancel',
+      body:'<p style="font-size:13px;line-height:1.6;color:var(--sand-ink)">The '+parts.join(' and ')+' '+(parts.length>1?'live':'lives')+' on the customer record, not on this job alone.</p>'
+        +'<p style="font-size:13px;line-height:1.6;color:var(--sand-ink);margin-top:10px">This change will apply to all of this customer\u2019s records. Continue?</p>'});
+    if(!ok)return;}
+
+  const btn=$('ejSave');
+  if(btn){btn.disabled=true;btn.textContent='Saving\u2026';}
+  try{
+    if(addrChanged||phoneChanged){
+      const patch={};
+      if(phoneChanged)patch.phone=phone;
+      if(addrChanged)patch.default_address=addr;
+      const r=await sb.from('customers').update(patch).eq('id',custId);
+      if(r.error)throw r.error;}
+    /* The customer record alone would change nothing visible - every drawer
+       reads the address from the job's own copy - so the copies come too. */
+    if(addrChanged){
+      const r=await sb.from('jobs').update({site_address:addr||null}).eq('customer_id',custId);
+      if(r.error)throw r.error;}
+    if(dealerChanged){
+      const r=await sb.from('jobs').update({dealer_id:dealerId}).eq('id',jobId);
+      if(r.error)throw r.error;}
+  }catch(err){console.error('ejSave',err);
+    toast('Could not save the changes',true);
+    if(btn){btn.disabled=false;btn.textContent='Save changes';}
+    return;}
+
+  /* In-memory propagation mirrors exactly what was written, so the calendar,
+     queue and drawer agree with the database without a full reload. */
+  const d=DEALERS.find(function(x){return x.id===dealerId;})||null;
+  [].concat(appts,queue).forEach(function(x){
+    if(custId&&x.customerId===custId){
+      if(addrChanged)x.addr=addr||'\u2014';
+      if(phoneChanged)x.phone=phone;}
+    if(dealerChanged&&(x.jobId||x.id)===jobId){
+      x.dealerId=dealerId;
+      if(d){x.dealer=d.name;x.dealerDiscount=+d.discount||0;}}});
+
+  if(btn){btn.disabled=false;btn.textContent='Save changes';}
+  ejClose();
+  renderQueue();render();
+  if(page==='toschedule')buildGeneric('toschedule');
+  if(page==='inventory')buildReceiving();
+  if(page==='dealers')buildGeneric('dealers');
+  if(selectedId)openDrawer(selectedId);
+  toast('Job updated');}
+
+$('ejClose').onclick=ejClose;$('ejCancel').onclick=ejClose;
+$('ejSave').onclick=ejSave;
+$('ejBg').addEventListener('click',function(e){if(e.target.id==='ejBg')ejClose();});
+$('ejcClose').onclick=function(){ejcSettle(false);};
+$('ejcNo').onclick=function(){ejcSettle(false);};
+$('ejcYes').onclick=function(){ejcSettle(true);};
+$('ejcBg').addEventListener('click',function(e){if(e.target.id==='ejcBg')ejcSettle(false);});
+
 $('drClose').onclick=closeDrawer;
 $('drType').addEventListener('click',e=>{const c=e.target.closest('.chip');if(!c)return;document.querySelectorAll('#drType .chip').forEach(x=>{x.classList.remove('on');x.style.background=''});c.classList.add('on');c.style.background=TYPES[c.dataset.t].c;renderWO(c.dataset.t);drTypeShow(c.dataset.t)});
 $('drStatus').addEventListener('change',e=>$('issueBanner').classList.toggle('show',e.target.value==='issue'));
