@@ -2814,12 +2814,26 @@ function crBuildPdf(r){
     columnStyles:{0:{cellWidth:118},1:{cellWidth:69.9,fontStyle:'bold'}},
     margin:{left:M,right:M,top:57},didDrawPage:drawHeader});
 
-  /* The acknowledgement, always printed. An UNSIGNED report must say so
-     loudly - a dealer reading one needs to know at a glance. */
+  /* ===== Tail blocks: installer acknowledgement, then customer sign-off ====
+     These two STACK. Every block below measures itself, draws, and then
+     advances y past its own height - the acknowledgement box used to draw a
+     26mm box and leave y pointing at its TOP, so the sign-off started 10mm
+     down and overlapped it by 16mm. It showed most clearly when the customer
+     signed before the survey was filled in, because a short table left both
+     blocks on the same page with nothing to hide the collision.
+
+     Heights are computed BEFORE drawing so a page break is decided while the
+     block can still be moved whole. Nothing here draws past PH-24, which is
+     6mm above the footer rule at PH-18.
+     ==================================================================== */
+  const TAIL_BOTTOM=PH-24;                 /* last y a block may occupy */
+  const ACK_H=26;
   let y=(doc.lastAutoTable?doc.lastAutoTable.finalY:startY)+10;
-  if(y>PH-46){doc.addPage();drawHeader();y=62;}
+
+  /* --- installer acknowledgement, always printed --- */
+  if(y+ACK_H>TAIL_BOTTOM){doc.addPage();drawHeader();y=62;}
   doc.setDrawColor(SAND[0],SAND[1],SAND[2]);doc.setLineWidth(0.5);
-  doc.roundedRect(M,y,PW-M*2,26,2,2);
+  doc.roundedRect(M,y,PW-M*2,ACK_H,2,2);
   doc.setFont('helvetica','bold');doc.setFontSize(7.5);doc.setTextColor(MUT[0],MUT[1],MUT[2]);
   doc.text('INSTALLER ACKNOWLEDGEMENT',M+4,y+6);
   if(r.ack_name){
@@ -2833,61 +2847,86 @@ function crBuildPdf(r){
     doc.text('NOT YET ACKNOWLEDGED',M+4,y+14);
     doc.setFont('helvetica','normal');doc.setFontSize(8);doc.setTextColor(MUT[0],MUT[1],MUT[2]);
     doc.text('No installer has signed this report.',M+4,y+20);}
+  y+=ACK_H;                                /* <-- the fix: clear the box */
 
-  /* ===== Customer sign-off block =======================================
+  /* ===== Customer sign-off =============================================
      Printed only when a signature exists - an unsigned report should not grow
-     an empty box, and the installer acknowledgement above already says its
-     own piece when unsigned.
+     an empty box, and the acknowledgement above already says its own piece.
 
      A tick or a cross rather than the words Yes/No, so a dealer scanning the
-     page sees the exception immediately; an unticked line prints its
-     explanation indented beneath and is omitted when there is nothing to
-     explain. The signature is stored normalised to 3:1, so it is drawn at a
-     fixed 72 x 24mm and can never come out stretched.
+     page sees the exception immediately. An unticked line prints its
+     explanation indented beneath, WRAPPED and measured - a two-line reason
+     used to be allotted one line's height and ran into the row below it.
      ================================================================= */
   if(r.customer_signature){
-    const rows=[];
-    rows.push([r.install_confirmed===false?'x':'v','All window coverings installed & operating']);
-    if(r.install_confirmed===false&&r.install_issue)rows.push(['',String(r.install_issue).trim()]);
-    rows.push([r.site_clean_confirmed===false?'x':'v','Job site cleaned to my satisfaction']);
-    if(r.site_clean_confirmed===false&&r.site_clean_issue)rows.push(['',String(r.site_clean_issue).trim()]);
+    const SIG_W=72,SIG_H=24;
+    const HEAD_H=9,ROW_H=6,LINE_H=4.6,NOTE_HEAD_H=7,CAP_H=9;
+    const bodyW=PW-M*2;
+
+    /* --- measure --- */
+    const items=[];
+    const confirm=function(val,label,issue){
+      items.push({mark:val===false?'x':'v',text:label,h:ROW_H});
+      const s=String(issue==null?'':issue).trim();
+      if(val===false&&s){
+        doc.setFont('helvetica','italic');doc.setFontSize(9);
+        const w=doc.splitTextToSize(s,bodyW-14);
+        items.push({mark:'',wrapped:w,h:w.length*LINE_H+1.5});}
+    };
+    confirm(r.install_confirmed,'All window coverings installed & operating',r.install_issue);
+    confirm(r.site_clean_confirmed,'Job site cleaned to my satisfaction',r.site_clean_issue);
+
     const notes=String(r.customer_notes||'').trim();
-    /* 26mm of confirmations plus a 24mm signature and its caption; start a
-       fresh page rather than let the block straddle the footer rule. */
-    const need=30+rows.length*6+(notes?14:0)+34;
-    if(y>PH-need){doc.addPage();drawHeader();y=62;}else{y+=10;}
+    let noteLines=null;
+    if(notes){
+      doc.setFont('helvetica','normal');doc.setFontSize(9.5);
+      noteLines=doc.splitTextToSize(notes,bodyW);}
+
+    const itemsH=items.reduce(function(s,it){return s+it.h;},0);
+    const notesH=noteLines?(NOTE_HEAD_H+noteLines.length*LINE_H+2):0;
+    const blockH=HEAD_H+itemsH+notesH+4+SIG_H+CAP_H;
+
+    /* --- place --- */
+    y+=10;                                 /* breathing room under the box */
+    if(y+blockH>TAIL_BOTTOM){doc.addPage();drawHeader();y=62;}
+
+    /* --- draw --- */
     doc.setFont('helvetica','bold');doc.setFontSize(7.5);doc.setTextColor(MUT[0],MUT[1],MUT[2]);
     doc.text('CUSTOMER SIGN-OFF',M,y);
     doc.setDrawColor(SAND[0],SAND[1],SAND[2]);doc.setLineWidth(0.5);
     doc.line(M,y+2,PW-M,y+2);
-    let cy2=y+9;
-    rows.forEach(function(rw){
-      if(rw[0]){
+    y+=HEAD_H;
+    items.forEach(function(it){
+      if(it.mark){
         doc.setFont('helvetica','bold');doc.setFontSize(10);
-        doc.setTextColor(rw[0]==='x'?163:77,rw[0]==='x'?33:112,rw[0]==='x'?29:16);
-        doc.text(rw[0]==='x'?'\u00d7':'\u2713',M+1,cy2);
+        if(it.mark==='x')doc.setTextColor(163,33,29);else doc.setTextColor(77,112,16);
+        doc.text(it.mark==='x'?'\u00d7':'\u2713',M+1,y);
         doc.setFont('helvetica','normal');doc.setFontSize(9.5);doc.setTextColor(INK[0],INK[1],INK[2]);
-        doc.text(rw[1],M+7,cy2);
+        doc.text(it.text,M+7,y);
       }else{
         doc.setFont('helvetica','italic');doc.setFontSize(9);doc.setTextColor(MUT[0],MUT[1],MUT[2]);
-        doc.text(doc.splitTextToSize(rw[1],PW-M*2-14),M+14,cy2);
-      }
-      cy2+=6;});
-    if(notes){
-      cy2+=2;
+        doc.text(it.wrapped,M+14,y);}
+      y+=it.h;});
+
+    if(noteLines){
+      y+=2;
       doc.setFont('helvetica','bold');doc.setFontSize(7.5);doc.setTextColor(MUT[0],MUT[1],MUT[2]);
-      doc.text('CUSTOMER NOTES',M,cy2);cy2+=5;
+      doc.text('CUSTOMER NOTES',M,y);
+      y+=NOTE_HEAD_H-2;
       doc.setFont('helvetica','normal');doc.setFontSize(9.5);doc.setTextColor(INK[0],INK[1],INK[2]);
-      const wrapped=doc.splitTextToSize(notes,PW-M*2);
-      doc.text(wrapped,M,cy2);cy2+=wrapped.length*4.6;}
-    cy2+=4;
-    try{doc.addImage(r.customer_signature,'PNG',M,cy2,72,24);}
+      doc.text(noteLines,M,y);
+      y+=noteLines.length*LINE_H+2;}
+
+    y+=4;
+    try{doc.addImage(r.customer_signature,'PNG',M,y,SIG_W,SIG_H);}
     catch(err){console.error('signature image',err);}
+    y+=SIG_H;
     doc.setDrawColor(LINE[0],LINE[1],LINE[2]);doc.setLineWidth(0.3);
-    doc.line(M,cy2+25,M+72,cy2+25);
+    doc.line(M,y+1,M+SIG_W,y+1);
     doc.setFont('helvetica','normal');doc.setFontSize(8);doc.setTextColor(MUT[0],MUT[1],MUT[2]);
     doc.text('Customer signature \u00b7 signed '
-      +(r.customer_signed_at?new Date(r.customer_signed_at).toLocaleString():''),M,cy2+29);
+      +(r.customer_signed_at?new Date(r.customer_signed_at).toLocaleString():''),M,y+5);
+    y+=CAP_H;
   }
 
   const pages=doc.internal.getNumberOfPages(),gen=msFmtDate(new Date());
