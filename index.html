@@ -1117,7 +1117,7 @@ const ICONS={phone:'<path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 
    versions": one component, two job types, is the point.
    'flag' (Log reason for return) was removed as not part of the workflow; its
    modalBodyFor branch went with it. ICONS.flag is left in the shared map. */
-const WO={"Measure":{color:"#5b9bd5",actions:[{ic:"ruler",label:"Open Measure Sheet"},{ic:"cam",label:"Attach Photos"},{ic:"send",label:"Send to Dealer"}]},"Install":{color:"#3a6fb0",actions:[{ic:"doc",label:"Open Install Work Order"},{ic:"box",label:"Confirm Stock Received"},{ic:"asr",label:"Additional Services Report"},{ic:"cam",label:"Attach Job Photos"},{ic:"cr",label:"Completion Report"},{ic:"check",label:"Capture Sign-off & Completion"},{ic:"send",label:"Send to Dealer"}]},"Return Trip":{color:"#d9605c",actions:[{ic:"link",label:"Open original job"},{ic:"doc",label:"Open return-trip report"},{ic:"asr",label:"Additional Services Report"},{ic:"cr",label:"Completion Report"},{ic:"check",label:"Capture Sign-off & Completion"},{ic:"send",label:"Send to Dealer"}]}};
+const WO={"Measure":{color:"#5b9bd5",actions:[{ic:"ruler",label:"Open Measure Sheet"},{ic:"cam",label:"Attach Photos"},{ic:"send",label:"Send to Dealer"}]},"Install":{color:"#3a6fb0",actions:[{ic:"doc",label:"Open Install Work Order"},{ic:"box",label:"Confirm Stock Received"},{ic:"asr",label:"Additional Services Report"},{ic:"cam",label:"Attach Job Photos"},{ic:"cr",label:"Completion Report"},{ic:"check",label:"Capture Sign-off & Completion"},{ic:"send",label:"Send to Dealer"}]},"Return Trip":{color:"#d9605c",actions:[{ic:"link",label:"Open Previous Job Documents"},{ic:"doc",label:"Open return-trip report"},{ic:"asr",label:"Additional Services Report"},{ic:"cr",label:"Completion Report"},{ic:"check",label:"Capture Sign-off & Completion"},{ic:"send",label:"Send to Dealer"}]}};
 
 const DEALERS=[];
 let custCache=[];
@@ -1381,7 +1381,12 @@ function renderFiles(a){const box=$('drFiles');const files=a.files||[];const pho
   if(pdfs.length)h+=pdfs.map(f=>`<div class="filepdf"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" onclick="openViewer('${f.id}')"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg><span onclick="openViewer('${f.id}')" style="flex:1;cursor:pointer">${f.name}</span><span class="vw" onclick="openViewer('${f.id}')">View ›</span><span class="filedel" onclick="event.stopPropagation();deleteFile('${f.id}','${f.path}')">×</span></div>`).join('');
   if(photos.length)h+=`<div class="filegrid">${photos.map(f=>`<div class="filethumb" style="background-image:url(${f.url})" onclick="openViewer('${f.id}')"><span class="filedel" onclick="event.stopPropagation();deleteFile('${f.id}','${f.path}')">×</span></div>`).join('')}</div>`;
   box.innerHTML=h;}
-function openViewer(fileId){const a=currentItem();if(!a||!a.files)return;const f=a.files.find(x=>x.id===fileId);if(!f)return;
+/* The open job's own files win; PJ_FILES is the fallback so a previous
+   job's document opens in the same viewer without being copied onto this
+   job's a.files, which is what the drawer's Files list renders from. */
+function openViewer(fileId){const a=currentItem();
+  const f=(((a&&a.files)||[]).find(x=>x.id===fileId))||PJ_FILES.find(x=>x.id===fileId);
+  if(!f)return;
   $('viewTitle').textContent=f.name;$('viewIcon').innerHTML=`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">${f.kind==='pdf'?'<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/>':'<rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-5-5L5 21"/>'}</svg>`;
   $('viewBody').innerHTML=f.kind==='pdf'?`<iframe src="${f.url}" style="width:100%;height:74vh;border:0;display:block;background:#fff"></iframe>`:`<img src="${f.url}" style="width:100%;display:block">`;
   $('viewBg').classList.add('open');}
@@ -1741,7 +1746,7 @@ function modalBodyFor(ic){const a=appts.find(x=>x.id===selectedId)||{};
     +'<textarea class="sg-notes" placeholder="Anything the customer would like noted (optional)"></textarea></div>';
   if(ic==='cam')return `<p style="font-size:12.5px;color:var(--sand-dim);margin-bottom:6px">Choose several at once — the picker allows multi-select, and Take Photo still works for a single shot. Tap a chosen photo to remove it.</p><p id="camCount" style="font-size:12.5px;color:var(--sand-dim);margin-bottom:12px">No photos chosen yet.</p><input type="file" id="camInput" accept="image/*" multiple hidden><div class="photogrid" id="camGrid"></div>`;
   if(ic==='upload')return `<label class="pdfdrop"><input type="file" accept="application/pdf" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12"/></svg><div>Tap to choose a PDF</div><div class="pdfname">No file chosen</div></label>`;
-  if(ic==='link')return `<p style="font-size:13px">Linked to original job <b>${a.cust}</b> — ${a.dealer}.</p><p style="font-size:12px;color:var(--sand-dim);margin-top:8px">Opening will pull the original measure & install records.</p>`;
+  if(ic==='link')return '<div id="pjBody"><p style="font-size:12.5px;color:var(--sand-dim)">Loading previous jobs\u2026</p></div>';
   if(ic==='send')return '<div id="sdBody"><p style="font-size:12.5px;color:var(--sand-dim)">Loading documents and photos…</p></div>';
   return '<p>—</p>';}
 /* ===== Open Install Work Order (v50) ===================================
@@ -3697,6 +3702,143 @@ async function sdSend(){
   if(res.code==='RESEND_FAILED'&&res.message)emsg=emsg+' '+esc(res.message);
   toast(emsg,true);
 }
+/* ===== Open Previous Job Documents (v62) =============================
+   Reference-only aggregation of what was already done for THIS CUSTOMER, for
+   an installer standing in front of a return trip.
+
+   THE LINK IS THE CUSTOMER, NOT THE ORIGINAL JOB. jobs.customer_id is a real
+   foreign key - PostgREST resolves customers(name,phone) through it, which it
+   could not do without the constraint - so "every job for this customer" is
+   exact. There is deliberately NO original_job_id in the schema, so nothing
+   records WHICH install a return trip is against. That is why this lists every
+   prior job newest-first and lets the installer pick, rather than silently
+   guessing one and calling it "the original".
+
+   Files load PER TRIP, on selection, not all at once: loadFiles() stays the
+   single storage read path and the modal opens after one file query rather
+   than one per job. PJ_CACHE keeps a trip's signed URLs for the life of the
+   modal. Every id is cleared on open so one customer's documents can never
+   appear under another's - the same discipline SD_PREP keeps.
+
+   Read-only. No writes, no schema change, no calendar geometry, never sets
+   --row-h. ===================================================== */
+let PJ_TRIPS=[],PJ_FILES=[],PJ_CACHE={},PJ_SEL=null;
+const PJ_DIM='font-size:12.5px;color:var(--sand-dim);line-height:1.55';
+const PJ_HEAD='font-size:11px;letter-spacing:.8px;text-transform:uppercase;color:var(--sand-dim);font-weight:700;margin:14px 0 7px';
+
+/* An appointment's start_time is the real visit date; created_at is the
+   fallback for a job that was never scheduled. */
+function pjDateOf(t){return t.visit||t.created||null;}
+function pjFmtDate(iso){if(!iso)return 'No date';
+  const d=new Date(iso);if(isNaN(d))return 'No date';
+  return d.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});}
+
+function pjEmpty(a){const nm=(a&&a.cust&&a.cust!=='\u2014')?a.cust:'this customer';
+  return '<p style="font-size:13px;color:var(--sand-ink);line-height:1.55">No previous documents for '+esc(nm)+'.</p>'
+    +'<p style="'+PJ_DIM+';margin-top:10px">This is the only job on record for this customer, so there is no earlier trip to refer back to.</p>';}
+
+async function pjInit(){
+  const box=$('pjBody');if(!box)return;
+  PJ_TRIPS=[];PJ_FILES=[];PJ_CACHE={};PJ_SEL=null;
+  const a=currentItem()||{},jobId=currentJobId(),custId=a.customerId||null;
+  if(!custId){box.innerHTML='<p style="'+PJ_DIM+'">This job has no customer record attached, so there is nothing to look up.</p>';return;}
+  box.innerHTML='<p style="'+PJ_DIM+'">Loading previous jobs\u2026</p>';
+
+  let jobs=[];
+  try{
+    let q=sb.from('jobs').select('id,type,scope,site_address,created_at').eq('customer_id',custId);
+    if(jobId)q=q.neq('id',jobId);
+    const {data,error}=await q.order('created_at',{ascending:false});
+    if(error)throw error;
+    jobs=data||[];
+  }catch(err){console.error('pjInit jobs',err);
+    box.innerHTML='<p style="font-size:12.5px;color:#e08a86">Could not load previous jobs.</p>';return;}
+
+  if(!jobs.length){box.innerHTML=pjEmpty(a);return;}
+
+  /* One appointments query for the whole set. A job with several appointments
+     takes its LATEST - that is the trip an installer means by "last time". */
+  let visit={};
+  try{const {data,error}=await sb.from('appointments').select('job_id,start_time').in('job_id',jobs.map(function(j){return j.id;}));
+    if(error)throw error;
+    (data||[]).forEach(function(r){const cur=visit[r.job_id];
+      if(r.start_time&&(!cur||r.start_time>cur))visit[r.job_id]=r.start_time;});
+  }catch(err){console.error('pjInit appts',err);}
+
+  PJ_TRIPS=jobs.map(function(j){return {id:j.id,type:j.type||'Job',scope:j.scope||'',
+    addr:j.site_address||'',created:j.created_at||null,visit:visit[j.id]||null};});
+  PJ_TRIPS.sort(function(x,y){const dx=pjDateOf(x)||'',dy=pjDateOf(y)||'';
+    return dx<dy?1:(dx>dy?-1:0);});
+
+  PJ_SEL=PJ_TRIPS[0].id;
+  pjRender(box);
+  await pjSelect(PJ_SEL);
+}
+
+function pjRender(box){
+  const chips=PJ_TRIPS.map(function(t){const on=t.id===PJ_SEL;
+    return '<div class="chip'+(on?' on':'')+'"'+(on?' style="background:var(--accent)"':'')
+      +' onclick="pjPick(\''+esc(t.id)+'\')">'+esc(t.type)+' \u00b7 '+esc(pjFmtDate(pjDateOf(t)))+'</div>';}).join('');
+  box.innerHTML='<p style="'+PJ_DIM+';margin-bottom:10px">'+PJ_TRIPS.length+' previous '
+      +(PJ_TRIPS.length===1?'job':'jobs')+' for this customer, newest first. Reference only \u2014 nothing here can be edited.</p>'
+    +'<div class="chips" id="pjChips" style="flex-wrap:wrap;gap:7px;margin-bottom:4px">'+chips+'</div>'
+    +'<div id="pjPanel"></div>';}
+
+function pjPick(id){if(PJ_SEL===id)return;PJ_SEL=id;
+  const box=$('pjBody');if(!box)return;pjRender(box);pjSelect(id);}
+
+async function pjSelect(id){
+  const panel=$('pjPanel');if(!panel)return;
+  const t=PJ_TRIPS.find(function(x){return x.id===id;});if(!t)return;
+  let files=PJ_CACHE[id];
+  if(!files){
+    panel.innerHTML='<p style="'+PJ_DIM+';margin-top:14px">Loading documents\u2026</p>';
+    try{files=await loadFiles(id);}catch(err){console.error('pjSelect',err);
+      panel.innerHTML='<p style="font-size:12.5px;color:#e08a86;margin-top:14px">Could not load this trip\u2019s documents.</p>';return;}
+    PJ_CACHE[id]=files;}
+  /* A second tap while this one was loading wins. */
+  if(PJ_SEL!==id)return;
+  PJ_FILES=files;
+  panel.innerHTML=pjPanelHtml(t,files);}
+
+function pjPdfRow(f){
+  return '<div class="filepdf" onclick="openViewer(\''+esc(f.id)+'\')">'
+    +'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">'
+    +'<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>'
+    +'<span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(f.name)+'</span>'
+    +'<span class="vw">View \u203a</span></div>';}
+
+function pjPanelHtml(t,files){
+  const bits=[];
+  if(t.addr)bits.push(esc(t.addr));
+  if(t.scope)bits.push(esc(t.scope));
+  let h='<div class="fld" style="margin:14px 0 12px"><label>'+esc(t.type)+' \u00b7 '+esc(pjFmtDate(pjDateOf(t)))+'</label>'
+    +(bits.length?'<div style="'+PJ_DIM+'">'+bits.join(' \u00b7 ')+'</div>':'')+'</div>';
+  const pdfs=(files||[]).filter(function(f){return f.kind==='pdf';});
+  const photos=(files||[]).filter(function(f){return f.kind==='photo';}).reverse();
+  if(!pdfs.length&&!photos.length)
+    return h+'<p style="'+PJ_DIM+'">No documents or photos were saved on this trip.</p>';
+
+  /* Registry order first, then whatever matched no prefix. The dealer's work
+     order lands in that last group by design: it is uploaded by hand with an
+     arbitrary filename, so SEND_DOC_TYPES cannot claim it. */
+  const groups=[];
+  SEND_DOC_TYPES.forEach(function(ty){
+    const of=pdfs.filter(function(f){return sendDocTypeOf(f)===ty;}).reverse();
+    if(of.length)groups.push({label:ty.label,files:of});});
+  const other=pdfs.filter(function(f){return !sendDocTypeOf(f);}).reverse();
+  if(other.length)groups.push({label:'Work order & other documents',files:other});
+
+  groups.forEach(function(g){
+    h+='<div style="'+PJ_HEAD+'">'+esc(g.label)+'</div>'+g.files.map(pjPdfRow).join('');});
+
+  if(photos.length){
+    h+='<div style="'+PJ_HEAD+'">Photos ('+photos.length+')</div><div class="filegrid">'
+      +photos.map(function(f){
+        return '<div class="filethumb" style="background-image:url('+(f.url||'')+')" onclick="openViewer(\''+esc(f.id)+'\')"></div>';}).join('')
+      +'</div>';}
+  return h;}
+
 function openModal(ic,label){currentModalIc=ic;modalPdf=null;const a=currentItem()||{};$('modalIcon').innerHTML=`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">${ICONS[ic]||ICONS.doc}</svg>`;$('modalTitle').textContent=label;$('modalSub').textContent=`${a.cust||''} · ${a.type||''}`;$('modalBody').innerHTML=modalBodyFor(ic);
   /* The additional services report is the same light working surface as the
      measure sheet, so it takes the same class and inherits every .mslight
@@ -3718,8 +3860,9 @@ function openModal(ic,label){currentModalIc=ic;modalPdf=null;const a=currentItem
      save, so the footer button is hidden rather than left to fire the generic
      "Saved to work order" toast. Reset every open, or it would stay hidden on
      the next modal that does need it. */
-  $('modalSave').style.display=(ic==='doc'&&woIsInstall())?'none':'';
+  $('modalSave').style.display=((ic==='doc'&&woIsInstall())||ic==='link')?'none':'';
   if(ic==='doc')woInit();
+  if(ic==='link')pjInit();
   /* ONE send picker for every drawer - it discovers what is sendable from the
      job's files via SEND_DOC_TYPES, so it needs no per-caller configuration. */
   if(ic==='send')sdInit();
