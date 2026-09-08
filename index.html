@@ -60,6 +60,24 @@
   .main{flex:1;display:flex;flex-direction:column;min-width:0;min-height:0}
   .topbar{height:60px;flex-shrink:0;border-bottom:1px solid var(--side-border);display:flex;align-items:center;gap:14px;padding:0 22px;background:var(--side)}
   .page-title{font-size:17px;font-weight:700;color:var(--sand-ink)}.page-title span{color:var(--sand-dim);font-weight:500;font-size:13px;margin-left:8px}
+  /* ===== Date range position (v56) =======================================
+     This used to live inside .page-title, i.e. BEFORE the view switcher and
+     the arrows. Its text width changes with the date ("Jun 22-28" vs
+     "Sep 29 - Oct 5"), so every navigation resized the title and shoved the
+     Month/Week/Day buttons and the arrows sideways - the click target moved
+     out from under the finger mid-navigation.
+
+     It now sits AFTER .day-nav and BEFORE .spacer, which is the one slot in
+     this row where its width costs nothing. Everything to its left is
+     fixed-size, so the nav controls cannot move; and .spacer (flex:1) absorbs
+     the change, so the installer filter and + New Job stay pinned to the
+     right edge too. Nothing in the row shifts at all.
+
+     Styling is restated here rather than inherited: it is no longer a
+     descendant of .page-title, so .page-title span no longer reaches it.
+     Same colour, weight and size as before - this is a position change only.
+     ==================================================================== */
+  #rangeLbl{flex:0 0 auto;margin-left:10px;color:var(--sand-dim);font-weight:500;font-size:13px;white-space:nowrap}
   .seg{display:flex;background:rgba(255,255,255,.05);border:1px solid var(--side-border);border-radius:9px;padding:3px}
   .seg button{background:none;border:none;color:var(--sand-dim);font:inherit;font-size:12.5px;font-weight:600;padding:5px 13px;border-radius:6px;cursor:pointer;transition:.14s}
   .seg.ghost button.on{background:rgba(255,255,255,.1);color:var(--sand-ink)}
@@ -757,6 +775,9 @@ body.role-installer [data-admin]{display:none!important}
   .topbar{height:auto;min-height:56px;flex-wrap:wrap;padding:8px 12px;gap:8px;row-gap:6px}
   .page-title{flex:1 1 auto;min-width:0;font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .page-title span{margin-left:6px;font-size:12px}
+  /* The topbar wraps on a phone; the range keeps its own line rather than
+     squeezing the arrows. */
+  #rangeLbl{margin-left:8px;font-size:12px}
   .seg{margin-left:0!important;flex:1 1 auto}   /* !important beats the inline margin-left:8px */
   .seg button{padding:6px 10px;font-size:12px;flex:1}
   .spacer{display:none}
@@ -844,9 +865,10 @@ body.role-installer [data-admin]{display:none!important}
   <div class="main">
     <div class="topbar">
       <button class="navtoggle" type="button" aria-label="Menu" aria-expanded="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
-      <div class="page-title" id="ptitle">Scheduler <span id="rangeLbl"></span></div>
+      <div class="page-title" id="ptitle">Scheduler </div>
       <div class="seg ghost" id="viewSeg" style="margin-left:8px"><button data-v="month">Month</button><button data-v="week" class="on">Week</button><button data-v="day">Day</button></div>
       <div class="day-nav" id="dayNav"><button id="navPrev">‹</button><button id="navToday" style="width:auto;padding:0 10px;font-size:12px;font-weight:600">Today</button><button id="navNext">›</button></div>
+      <span id="rangeLbl"></span>
       <div class="spacer"></div>
       <select id="instFilter" class="topfilter"><option value="all">All installers</option></select>
       <button class="btn" id="newJobBtn" data-admin>+ New Job</button>
