@@ -314,10 +314,10 @@
   #njDiscWrap input{width:72px;background:var(--side-3);border:1px solid var(--side-border);color:var(--sand-ink);font:inherit;font-size:13px;padding:6px 8px;border-radius:8px;outline:none}
   #njDiscWrap .dlbl{font-size:12px;color:var(--muted)}
   .lilabel{display:block;font-size:12px;color:var(--muted);margin-bottom:6px;font-weight:600}
-  #drPricing table{width:100%;border-collapse:collapse;font-size:12.5px}
-  #drPricing td{padding:4px 0;color:var(--sand-ink)}
-  #drPricing td.r{text-align:right;white-space:nowrap}
-  #drPricing .pcust{color:#8fa8c4}
+  #drPricing table,#drBilling table{width:100%;border-collapse:collapse;font-size:12.5px}
+  #drPricing td,#drBilling td{padding:4px 0;color:var(--sand-ink)}
+  #drPricing td.r,#drBilling td.r{text-align:right;white-space:nowrap}
+  #drPricing .pcust,#drBilling .pcust{color:#8fa8c4}
   #drPricing tr.sub td{color:var(--muted);border-top:1px solid var(--side-border);padding-top:7px}
   #drPricing tr.tot td{font-weight:700;font-size:14px}
   .pedit{float:right;background:none;border:1px solid var(--side-border);color:var(--sand);font:inherit;font-size:11px;padding:2px 10px;border-radius:6px;cursor:pointer}
@@ -991,7 +991,7 @@ body.role-installer [data-admin]{display:none!important}
       <div class="fld"><label>Site address (homeowner)</label><div class="val dim" id="drAddr">—</div></div>
       <div class="fld"><label>Contact</label><div class="val dim" id="drPhone">—</div></div>
       <div class="fld" id="drProductFld" style="display:none"><label>Product status</label><div class="val dim" id="drProduct" style="cursor:pointer;text-decoration:underline;text-decoration-style:dotted;text-underline-offset:3px">&mdash;</div></div>
-      <div class="fld" id="drPricingFld" data-admin style="display:none"><label>Pricing <button class="pedit" id="drPriceEditBtn" type="button">Edit</button></label>
+      <div class="fld" id="drPricingFld" data-admin style="display:none"><label>Pricing</label>
         <div id="drPricing"></div>
         <div id="drPriceEdit" style="display:none">
           <div id="drPriceLines"></div>
@@ -1001,6 +1001,7 @@ body.role-installer [data-admin]{display:none!important}
         </div>
       </div>
       <div class="fld" id="drMarginFld" data-admin style="display:none"><label>Margin</label><div id="drMargin"></div></div>
+      <div class="fld" id="drBillingFld" data-admin style="display:none"><label>Quotes &amp; invoices</label><div id="drBilling"></div></div>
       <div class="fld"><label>Scope</label><input id="drScope" type="text"></div>
       <div class="fld"><label>Duration</label><div class="durrow"><select id="drDurH"></select><span class="durx">hr</span><select id="drDurM"></select><span class="durx">min</span></div></div>
       <div class="fld"><label>Notes</label><textarea id="drNoteNew" placeholder="Add an internal note…"></textarea><div style="display:flex;justify-content:flex-end;margin-top:8px"><button class="btn" id="drNoteAdd">Add Note</button></div><div id="drNoteFeed" style="margin-top:10px"></div></div>
@@ -1404,6 +1405,7 @@ function openDrawer(id){let a=appts.find(x=>x.id===id),mode='appt';if(!a){a=queu
      because opening an editor is not itself destructive. */
   const lb=$('drLeftBtn');lb.textContent='Edit Job';lb.classList.remove('del');lb.onclick=ejOpen;
   drRenderMargin(a);
+  biRender(a);
   refreshFiles();
   $('drawer').classList.add('open');render();}
 function currentJobId(){if(!selectedId)return null;if(drawerMode==='queue')return selectedId;const a=appts.find(x=>x.id===selectedId);return a?a.jobId:null;}
@@ -1446,7 +1448,11 @@ async function refreshFiles(){const a=currentItem();if(!a)return;const jobId=cur
    uploaded_at ASCENDING, so each list is reversed here rather than re-querying.
    filter() already returns a fresh array, so reverse() cannot disturb a.files —
    openViewer looks files up by id, so display order never affects it. */
-function renderFiles(a){const box=$('drFiles');const files=a.files||[];const photos=files.filter(f=>f.kind==='photo').reverse(),pdfs=files.filter(f=>f.kind==='pdf').reverse();
+/* Quotes and invoices are admin-only at the database, but the drawer's file
+   list is not data-admin, so without this filter an installer would still see
+   the PDF sitting in the documents list. Matched by the same filename prefix
+   the send registry uses. */
+function renderFiles(a){const box=$('drFiles');const files=a.files||[];const photos=files.filter(f=>f.kind==='photo').reverse(),pdfs=files.filter(f=>f.kind==='pdf'&&(IS_ADMIN||!BILLING_RE.test(f.name||''))).reverse();
   let h=`<div class="fileadd"><button onclick="openModal('cam','Attach photos')">+ Photos</button><button onclick="openModal('upload','Upload document')">+ PDF</button></div>`;
   if(!files.length)h+=`<div class="fileempty">No files yet — attach work orders or photos above.</div>`;
   if(pdfs.length)h+=pdfs.map(f=>`<div class="filepdf"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" onclick="openViewer('${f.id}')"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg><span onclick="openViewer('${f.id}')" style="flex:1;cursor:pointer">${f.name}</span><span class="vw" onclick="openViewer('${f.id}')">View ›</span><span class="filedel" onclick="event.stopPropagation();deleteFile('${f.id}','${f.path}')">×</span></div>`).join('');
@@ -1478,7 +1484,13 @@ async function saveDrawer(){const inQ=drawerMode==='queue';const a=(inQ?queue:ap
   toast(a._conflict?`Saved — <b>heads up:</b> ${nm} is double-booked`:'Saved',a._conflict);closeDrawer();}
 async function removeQueueJob(){const j=queue.find(x=>x.id===selectedId);
   const {error}=await sb.from('jobs').delete().eq('id',selectedId);
-  if(error){toast('Could not remove job',true);console.error(error);return;}
+  /* 23503 is a foreign-key violation. billing_documents.job_id is ON DELETE
+     RESTRICT, so a job that has been quoted or invoiced cannot be deleted out
+     from under its own paperwork. Say that plainly, as unschedule() does. */
+  if(error){console.error(error);
+    if(error.code==='23503')toast('Can\'t remove this job \u2014 a <b>quote or invoice</b> has been issued against it. Issued billing documents are kept permanently.',true);
+    else toast('Could not remove job',true);
+    return;}
   queue=queue.filter(x=>x.id!==selectedId);renderQueue();if(page==='toschedule')buildGeneric('toschedule');if(page==='inventory')buildReceiving();toast(`<b>${j?j.cust:'Job'}</b> removed`);closeDrawer();}
 async function unschedule(){const a=appts.find(x=>x.id===selectedId);if(!a)return;
   const {error}=await sb.from('appointments').delete().eq('id',a.id);
@@ -1857,6 +1869,16 @@ function ejOpen(){
     +'<div class="fld" data-admin><label>Dealer (account)</label>'
       +'<select id="ejDealer">'+(opts||'<option value="">No dealers loaded</option>')+'</select>'
       +'<div style="'+EJ_DIM+';margin-top:6px">Moves this job to a different dealer. The dealer\u2019s own record is not changed.</div></div>';
+  /* Rates and billing. Admin-only twice over: the block is only BUILT when
+     IS_ADMIN, and it carries data-admin so the v21 stylesheet rule would hide
+     it anyway. biGenerate re-checks a third time before it writes anything. */
+  if(IS_ADMIN)h+='<div data-admin style="border-top:1px solid var(--side-border);margin-top:6px;padding-top:14px">'
+    +'<div style="font-size:10.5px;letter-spacing:1.2px;text-transform:uppercase;color:var(--sand-dim);margin-bottom:9px">Rates and billing</div>'
+    +'<button type="button" class="btn ghost" id="ejRates" style="width:100%;margin-bottom:8px">Edit Job Rates</button>'
+    +'<div style="display:flex;gap:8px">'
+    +'<button type="button" class="btn ghost" id="ejQuote" style="flex:1">Generate Quote</button>'
+    +'<button type="button" class="btn ghost" id="ejInvoice" style="flex:1">Generate Invoice</button></div>'
+    +'<div style="'+EJ_DIM+';margin-top:8px">Both are built from this job\u2019s <b>current</b> rates and frozen as issued. Editing rates afterwards never changes a document already issued.</div></div>';
   const appt=EJ_MODE==='appt';
   h+='<div style="border-top:1px solid var(--side-border);margin-top:6px;padding-top:14px">'
     +'<div style="font-size:10.5px;letter-spacing:1.2px;text-transform:uppercase;color:var(--sand-dim);margin-bottom:9px">'
@@ -1870,6 +1892,12 @@ function ejOpen(){
     +'</div></div>';
   $('ejBody').innerHTML=h;
   $('ejDanger').onclick=ejDanger;
+  /* The rates editor lives INSIDE the drawer (#drPriceEdit), not in this
+     modal, and its CSS is scoped to that id. So this closes the popup and
+     hands off rather than moving the DOM. */
+  if($('ejRates'))$('ejRates').onclick=function(){ejClose();drEnterEdit(currentItem());};
+  if($('ejQuote'))$('ejQuote').onclick=function(){biGenerate('quote');};
+  if($('ejInvoice'))$('ejInvoice').onclick=function(){biGenerate('invoice');};
   $('ejBg').classList.add('open');}
 
 async function ejDanger(){
@@ -3592,7 +3620,9 @@ window.addEventListener('resize',function(){
 const SEND_DOC_TYPES=[
   {key:'measure_sheet',              label:'Measure Sheet',              re:/^Measure Sheet\b/i},
   {key:'additional_services_report', label:'Additional Services Report', re:/^Additional Services Report\b/i},
-  {key:'completion_report',          label:'Completion Report',          re:/^Completion Report\b/i}
+  {key:'completion_report',          label:'Completion Report',          re:/^Completion Report\b/i},
+  {key:'invoice',                    label:'Invoice',                    re:/^Invoice\b/i},
+  {key:'quote',                      label:'Quote',                      re:/^Quote\b/i}
 ];
 function sendDocTypeOf(f){const nm=(f&&f.name)||'';
   for(let i=0;i<SEND_DOC_TYPES.length;i++)if(SEND_DOC_TYPES[i].re.test(nm))return SEND_DOC_TYPES[i];
@@ -4258,13 +4288,13 @@ $('njDisc').addEventListener('change',async e=>{njSetDiscount(e.target.value);if
 // ---- Drawer pricing editor (admin-side edits to a saved job) ----
 let drPriceDisc=0,drPriceOrig=[],drPriceJobId=null;
 function renderDrPricing(a){const P=jobPricing(a);const box=$('drPricing');$('drPricingFld').style.display='block';
-  if(!P.lines.length){box.innerHTML='<div class="limeta">No line items yet — click Edit to add pricing.</div>';return;}
+  if(!P.lines.length){box.innerHTML='<div class="limeta">No line items yet \u2014 open <b>Edit Job</b> and choose <b>Edit Job Rates</b>.</div>';return;}
   let rows=P.lines.map(l=>`<tr><td>${l.desc}${l.custom?' <span class="pcust">·custom</span>':''}${l.quote?' <span class="pcust">·quote</span>':''}</td><td class="r">×${l.qty}</td><td class="r">${l.quote?'—':fmtMoney(l.total)}</td></tr>`).join('');
   rows+=`<tr class="sub"><td>Subtotal</td><td></td><td class="r">${fmtMoney(P.subtotal)}</td></tr>`;
   if(P.disc>0)rows+=`<tr class="sub"><td>Discount (${P.disc}%)</td><td></td><td class="r">−${fmtMoney(P.discAmt)}</td></tr>`;
   rows+=`<tr class="tot"><td>Total${P.anyQuote?' *':''}</td><td></td><td class="r">${fmtMoney(P.total)}</td></tr>`;
   box.innerHTML=`<table>${rows}</table>${P.anyQuote?'<div class="limeta" style="margin-top:5px">* excludes quote-only lines</div>':''}`;}
-function drCancelEdit(){$('drPriceEdit').style.display='none';$('drPricing').style.display='block';$('drPriceEditBtn').style.display='inline-block';}
+function drCancelEdit(){$('drPriceEdit').style.display='none';$('drPricing').style.display='block';}
 function drRecalc(){peRecalc($('drPriceLines'),$('drPriceTotals'),drPriceDisc);}
 function drWireRow(row){const d=row.querySelector('.lidesc');
   d.addEventListener('input',()=>{resolveRow(row,{autofill:true});drRecalc();});d.addEventListener('change',()=>{resolveRow(row,{autofill:true});drRecalc();});
@@ -4281,7 +4311,7 @@ function drEnterEdit(a){if(!IS_ADMIN)return;if(!a)return;drPriceDisc=+a.dealerDi
   drPriceOrig=(a.lineItems||[]).map(l=>({id:l.id,desc:l.desc,qty:l.qty,unitPrice:l.unitPrice,serviceId:l.serviceId||null,minCharge:l.minCharge,isCustom:!!l.isCustom}));
   fillSvcList();$('drPriceLines').innerHTML='';
   if(drPriceOrig.length)drPriceOrig.forEach(l=>drAddRow(l));else drAddRow();
-  $('drPricing').style.display='none';$('drPriceEditBtn').style.display='none';$('drPriceEdit').style.display='block';drRecalc();}
+  $('drPricing').style.display='none';$('drPriceEdit').style.display='block';drRecalc();}
 async function drSavePricing(a){if(!IS_ADMIN)return;if(!a)return;const jobId=drPriceJobId||currentJobId();if(!jobId){toast('Save the job first',true);return;}
   const desired=[];
   for(const row of [...$('drPriceLines').querySelectorAll('.lirow')]){const desc=row.querySelector('.lidesc').value.trim();if(!desc)continue;
@@ -4305,7 +4335,6 @@ async function drSavePricing(a){if(!IS_ADMIN)return;if(!a)return;const jobId=drP
     if(page==='inventory')buildReceiving();
   }catch(e){console.error(e);toast('Could not save pricing',true);}
   btn.disabled=false;btn.textContent='Save pricing';}
-$('drPriceEditBtn').onclick=()=>drEnterEdit(currentItem());
 $('drAddLineBtn').onclick=()=>drAddRow();
 $('drPriceCancel').onclick=()=>{drCancelEdit();renderDrPricing(currentItem());};
 $('drPriceSave').onclick=()=>drSavePricing(currentItem());
@@ -4322,6 +4351,220 @@ function drRenderMargin(a){const fld=$('drMarginFld');if(!fld)return;if(!a){fld.
   box.innerHTML=`<table><tr><td>Revenue${P.anyQuote?' *':''}</td><td class="r">${fmtMoney(rev)}</td></tr>
     <tr><td>Installer cost <span class="pcust">${label}</span></td><td class="r">−${fmtMoney(cost)}</td></tr>
     <tr class="tot"><td>Margin</td><td class="r" style="color:${mc}">${fmtMoney(margin)} · ${pct.toFixed(0)}%</td></tr></table>${P.anyQuote?'<div class="limeta" style="margin-top:5px">* excludes quote-only lines</div>':''}`;}
+/* ===== Quotes and invoices (v67) ======================================
+   Two client-facing documents from ONE builder, differing only in title.
+   Backed by billing_documents (migrated 2026-09-08).
+
+   NO PATH TO COST OR MARGIN, by construction rather than by discipline:
+     - biSnapshot() reads jobPricing(), whose return value has no cost key.
+     - Cost is never stored; it is derived from INSTALLERS[].payRate inside
+       drRenderMargin()/apptFinance(), and neither is reachable from here.
+     - biBuildPdf() renders ONLY from the frozen snapshot it is handed. It
+       receives no installer, no appointment and no job object.
+     - billing_documents has no cost/margin column to persist one into.
+   Three independent barriers. Never pass an appointment into biBuildPdf.
+
+   FROZEN AT ISSUE. The snapshot is what was billed; later rate edits move the
+   drawer total and leave every issued document untouched. That is the whole
+   reason the record exists, so nothing here ever re-reads line_items to
+   "refresh" a document. Regenerating always mints a NEW number.
+
+   NUMBERING is two independent per-tenant series, both from 2073, allocated
+   by next_billing_number(doc_type) - a single UPDATE ... RETURNING whose row
+   lock makes duplicates impossible. It is a separate transaction from the
+   INSERT, so a failure after allocation burns a number: gaps are accepted,
+   duplicates are not. A NULL back means the database refused (not an admin),
+   and nothing is written.
+   ==================================================================== */
+const BILLING_RE=/^(Invoice|Quote)\b/i;
+const BI_TYPES={quote:{label:'Quote',title:'QUOTE'},invoice:{label:'Invoice',title:'INVOICE'}};
+let BI_BUSY=false;
+
+function biMoney(v){return '$'+Number(v||0).toFixed(2);}
+function biRound(v){return Math.round((Number(v)||0)*100)/100;}
+
+/* CLIENT-FACING FIELDS ONLY. Deliberately no service_id, no is_custom and no
+   min_charge: a dealer reading this does not need our catalog internals, and
+   what is not written cannot leak. min_applied is kept only so the PDF can
+   explain a line whose total is not qty x unit price. */
+function biSnapshot(a){
+  const P=jobPricing(a);
+  const lines=P.lines.map(function(l,i){
+    return {n:i+1,
+      description:l.desc||'',
+      qty:l.qty,
+      unit_price:l.quote?null:biRound(l.unit),
+      line_total:l.quote?null:biRound(l.total),
+      is_quote:!!l.quote,
+      min_applied:!!l.minApplied};});
+  return {lines:lines,
+    subtotal:biRound(P.subtotal),
+    discount_pct:biRound(P.disc),
+    discount_amt:biRound(P.discAmt),
+    total:biRound(P.total),
+    has_quote_lines:!!P.anyQuote};}
+
+/* Prefix is load-bearing: SEND_DOC_TYPES matches these documents by filename,
+   so "Quote " and "Invoice " must stay at the front. The number follows so a
+   file is identifiable in the drawer list without opening it. */
+function biPdfFilename(docType,number){const d=new Date(),p=function(x){return String(x).padStart(2,'0');};
+  return BI_TYPES[docType].label+' '+number+' \u2014 '+d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate())+' '+p(d.getHours())+'-'+p(d.getMinutes())+'.pdf';}
+
+/* Mirrors uploadFile() rather than modifying it - same bucket, same
+   jobId/timestamp path, same files row - but returns the new row id so the
+   billing record can point at its own PDF. */
+async function biUploadPdf(jobId,file){
+  const safe=file.name.replace(/[^\w.\-]/g,'_');const path=jobId+'/'+Date.now()+'_'+safe;
+  const {error:ue}=await sb.storage.from('job-files').upload(path,file);if(ue)throw ue;
+  const {data,error:ie}=await sb.from('files')
+    .insert({job_id:jobId,kind:'pdf',name:file.name,storage_path:path,uploaded_by:'M. Lake'})
+    .select('id').single();
+  if(ie)throw ie;
+  return data?data.id:null;}
+
+/* Same letterhead, footer and engine as every other document. The three magic
+   numbers the logo height drives (title y=61, context cy=70, autoTable
+   margin.top=57) are the same ones msBuildPdf and asrBuildPdf carry and must
+   move together with it.
+
+   Column widths are FIXED and sum to 187.9mm, the content width. autoTable
+   reports any shortfall as "could not fit page", so under-filling is what
+   makes it complain - see the completion report note. */
+function biBuildPdf(docType,snap,ctxInfo,number){
+  const {jsPDF}=window.jspdf;
+  const doc=new jsPDF({unit:'mm',format:'letter',orientation:'portrait'});
+  const PW=doc.internal.pageSize.getWidth(),PH=doc.internal.pageSize.getHeight(),M=14;
+  const SAND=[216,198,160],INK=[39,36,31],MUT=[140,135,125],LINE=[229,227,219],ALT=[250,250,247];
+  const drawHeader=pdfLetterhead(doc,PW,M);
+  drawHeader();
+  doc.setFont('helvetica','bold');doc.setFontSize(15);doc.setTextColor(INK[0],INK[1],INK[2]);
+  doc.text(BI_TYPES[docType].title,M,61);
+  const ctx=[],push=function(l,v){if(v&&String(v).trim()&&String(v).trim()!=='\u2014')ctx.push([l,String(v).trim()]);};
+  push(BI_TYPES[docType].label+' number',String(number));
+  push('Date',msFmtDate(new Date()));
+  push('Customer',ctxInfo.customer);
+  push('Dealer',ctxInfo.dealer);
+  push('Job address',ctxInfo.address);
+  const startY=pdfContext(doc,PW,M,ctx);
+  const body=snap.lines.map(function(l){
+    return [l.n,
+      (l.description||'\u2014')+(l.min_applied?'\n(minimum charge applied)':''),
+      String(l.qty),
+      l.is_quote?'Quote':biMoney(l.unit_price),
+      l.is_quote?'\u2014':biMoney(l.line_total)];});
+  doc.autoTable({startY:startY,
+    head:[['#','Description','Qty','Unit price','Line total']],
+    body:body,theme:'grid',
+    styles:{font:'helvetica',fontSize:9.5,cellPadding:2.4,textColor:INK,lineColor:LINE,lineWidth:0.15,overflow:'linebreak',valign:'top'},
+    headStyles:{fillColor:SAND,textColor:INK,fontStyle:'bold',fontSize:8.5},
+    alternateRowStyles:{fillColor:ALT},
+    columnStyles:{0:{cellWidth:10,halign:'right'},1:{cellWidth:89.9},2:{cellWidth:16,halign:'right'},
+      3:{cellWidth:34,halign:'right'},4:{cellWidth:38,halign:'right'}},
+    margin:{left:M,right:M,top:57},
+    didDrawPage:drawHeader});
+  let y=(doc.lastAutoTable?doc.lastAutoTable.finalY:startY)+9;
+  const lx=PW-M-46,vx=PW-M;
+  const trow=function(label,val,bold,size){
+    doc.setFont('helvetica',bold?'bold':'normal');doc.setFontSize(size||10);
+    doc.setTextColor(bold?INK[0]:MUT[0],bold?INK[1]:MUT[1],bold?INK[2]:MUT[2]);
+    doc.text(label,lx,y,{align:'right'});
+    doc.setTextColor(INK[0],INK[1],INK[2]);
+    doc.text(val,vx,y,{align:'right'});y+=6;};
+  trow('Subtotal',biMoney(snap.subtotal));
+  if(snap.discount_pct>0)trow('Dealer discount ('+snap.discount_pct+'%)','-'+biMoney(snap.discount_amt));
+  doc.setDrawColor(SAND[0],SAND[1],SAND[2]);doc.setLineWidth(0.5);doc.line(lx-34,y-4.2,vx,y-4.2);
+  y+=1.5;trow('Total',biMoney(snap.total),true,12.5);
+  if(snap.has_quote_lines){
+    doc.setFont('helvetica','normal');doc.setFontSize(8.5);doc.setTextColor(MUT[0],MUT[1],MUT[2]);
+    doc.text('Lines shown as Quote are priced separately and are not included in the total above.',M,y+1);}
+  const pages=doc.internal.getNumberOfPages(),gen=msFmtDate(new Date());
+  for(let p=1;p<=pages;p++){doc.setPage(p);
+    doc.setDrawColor(SAND[0],SAND[1],SAND[2]);doc.setLineWidth(0.5);doc.line(M,PH-18,PW-M,PH-18);
+    doc.setFont('helvetica','normal');doc.setFontSize(8.5);doc.setTextColor(MUT[0],MUT[1],MUT[2]);
+    doc.text('Porter Lake Shading Systems',M,PH-13);
+    doc.text('Generated '+gen,M,PH-8.8);
+    doc.text('Page '+p+' of '+pages,PW-M,PH-8.8,{align:'right'});}
+  return {doc:doc,filename:biPdfFilename(docType,number)};}
+
+/* ORDER MATTERS. Number, then build in memory, then insert, then upload.
+   Building before the insert means a PDF failure costs only a burned number
+   and leaves no orphan record; an upload failure leaves a real record whose
+   PDF can be regenerated. The download runs either way - the same rule
+   msGeneratePdf follows, for the same reason. */
+async function biGenerate(docType){
+  if(!IS_ADMIN){toast('Only an admin can issue billing documents',true);return;}
+  if(BI_BUSY)return;
+  const a=currentItem();if(!a){toast('No job open',true);return;}
+  const jobId=currentJobId();if(!jobId){toast('Save the job first',true);return;}
+  const T=BI_TYPES[docType];if(!T)return;
+  const snap=biSnapshot(a);
+  if(!snap.lines.length){toast('Add line items before issuing a '+T.label.toLowerCase(),true);return;}
+  const btn=$(docType==='quote'?'ejQuote':'ejInvoice');const lbl=btn?btn.textContent:'';
+  BI_BUSY=true;if(btn){btn.disabled=true;btn.textContent='Preparing\u2026';}
+  let number=null,inserted=false;
+  try{
+    const ready=await msEnsurePdfLib();
+    if(!ready){toast('Could not load the PDF tool \u2014 check your connection. Nothing was issued.',true);return;}
+    const {data:num,error:ne}=await sb.rpc('next_billing_number',{p_doc_type:docType});
+    if(ne)throw ne;
+    if(num==null){toast('The database refused to issue a number \u2014 admin access is required.',true);return;}
+    number=num;
+    const built=biBuildPdf(docType,snap,{customer:a.cust,dealer:a.dealer,address:a.addr},number);
+    if(btn)btn.textContent='Saving\u2026';
+    const {data:row,error:ie}=await sb.from('billing_documents').insert({
+      job_id:jobId,doc_type:docType,number:number,
+      lines_snapshot:snap.lines,
+      subtotal:snap.subtotal,discount_pct:snap.discount_pct,
+      discount_amt:snap.discount_amt,total:snap.total,
+      has_quote_lines:snap.has_quote_lines,
+      bill_to:{name:a.dealer||null},
+      customer_name:a.cust||null,
+      site_address:(a.addr&&a.addr!=='\u2014')?a.addr:null,
+      pdf_filename:built.filename}).select('id').single();
+    if(ie)throw ie;
+    inserted=true;
+    let fileId=null;
+    try{
+      const blob=built.doc.output('blob');
+      let file;
+      try{file=new File([blob],built.filename,{type:'application/pdf'});}
+      catch(e){file=blob;file.name=built.filename;}
+      fileId=await biUploadPdf(jobId,file);
+    }catch(err){console.error('billing pdf upload',err);}
+    if(fileId){const {error:ue}=await sb.from('billing_documents').update({pdf_file_id:fileId}).eq('id',row.id);if(ue)console.error(ue);}
+    built.doc.save(built.filename);
+    ejClose();
+    if(fileId){toast('<b>'+T.label+' '+number+'</b> issued, saved to the job and downloaded');refreshFiles();}
+    else toast(T.label+' '+number+' issued and downloaded \u2014 but it could NOT be saved to the job. Check your connection and generate again.',true);
+    await biRender(currentItem());
+  }catch(err){console.error(err);
+    if(inserted)toast(T.label+' '+number+' was recorded but something failed afterwards \u2014 check the list before issuing another.',true);
+    else if(number!=null)toast('Number '+number+' was allocated but the '+T.label.toLowerCase()+' could NOT be recorded. Nothing was billed \u2014 generate again.',true);
+    else toast('Could not issue the '+T.label.toLowerCase(),true);
+  }finally{BI_BUSY=false;if(btn){btn.disabled=false;btn.textContent=lbl||('Generate '+T.label);}}}
+
+/* Admin-only, matching the RESTRICTIVE policy on the table: for an installer
+   the query would return nothing anyway, so the field is hidden rather than
+   rendered empty. */
+async function biRender(a){
+  const fld=$('drBillingFld');if(!fld)return;
+  const jobId=a?currentJobId():null;
+  if(!IS_ADMIN||!a||!jobId){fld.style.display='none';return;}
+  fld.style.display='block';
+  const box=$('drBilling');box.innerHTML='<div class="limeta">Loading\u2026</div>';
+  const {data,error}=await sb.from('billing_documents')
+    .select('id,doc_type,number,issued_at,total,status')
+    .eq('job_id',jobId).order('issued_at',{ascending:false});
+  if(error){console.error(error);box.innerHTML='<div class="limeta">Could not load billing documents.</div>';return;}
+  const docs=data||[];
+  if(!docs.length){box.innerHTML='<div class="limeta">Nothing issued yet \u2014 open Edit Job to generate a quote or invoice.</div>';return;}
+  box.innerHTML='<table>'+docs.map(function(d){
+    const T=BI_TYPES[d.doc_type];
+    const st=(d.status&&d.status!=='issued')?' <span class="pcust">'+esc(d.status)+'</span>':'';
+    return '<tr><td>'+esc(T?T.label:d.doc_type)+' '+esc(String(d.number))+st+'</td>'
+      +'<td class="r">'+esc(msFmtDate(new Date(d.issued_at))||'')+'</td>'
+      +'<td class="r">'+biMoney(d.total)+'</td></tr>';}).join('')+'</table>';}
+
 let editingInst=null;
 function instRateUI(){const t=$('instPayType').value,lbl=$('instRateLbl'),hint=$('instHint');
   if(t==='sub_1099'){lbl.textContent='Percent of job price (%)';hint.textContent='Cost = job price × this %. e.g. 40 = 40% of the dealer charge.';}
