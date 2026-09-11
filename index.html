@@ -5292,14 +5292,27 @@ $('njSave').onclick=async()=>{if(!IS_ADMIN)return;let dId=njDealerId,dealer;
      into a failed save. */
   let jobNo=null;
   try{const {data:nn,error:ne}=await sb.rpc('next_job_number');
-    if(ne)console.error('next_job_number',ne);else jobNo=nn;}
-  catch(err){console.error('next_job_number',err);}
+    /* A null with NO error is the dangerous case and the one that actually bit:
+       the function returns NULL when the tenant has no row in
+       job_number_counter, because UPDATE ... RETURNING returns nothing. That is
+       not an error to supabase-js, so it used to sail straight through. */
+    if(ne)console.error('next_job_number failed',ne);
+    else if(nn==null)console.error('next_job_number returned NULL - does this tenant have a job_number_counter row?');
+    else jobNo=nn;}
+  catch(err){console.error('next_job_number threw',err);}
   const {data:job,error:je}=await sb.from('jobs').insert({customer_id:custId,dealer_id:dId,type,site_address:addr||null,scope:scope||null,estimated_minutes:estMins,awaiting_product:awaiting,override_schedule:false,job_number:jobNo}).select('id,job_number').single();
   if(je){toast('Could not save job',true);console.error(je);return;}
   let lineItems=[];
   if(formLines.length){const {data:liData,error:le}=await sb.from('line_items').insert(formLines.map(l=>({job_id:job.id,description:l.desc,qty:l.qty,delivered:false,service_id:l.serviceId,unit_price:l.unitPrice,min_charge:l.minCharge,is_custom:l.isCustom}))).select();
     if(le)console.error(le);else lineItems=(liData||[]).map(li=>({id:li.id,desc:li.description,qty:li.qty,delivered:false,by:'',serviceId:li.service_id||null,unitPrice:li.unit_price,minCharge:li.min_charge,isCustom:!!li.is_custom}));}
-  queue.unshift({id:job.id,type,customerId:custId,cust:custName,dealerId:dId,dealer,addr:addr||'—',phone,scope:scope||'—',estMins,awaitingProduct:awaiting,lineItems,override:false,dealerDiscount:njDiscount});
+  /* job.job_number is read back from the INSERT, so this is the number the
+     database actually stored rather than what we hoped to send. Without it the
+     freshly created job carries no jobNo in memory and shows blank on the queue
+     row, the drawer and its PDFs until the page is reloaded - which looked
+     exactly like assignment having failed. */
+  const assignedNo=(job&&job.job_number!=null)?job.job_number:null;
+  if(assignedNo==null)toast('Job saved, but it did <b>not</b> get a job number — see the console',true);
+  queue.unshift({id:job.id,jobNo:assignedNo,type,customerId:custId,cust:custName,dealerId:dId,dealer,addr:addr||'—',phone,scope:scope||'—',estMins,awaitingProduct:awaiting,lineItems,override:false,dealerDiscount:njDiscount});
   renderQueue();$('njBg').classList.remove('open');
   toast(awaiting?`<b>${custName}</b> created — sent to Receiving`:`<b>${custName}</b> created — ready to schedule`);
   if(page==='toschedule')buildGeneric('toschedule');if(page==='inventory')buildReceiving();};
