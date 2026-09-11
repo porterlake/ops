@@ -1056,6 +1056,51 @@ body.role-installer [data-admin]{display:none!important}
      the viewer so no other modal changes height. */
   #viewBg .modal{max-height:94dvh}
   .vwpdf{height:80dvh}
+
+  /* --- 1. To Schedule: drop the mini month calendar on a phone -----------
+     .ts-wrap is a flex row with a 262px .ts-side that never shrank and was
+     position:sticky;top:0, so on a narrow screen it sat on top of the first
+     job rather than beside it. A month grid is not useful on a phone, so it
+     is removed here rather than stacked. Desktop is untouched. */
+  .ts-wrap{display:block}
+  .ts-side{display:none}
+
+  /* --- 2. Horizontal overflow inside popups ------------------------------
+     Flex and grid children default to min-width:auto. For an <input> that is
+     its intrinsic size (~20 characters) and for a <select> it is the widest
+     OPTION, so a row of them cannot shrink below the sum of those widths. In
+     a popup narrower than that sum the sheet gains a horizontal scrollbar,
+     and dragging then fights between the two axes - which is what made the
+     vertical scroll feel loose. min-width:0 lets the row shrink. */
+  .lirow>*,.msdim>*,.filepdf>*,.fileadd>*,.ipconfirm>*,.fld2>*{min-width:0}
+  .lirow input,.msdim input,.msdim select,.fileadd select{width:100%;max-width:100%}
+  /* The document type picker plus its Add button genuinely do not fit side by
+     side on a small phone, so let that one row wrap instead of squeezing. */
+  .fileadd{flex-wrap:wrap}
+  /* The filename is the unclassed span in a .filepdf row. Long upload names
+     have no spaces to break on, so ellipsis rather than wrap keeps the row
+     one line high and inside the popup. */
+  .filepdf>span:not([class]){overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  /* Backstop. With the causes above fixed nothing should reach this, but a
+     future wide child must not be able to reintroduce the shake. Only the
+     horizontal axis is touched, so .modal-b stays ONE scroll container. The
+     document viewer is excluded - it is already handled and its body holds
+     the PDF iframe. */
+  .modal-b:not(#viewBody){overflow-x:hidden}
+
+  /* --- 3. Reports and other wide tables ----------------------------------
+     .rep-table is up to eight columns with white-space:nowrap on the numeric
+     ones, so it was wider than the phone and .generic - the page scroller -
+     scrolled sideways to show it. Making the table its own horizontal scroll
+     box keeps the PAGE still: the inner box owns the X axis, the page owns Y,
+     and the two never fight. This is the pattern the brief prescribes for
+     wide content. Covers Reports, the dealer job table and the customer job
+     history, which all share .rep-table. */
+  .rep-table{display:block;width:100%;overflow-x:auto;overscroll-behavior-x:contain;-webkit-overflow-scrolling:touch}
+  .rep-table thead,.rep-table tbody{display:table;width:100%;min-width:560px}
+  /* With every wide child now scrolling inside itself, the page itself has no
+     legitimate reason to move sideways. */
+  .generic{overflow-x:hidden}
   .filegrid,.photogrid{grid-template-columns:repeat(3,1fr)}
   /* More room to sign with a finger, which is the whole point on a phone. */
   .sgpad{height:210px}
