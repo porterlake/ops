@@ -1108,6 +1108,7 @@ body.role-installer [data-admin]{display:none!important}
     <div class="modal-tabs"><div class="seg ghost" id="ipTabs"><button class="on" onclick="ipTab('info')">Info</button><button onclick="ipTab('docs')">Documents</button><button onclick="ipTab('pay')">Pay</button></div></div>
     <div class="modal-b">
       <div id="ipInfo">
+        <div class="fld"><label>Name</label><input id="instNameEdit" type="text" placeholder="Full name" maxlength="80"></div>
         <div class="fld2">
           <div class="fld"><label>Phone</label><input id="instPhone" type="tel" placeholder="(000) 000-0000"></div>
           <div class="fld"><label>Email</label><input id="instEmail" type="email" placeholder="name@example.com"></div>
@@ -4658,7 +4659,7 @@ function ipDate(v){return v?String(v).slice(0,10):'';}
 function ipNz(v){v=(v||'').trim();return v?v:null;}
 async function editInstaller(id){if(!IS_ADMIN)return;const i=INSTALLERS.find(x=>x.id===id);if(!i)return;
   editingInst=id;IP_DOCS=[];
-  $('instName').textContent=i.name;
+  $('instName').textContent=i.name;$('instNameEdit').value=i.name||'';
   $('instPayType').value=i.payType||'hourly';$('instRate').value=i.payRate!=null?i.payRate:'';instRateUI();
   ['instPhone','instEmail','instAddress','instDob','instStart'].forEach(k=>{$(k).value='';});
   $('instEmpType').value='';$('instEmpStatus').value=i.status||'active';ipStatusHint();
@@ -4679,8 +4680,13 @@ async function editInstaller(id){if(!IS_ADMIN)return;const i=INSTALLERS.find(x=>
     $('instEmpStatus').value=data.employment_status||'active';ipStatusHint();}
   await ipRefreshDocs();}
 async function saveInstaller(){if(!IS_ADMIN)return;if(!editingInst)return;
+  /* A blank name would render as an empty label on every card, calendar
+     appointment and PDF line that resolves through instById. Refuse it here
+     rather than write it and find out later. */
+  const nm=($('instNameEdit').value||'').trim();
+  if(!nm){toast('Name cannot be blank',true);ipTab('info');$('instNameEdit').focus();return;}
   const payType=$('instPayType').value,payRate=+$('instRate').value||0;
-  const patch={pay_type:payType,pay_rate:payRate,
+  const patch={name:nm,pay_type:payType,pay_rate:payRate,
     phone:ipNz($('instPhone').value),email:ipNz($('instEmail').value),address:ipNz($('instAddress').value),
     employment_type:$('instEmpType').value||null,
     employment_status:$('instEmpStatus').value||'active',
@@ -4690,7 +4696,11 @@ async function saveInstaller(){if(!IS_ADMIN)return;if(!editingInst)return;
   /* Both caches are updated: INSTALLERS drives the cards and the assignment
      dropdown, ALL_INSTALLERS is what history resolves through. */
   const st=$('instEmpStatus').value||'active';
-  [INSTALLERS,ALL_INSTALLERS].forEach(arr=>{const i=arr.find(x=>x.id===editingInst);if(i){i.payType=payType;i.payRate=payRate;i.status=st;}});
+  [INSTALLERS,ALL_INSTALLERS].forEach(arr=>{const i=arr.find(x=>x.id===editingInst);if(i){i.name=nm;i.payType=payType;i.payRate=payRate;i.status=st;}});
+  /* Every other surface resolves the name through instById at render time, so
+     it picks the new one up on its next draw. The top installer filter is the
+     exception - its <option> text is built once - so rebuild it here. */
+  populateInstallerFilter();
   $('instBg').classList.remove('open');if(page==='installers')buildGeneric('installers');toast('Profile saved');}
 const IP_TYPES={application:'Application',resume:'Resume',tax_w2:'W-2',tax_1099:'1099',insurance:'Insurance',commission_report:'Commission report',coi:'Certificate of insurance',other:'Other'};
 async function ipLoadDocs(installerId){
@@ -4797,11 +4807,19 @@ function buildReports(){const g=$('genericView');
     return true;});
   let tRev=0,tCost=0,tUn=0;const groups={};
   rows.forEach(a=>{const F=apptFinance(a);tRev+=F.rev;tCost+=F.cost;if(!F.assigned)tUn++;
-    const key=reportGroup==='installer'?(F.inst?F.inst.name:'Unassigned'):(a.dealer||'—');
-    const grp=groups[key]||(groups[key]={rev:0,cost:0,jobs:0,un:0,color:(reportGroup==='installer'&&F.inst)?F.inst.color:null});
+    /* Keyed by installer ID, not by name. Names are editable as of v72, so a
+       typo that duplicates another installer's name would otherwise merge two
+       people's revenue and cost into one silently-wrong row. The name is
+       carried as a label instead. Dealer grouping still keys on its name
+       string - same latent fault, left alone because dealer names are not
+       editable here. */
+    const key=reportGroup==='installer'?(F.inst?'i:'+F.inst.id:'i:un'):(a.dealer||'—');
+    const label=reportGroup==='installer'?(F.inst?F.inst.name:'Unassigned'):(a.dealer||'—');
+    const grp=groups[key]||(groups[key]={label:label,rev:0,cost:0,jobs:0,un:0,color:(reportGroup==='installer'&&F.inst)?F.inst.color:null});
+    grp.label=label;
     grp.rev+=F.rev;grp.cost+=F.cost;grp.jobs++;if(!F.assigned)grp.un++;});
   const tMargin=tRev-tCost,tPct=tRev>0?tMargin/tRev*100:0;
-  const arr=Object.entries(groups).map(([name,v])=>({name,rev:v.rev,cost:v.cost,jobs:v.jobs,un:v.un,color:v.color,margin:v.rev-v.cost,pct:v.rev>0?(v.rev-v.cost)/v.rev*100:0})).sort((x,y)=>y.margin-x.margin);
+  const arr=Object.values(groups).map(v=>({name:v.label,rev:v.rev,cost:v.cost,jobs:v.jobs,un:v.un,color:v.color,margin:v.rev-v.cost,pct:v.rev>0?(v.rev-v.cost)/v.rev*100:0})).sort((x,y)=>y.margin-x.margin);
   const periodLbl={week:'This week',month:'This month',all:'All time',range:'Custom range'};
   const fmtD=s=>{if(!s)return '—';const [y,m,d]=s.split('-').map(Number);return new Date(y,m-1,d).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})};
   const periodTxt=reportPeriod==='range'?`${fmtD(reportFrom)} – ${fmtD(reportTo)}`:periodLbl[reportPeriod];
