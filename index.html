@@ -256,6 +256,20 @@
   .fileadd button:hover{border-color:var(--accent-line)}
   .fileempty{font-size:12px;color:var(--sand-dim);padding:4px 0 2px}
   .filegrid{display:grid;grid-template-columns:repeat(4,1fr);gap:7px;margin-bottom:9px}
+  /* Gallery arrows (v81). Positioned against the viewer modal, which is the
+     only .modal given position:relative - scoped so no other popup gains a
+     containing block it did not have. */
+  #viewBg .modal{position:relative}
+  .vwnav{position:absolute;top:50%;transform:translateY(-50%);z-index:3;width:40px;height:40px;
+    border-radius:50%;background:rgba(20,16,12,.62);border:1px solid var(--side-border);
+    color:var(--sand-ink);font-size:24px;line-height:1;cursor:pointer;
+    display:flex;align-items:center;justify-content:center;transition:.14s}
+  .vwnav:hover{background:rgba(20,16,12,.88);border-color:var(--accent-line)}
+  .vwnav[disabled]{opacity:.26;cursor:default}
+  .vwnav.prev{left:10px}.vwnav.next{right:10px}
+  /* display:flex above would otherwise beat the UA sheet's [hidden]{display:none}
+     and the arrows would sit there permanently on a single-image set. */
+  .vwnav[hidden]{display:none}
   .filethumb{aspect-ratio:1;border-radius:9px;background-size:cover;background-position:center;cursor:pointer;border:1px solid var(--side-border);position:relative}
   .filethumb:hover{border-color:var(--accent-line)}
   .filedel{position:absolute;top:3px;right:3px;width:18px;height:18px;border-radius:50%;background:rgba(20,16,12,.8);color:#fff;font-size:13px;line-height:16px;text-align:center;cursor:pointer;opacity:0;transition:.12s}
@@ -1262,8 +1276,10 @@ body.role-installer [data-admin]{display:none!important}
   </div></div>
 
   <div class="modal-bg" id="viewBg"><div class="modal" style="width:720px">
-    <div class="modal-h"><div class="mi" id="viewIcon"></div><div><h3 id="viewTitle">File</h3></div><button class="x" id="viewClose">×</button></div>
+    <div class="modal-h"><div class="mi" id="viewIcon"></div><div><h3 id="viewTitle">File</h3><div class="ms" id="viewCount"></div></div><button class="x" id="viewClose">×</button></div>
     <div class="modal-b" id="viewBody" style="padding:0"></div>
+    <button class="vwnav prev" id="viewPrev" onclick="viewStep(-1)" hidden aria-label="Previous">‹</button>
+    <button class="vwnav next" id="viewNext" onclick="viewStep(1)" hidden aria-label="Next">›</button>
   </div></div>
 
   <div class="toast" id="toast"></div>
@@ -1652,12 +1668,71 @@ function renderFiles(a){const box=$('drFiles');const files=a.files||[];const pho
 /* The open job's own files win; PJ_FILES is the fallback so a previous
    job's document opens in the same viewer without being copied onto this
    job's a.files, which is what the drawer's Files list renders from. */
+let VIEW_SET=[],VIEW_IX=0;
+/* The navigable set is built in the SAME order the grid paints, so Next moves
+   the way the eye expects. renderFiles reverses both lists (newest first) and
+   hides billing PDFs from non-admins; both are mirrored here rather than
+   re-derived, so the gallery can never offer a file the grid refuses to show. */
+function viewerSet(f){
+  const a=currentItem();const jf=(a&&a.files)||[];
+  if(jf.some(x=>x.id===f.id)){
+    return f.kind==='photo'
+      ? jf.filter(x=>x.kind==='photo').reverse()
+      : jf.filter(x=>x.kind==='pdf'&&(IS_ADMIN||!BILLING_RE.test(x.name||''))).reverse();}
+  const ip=IP_DOCS.find(x=>x.id===f.id);
+  if(ip)return IP_DOCS.filter(x=>x.group===ip.group).reverse();
+  if(PJ_FILES.some(x=>x.id===f.id))return PJ_FILES.filter(x=>x.kind===f.kind);
+  return [f];}
+function viewerIcon(kind){return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">'
+  +(kind==='pdf'?'<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/>'
+    :'<rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-5-5L5 21"/>')+'</svg>';}
+function renderViewer(){
+  const f=VIEW_SET[VIEW_IX];if(!f)return;
+  const n=VIEW_SET.length,multi=n>1;
+  $('viewTitle').textContent=f.name;
+  $('viewCount').textContent=multi?(VIEW_IX+1)+' of '+n:'';
+  $('viewIcon').innerHTML=viewerIcon(f.kind);
+  $('viewBody').innerHTML=f.kind==='pdf'
+    ?'<iframe src="'+f.url+'" style="width:100%;height:74vh;border:0;display:block;background:#fff"></iframe>'
+    :'<img src="'+f.url+'" style="width:100%;display:block">';
+  const p=$('viewPrev'),nx=$('viewNext');
+  p.hidden=!multi;nx.hidden=!multi;
+  p.disabled=VIEW_IX<=0;nx.disabled=VIEW_IX>=n-1;}
+function viewStep(d){const n=VIEW_SET.length;if(n<2)return;
+  const ix=VIEW_IX+d;if(ix<0||ix>=n)return;VIEW_IX=ix;renderViewer();}
 function openViewer(fileId){const a=currentItem();
   const f=(((a&&a.files)||[]).find(x=>x.id===fileId))||PJ_FILES.find(x=>x.id===fileId)||IP_DOCS.find(x=>x.id===fileId);
   if(!f)return;
-  $('viewTitle').textContent=f.name;$('viewIcon').innerHTML=`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">${f.kind==='pdf'?'<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/>':'<rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-5-5L5 21"/>'}</svg>`;
-  $('viewBody').innerHTML=f.kind==='pdf'?`<iframe src="${f.url}" style="width:100%;height:74vh;border:0;display:block;background:#fff"></iframe>`:`<img src="${f.url}" style="width:100%;display:block">`;
+  VIEW_SET=viewerSet(f);
+  const ix=VIEW_SET.findIndex(x=>x.id===f.id);
+  /* If the set somehow does not contain the file, fall back to showing it
+     alone rather than opening on the wrong image. */
+  if(ix<0){VIEW_SET=[f];VIEW_IX=0;}else VIEW_IX=ix;
+  renderViewer();
   $('viewBg').classList.add('open');}
+/* Swipe, mirroring the calendar's day-swipe thresholds so the two gestures
+   feel the same: 50px, 600ms, and mostly-horizontal or the image keeps its
+   own vertical scroll. Scoped to #viewBody, which the calendar handler never
+   sees, so the two cannot fight. */
+let vwX=0,vwY=0,vwT=0,vwOn=false;
+$('viewBody').addEventListener('touchstart',e=>{
+  vwOn=e.touches.length===1&&VIEW_SET.length>1;
+  if(!vwOn)return;
+  vwX=e.touches[0].clientX;vwY=e.touches[0].clientY;vwT=Date.now();},{passive:true});
+$('viewBody').addEventListener('touchend',e=>{
+  if(!vwOn)return;vwOn=false;
+  const t=e.changedTouches[0],dx=t.clientX-vwX,dy=t.clientY-vwY;
+  if(Date.now()-vwT>600)return;
+  if(Math.abs(dx)<50)return;
+  if(Math.abs(dx)<=Math.abs(dy)*1.5)return;
+  viewStep(dx<0?1:-1);},{passive:true});
+/* Arrow keys and Escape, live only while the viewer is open so nothing else
+   in the app loses a keystroke. */
+document.addEventListener('keydown',e=>{
+  if(!$('viewBg').classList.contains('open'))return;
+  if(e.key==='ArrowLeft'){viewStep(-1);e.preventDefault();}
+  else if(e.key==='ArrowRight'){viewStep(1);e.preventDefault();}
+  else if(e.key==='Escape'){$('viewBg').classList.remove('open');e.preventDefault();}});
 $('viewClose').onclick=()=>$('viewBg').classList.remove('open');
 $('viewBg').addEventListener('click',e=>{if(e.target.id==='viewBg')$('viewBg').classList.remove('open')});
 function closeDrawer(){selectedId=null;$('drawer').classList.remove('open');render()}
