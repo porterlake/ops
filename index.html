@@ -460,8 +460,17 @@
   .rate-unit{font-size:11px;font-weight:700;color:#7a6c45;background:rgba(216,198,160,.22);padding:3px 9px;border-radius:6px;white-space:nowrap}
   /* Product is the overwhelming majority, so it reads quiet and Service reads
      loud - the exception is what the eye needs to find on a 94-row sheet. */
-  .rtype{font-size:9.5px;font-weight:800;letter-spacing:.7px;text-transform:uppercase;padding:2px 6px;border-radius:5px;color:var(--muted);background:var(--page);border:1px solid var(--border);vertical-align:middle}
-  .rtype.svc{color:#7a6c45;background:rgba(216,198,160,.28);border-color:rgba(216,198,160,.55)}
+  /* .ritype, NOT .rtype - Receiving already owns .rtype for its Scheduled and
+     job-type chips, and v90 silently overrode it from further down the sheet. */
+  .lqty{font-size:11px;color:var(--muted);margin-top:2px}
+  .lqty b{color:#a3211d;font-weight:700}
+  .ladd{display:flex;gap:5px;align-items:center;flex-shrink:0}
+  .ladd input{width:62px;min-width:0;background:var(--card);border:1px solid var(--border);color:var(--ink);font:inherit;font-size:12.5px;padding:5px 7px;border-radius:7px;outline:none}
+  .ladd input:focus{border-color:#b49e6f}
+  .ladd button{font:inherit;font-size:11.5px;font-weight:700;padding:5px 10px;border-radius:7px;cursor:pointer;background:var(--accent);color:var(--accent-ink);border:none}
+  .lbadge.part{color:#8a6742;background:rgba(216,198,160,.28)}
+  .ritype{font-size:9.5px;font-weight:800;letter-spacing:.7px;text-transform:uppercase;padding:2px 6px;border-radius:5px;color:var(--muted);background:var(--page);border:1px solid var(--border);vertical-align:middle}
+  .ritype.svc{color:#7a6c45;background:rgba(216,198,160,.28);border-color:rgba(216,198,160,.55)}
   .rate-price{font-weight:800;font-size:15px;color:var(--ink);text-align:right;min-width:88px;white-space:nowrap}
   .rate-min{display:block;font-size:10px;font-weight:600;color:var(--muted)}
   .rq{color:var(--muted);font-weight:700;font-size:12px;text-transform:uppercase;letter-spacing:.5px}
@@ -1491,9 +1500,9 @@ function mapJob(j){return {id:j.id,type:j.type,customerId:j.customer_id,dealerId
   cust:j.customers?j.customers.name:'—',dealer:j.dealers?j.dealers.name:'—',
   addr:j.site_address||'—',phone:j.customers?(j.customers.phone||''):'',scope:j.scope||'—',
   awaitingProduct:j.awaiting_product,override:j.override_schedule||false,
-  lineItems:(j.line_items||[]).map(li=>({id:li.id,desc:li.description,qty:li.qty,delivered:li.delivered,by:li.delivered_by||'',serviceId:li.service_id||null,unitPrice:li.unit_price,minCharge:li.min_charge,isCustom:!!li.is_custom})),dealerDiscount:j.dealers?(+j.dealers.discount_pct||0):0};}
+  lineItems:(j.line_items||[]).map(li=>({id:li.id,desc:li.description,qty:li.qty,delivered:li.delivered,qtyRecv:li.qty_received||0,by:li.delivered_by||'',serviceId:li.service_id||null,unitPrice:li.unit_price,minCharge:li.min_charge,isCustom:!!li.is_custom})),dealerDiscount:j.dealers?(+j.dealers.discount_pct||0):0};}
 async function loadJobs(){try{const {data,error}=await sb.from('jobs')
-    .select('id,customer_id,dealer_id,type,site_address,scope,estimated_minutes,awaiting_product,override_schedule,completed_at,closed_at,job_number,customers(name,phone),dealers(name,discount_pct),line_items(id,description,qty,delivered,delivered_by,service_id,unit_price,min_charge,is_custom)')
+    .select('id,customer_id,dealer_id,type,site_address,scope,estimated_minutes,awaiting_product,override_schedule,completed_at,closed_at,job_number,customers(name,phone),dealers(name,discount_pct),line_items(id,description,qty,delivered,delivered_by,qty_received,service_id,unit_price,min_charge,is_custom)')
     .order('created_at',{ascending:true});
   if(error){console.error(error);toast('Could not load jobs',true);return;}
   const scheduled=new Set(appts.map(a=>a.jobId));
@@ -1506,6 +1515,16 @@ async function loadJobs(){try{const {data,error}=await sb.from('jobs')
    one extra row to tick is an annoyance; silently dropping a physical item
    from check-in ships the job short, so the unknown case fails toward
    visible. */
+/* Receiving quantities. qty is the target, qty_received the running total.
+   Both are coerced defensively: a null, zero or fractional qty would make
+   "received >= ordered" either instantly true or never true, and neither is a
+   state the warehouse could act on. A line with no usable qty is treated as
+   one unit. This is RECEIVING quantity only - it says nothing about how much
+   was installed. */
+function liTarget(li){const n=Math.round(+((li&&li.qty))||0);return n>0?n:1;}
+function liRecv(li){const n=Math.round(+((li&&li.qtyRecv))||0);return n>0?n:0;}
+function liFull(li){return liRecv(li)>=liTarget(li);}
+function liLeft(li){return Math.max(0,liTarget(li)-liRecv(li));}
 function isStockLine(li){
   if(!li)return false;
   if(!li.serviceId)return true;
@@ -1521,12 +1540,12 @@ function stockLines(list){return (list||[]).filter(isStockLine);}
 function readyToSchedule(j){
   if(j.override||!j.awaitingProduct)return true;
   if(!j.lineItems||!j.lineItems.length)return false;
-  return stockLines(j.lineItems).every(li=>li.delivered);}
+  return stockLines(j.lineItems).every(liFull);}
 function stillAwaiting(j){
   if(!j.awaitingProduct||j.override)return false;
   if(!j.lineItems||!j.lineItems.length)return true;
-  return stockLines(j.lineItems).some(li=>!li.delivered);}
-function partialAwaiting(x){return x.awaitingProduct&&x.lineItems&&stockLines(x.lineItems).some(li=>!li.delivered)}
+  return stockLines(j.lineItems).some(li=>!liFull(li));}
+function partialAwaiting(x){return x.awaitingProduct&&x.lineItems&&stockLines(x.lineItems).some(li=>!liFull(li))}
 let appts=[
   {id:"a1",type:"Install",cust:"Brad Burdsall",dealer:"Sunset Blinds Co.",addr:"22 Oak Run, Venice",scope:"9 windows · faux wood",day:0,start:9,dur:5,installer:"mk",status:"scheduled"},
   {id:"a2",type:"Measure",cust:"Fournier Residence",dealer:"Coastal Window Co.",addr:"61 Bay St, Sarasota",scope:"Whole home measure",day:1,start:9,dur:2,installer:"mk",status:"otw"},
@@ -1577,9 +1596,9 @@ function mapAppt(r){const j=r.jobs||{};const d=new Date(r.start_time);return {id
   phone:j.customers?(j.customers.phone||''):'',scope:j.scope||'—',customerId:j.customer_id,dealerId:j.dealer_id,estMins:j.estimated_minutes||120,
   awaitingProduct:j.awaiting_product,override:j.override_schedule||false,
   completedAt:j.completed_at||null,closedAt:j.closed_at||null,jobNo:j.job_number||null,
-  lineItems:(j.line_items||[]).map(li=>({id:li.id,desc:li.description,qty:li.qty,delivered:li.delivered,by:li.delivered_by||'',serviceId:li.service_id||null,unitPrice:li.unit_price,minCharge:li.min_charge,isCustom:!!li.is_custom})),dealerDiscount:j.dealers?(+j.dealers.discount_pct||0):0,files:[]};}
+  lineItems:(j.line_items||[]).map(li=>({id:li.id,desc:li.description,qty:li.qty,delivered:li.delivered,qtyRecv:li.qty_received||0,by:li.delivered_by||'',serviceId:li.service_id||null,unitPrice:li.unit_price,minCharge:li.min_charge,isCustom:!!li.is_custom})),dealerDiscount:j.dealers?(+j.dealers.discount_pct||0):0,files:[]};}
 async function loadAppointments(){try{const {data,error}=await sb.from('appointments')
-    .select('id,job_id,installer_id,status,start_time,duration_minutes,notes,jobs(type,site_address,scope,estimated_minutes,awaiting_product,override_schedule,completed_at,closed_at,job_number,customer_id,dealer_id,customers(name,phone),dealers(name,discount_pct),line_items(id,description,qty,delivered,delivered_by,service_id,unit_price,min_charge,is_custom))')
+    .select('id,job_id,installer_id,status,start_time,duration_minutes,notes,jobs(type,site_address,scope,estimated_minutes,awaiting_product,override_schedule,completed_at,closed_at,job_number,customer_id,dealer_id,customers(name,phone),dealers(name,discount_pct),line_items(id,description,qty,delivered,delivered_by,qty_received,service_id,unit_price,min_charge,is_custom))')
     .order('start_time',{ascending:true});
   if(error){console.error(error);toast('Could not load appointments',true);return;}
   appts=(data||[]).map(mapAppt);markConflicts();render();}catch(e){console.error(e)}}
@@ -2087,7 +2106,7 @@ async function stockInit(){
   /* Fresh read, not the cached copy. delivered_at is selected here for the
      first time — the app has always written it and never read it back. */
   const {data,error}=await sb.from('line_items')
-    .select('id,description,qty,delivered,delivered_by,delivered_at,service_id')
+    .select('id,description,qty,delivered,delivered_by,delivered_at,service_id,qty_received')
     .eq('job_id',jobId)
     .order('delivered',{ascending:true})
     .order('description',{ascending:true});
@@ -2100,11 +2119,13 @@ async function stockInit(){
   if(!rows.length){
     box.innerHTML='<p style="'+dim+'">Nothing to check in on this job \u2014 every line is a service, not stock.</p>';return;}
 
-  const awaiting=rows.filter(function(r){return !r.delivered;});
-  const received=rows.filter(function(r){return !!r.delivered;});
+  /* Partitioned on the QUANTITY, not the boolean, so a part-delivered line
+     sits with the outstanding work where the installer needs to see it. */
+  const awaiting=rows.filter(function(r){return !liFull({qty:r.qty,qtyRecv:r.qty_received});});
+  const received=rows.filter(function(r){return liFull({qty:r.qty,qtyRecv:r.qty_received});});
   const head='<div style="font-size:13px;font-weight:700;color:'
     +(awaiting.length?'#caa017':'#7c9a3f')+';margin-bottom:12px">'
-    +received.length+' of '+rows.length+' received'
+    +received.length+' of '+rows.length+' fully received'
     +(awaiting.length?' &middot; '+awaiting.length+' still awaiting':' &middot; all stock in')
     +'</div>';
   const lbl='font-size:10.5px;letter-spacing:1.2px;text-transform:uppercase;color:var(--sand-dim);margin:14px 0 7px';
@@ -5616,7 +5637,7 @@ function buildRates(){const g=$('genericView');const q=rateSearch.trim().toLower
   RATE_CATS.forEach(cat=>{const items=list.filter(s=>s.category===cat);if(!items.length)return;
     body+=`<div class="rate-cat">${cat}<span class="rate-count">${items.length}</span></div>`;
     items.forEach(s=>{body+=`<div class="rate-row${s.active===false?' off':''}" onclick="editService('${s.id}')">
-      <div class="rate-main"><div class="rate-name">${s.name}${s.item_type==='service'?' <span class="rtype svc">Service</span>':' <span class="rtype">Product</span>'}${s.active===false?' <span class="rate-retired">retired</span>':''}</div>${s.notes?`<div class="rate-notes">${s.notes}</div>`:''}</div>
+      <div class="rate-main"><div class="rate-name">${s.name}${s.item_type==='service'?' <span class="ritype svc">Service</span>':' <span class="ritype">Product</span>'}${s.active===false?' <span class="rate-retired">retired</span>':''}</div>${s.notes?`<div class="rate-notes">${s.notes}</div>`:''}</div>
       <div class="rate-unit">${s.unit||''}</div>
       <div class="rate-price">${money(s.price)}${s.min_charge?`<span class="rate-min">min $${Number(s.min_charge).toFixed(2)}</span>`:''}</div>
     </div>`});});
@@ -5792,14 +5813,14 @@ function recvFind(jobId){
 }
 
 function recvFullyReceived(j){
-  return !!(j.lineItems&&j.lineItems.length&&stockLines(j.lineItems).every(function(li){return li.delivered;}));
+  return !!(j.lineItems&&j.lineItems.length&&stockLines(j.lineItems).every(liFull));
 }
 
 function recvCard(j,showSchedule){
   /* Counts and rows both come off the stock subset, so "3 of 5" cannot count
      a service line it never shows. */
   const stock=stockLines(j.lineItems);
-  const done=stock.filter(function(li){return li.delivered;}).length,tot=stock.length;
+  const done=stock.filter(liFull).length,tot=stock.length;
   const nNotes=(RECV_NOTE_N&&RECV_NOTE_N[j.id])||0;
   const lines=stock.map(function(li){
     return '<div class="lrow '+(li.delivered?'on':'')+'">'
@@ -5807,10 +5828,15 @@ function recvCard(j,showSchedule){
       +(li.delivered?'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M5 12l5 5L20 6"/></svg>':'')
       +'</button>'
       +'<div class="ld"><div class="ln">'+esc(li.desc)+'</div>'
-      +(li.delivered&&li.by?'<div class="lby">'+esc(li.by)+'</div>':'')+'</div>'
-      +'<div class="lq">&times;'+esc(String(li.qty))+'</div>'
-      +'<div class="lstat">'+(li.delivered
-          ?'<span class="lbadge in">Delivered</span>'
+      +'<div class="lqty">'+liRecv(li)+' of '+liTarget(li)+' received'
+        +(liLeft(li)?' &middot; <b>'+liLeft(li)+' remaining</b>':'')+'</div>'
+      +(liFull(li)&&li.by?'<div class="lby">'+esc(li.by)+'</div>':'')+'</div>'
+      +(liFull(li)?''
+        :'<div class="ladd"><input type="number" min="1" step="1" placeholder="+qty" id="add-'+j.id+'-'+li.id+'">'
+          +'<button onclick="recvAddFrom(\''+j.id+'\',\''+li.id+'\')">Add</button></div>')
+      +'<div class="lstat">'+(liFull(li)
+          ?'<span class="lbadge in">Received</span>'
+          :liRecv(li)?'<span class="lbadge part">Partial</span>'
           :'<span class="lbadge out">Pending</span>')+'</div>'
       +'</div>';}).join('');
   const tag=j.scheduled?' <span class="rtype">Scheduled</span>':'';
@@ -5819,7 +5845,7 @@ function recvCard(j,showSchedule){
   return '<div class="rcard'+(recvFocus===j.id?' rfocus':'')+'" id="rcard-'+j.id+'"><div class="rhead"><div>'
       +'<div class="rcust">'+esc(j.cust)+' <span class="rtype">'+esc(j.type)+'</span>'+tag+'</div>'
       +'<div class="rsub">'+esc(j.dealer)+' &middot; '+esc(j.addr)+'</div></div>'
-      +'<div class="rprog">'+done+'/'+tot+' delivered</div></div>'
+      +'<div class="rprog">'+done+'/'+tot+' fully received</div></div>'
       +'<div class="lines">'+lines+'</div>'
       +'<div class="ract">'
         /* Neutral against the LIGHT page: .btn.ghost is dark-palette only
@@ -5965,7 +5991,9 @@ function toggleLine(jobId,lineId){
      before v47 this returned undefined and the click did nothing at all. */
   const j=recvFind(jobId);if(!j)return;
   const li=j.lineItems.find(function(l){return l.id===lineId;});if(!li)return;
-  if(!li.delivered){applyLineToggle(jobId,lineId,true);return;}
+  /* One tap still means "all of it arrived", which is the common case. The
+     partial path is the +qty box beside it. */
+  if(!liFull(li)){recvAdd(jobId,lineId,liLeft(li));return;}
 
   _unrecv={jobId:jobId,lineId:lineId};
   const who=li.by?esc(li.by):'not recorded';
@@ -5995,6 +6023,47 @@ $('unrecvGo').onclick=function(){const t=_unrecv;
   _unrecv=null;$('unrecvBg').classList.remove('open');
   if(t)applyLineToggle(t.jobId,t.lineId,false);};
 
+/* Event-based: the warehouse enters WHAT ARRIVED TODAY and it is added to the
+   running total. The current total is re-read from the database first rather
+   than trusted from the cached row, so two people receiving the same job
+   cannot overwrite each other's count with a stale base.
+
+   Over-receiving is capped here rather than by a CHECK constraint: a constraint
+   fires on EVERY update of the row, so reducing a line's qty below what had
+   already been received would fail in the pricing editor, nowhere near
+   Receiving. */
+async function recvAddFrom(jobId,lineId){
+  const el=$('add-'+jobId+'-'+lineId);if(!el)return;
+  const n=Math.round(+el.value||0);
+  if(!n){toast('Enter how many arrived',true);el.focus();return;}
+  await recvAdd(jobId,lineId,n);}
+async function recvAdd(jobId,lineId,n){
+  const j=recvFind(jobId);if(!j)return;
+  const li=j.lineItems.find(function(l){return l.id===lineId;});if(!li)return;
+  const {data:fresh,error:re}=await sb.from('line_items').select('qty,qty_received').eq('id',lineId).single();
+  if(re){toast('Could not read the current count',true);console.error(re);return;}
+  const target=liTarget({qty:fresh.qty});
+  const have=liRecv({qtyRecv:fresh.qty_received});
+  let next=have+n;
+  let capped=false;
+  if(next>target){next=target;capped=true;}
+  if(next<0)next=0;
+  if(next===have){toast('Already fully received',true);return;}
+  const full=next>=target;
+  const by=full?recvWho()+' \u00b7 '+shortDate():null;
+  const {error}=await sb.from('line_items')
+    .update({qty_received:next,delivered:full,delivered_by:by,delivered_at:full?new Date().toISOString():null})
+    .eq('id',lineId);
+  if(error){toast('Update failed',true);console.error(error);return;}
+  li.qtyRecv=next;li.delivered=full;li.by=by||'';
+  const allFull=stockLines(j.lineItems).every(liFull);
+  buildReceiving();renderQueue();
+  if(page==='toschedule')buildGeneric('toschedule');
+  if(j.scheduled)render();
+  if(capped)toast('Capped at '+target+' \u2014 that is the full quantity ordered',true);
+  else if(allFull)toast('<b>'+esc(j.cust)+'</b> fully received \u2014 now Ready to Schedule');
+  else if(full)toast('<b>'+esc(li.desc)+'</b> complete \u2014 '+next+' of '+target);
+  else toast('Received '+n+' \u2014 '+next+' of '+target+', '+(target-next)+' still to come');}
 async function applyLineToggle(jobId,lineId,nowDel){
   const j=recvFind(jobId);if(!j)return;
   const li=j.lineItems.find(function(l){return l.id===lineId;});if(!li)return;
@@ -6005,11 +6074,14 @@ async function applyLineToggle(jobId,lineId,nowDel){
      as the machine-readable copy. */
   const by=nowDel?recvWho()+' · '+shortDate():null;
   const {error}=await sb.from('line_items')
-    .update({delivered:nowDel,delivered_by:by,delivered_at:nowDel?new Date().toISOString():null})
+    /* Un-receiving is a CORRECTION, so the running total goes back to zero
+       with it - leaving qty_received behind would show a Pending line that
+       still claimed a count. */
+    .update({delivered:nowDel,qty_received:nowDel?liTarget(li):0,delivered_by:by,delivered_at:nowDel?new Date().toISOString():null})
     .eq('id',lineId);
   if(error){toast('Update failed',true);console.error(error);return;}
-  li.delivered=nowDel;li.by=by||'';
-  const allDel=stockLines(j.lineItems).every(function(l){return l.delivered;});
+  li.delivered=nowDel;li.qtyRecv=nowDel?liTarget(li):0;li.by=by||'';
+  const allDel=stockLines(j.lineItems).every(liFull);
   buildReceiving();renderQueue();
   if(page==='toschedule')buildGeneric('toschedule');
   /* A scheduled job's stock lives on an appointment, so the calendar's
