@@ -460,6 +460,16 @@
      overscroll-behavior:contain stops a bottomed-out scroll from chaining into
      body, which is overflow:hidden and cannot scroll. */
   .modal-b{flex:1 1 auto;min-height:0;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;padding:20px 22px}
+  /* Installer profile (v69). The tab strip is flex:0 0 auto and sits BETWEEN
+     .modal-h and .modal-b, so it never scrolls away and, more importantly, it
+     adds no second scroller - .modal-b stays the one scroll area in the chain. */
+  .modal-tabs{flex:0 0 auto;padding:12px 22px 0;border-bottom:1px solid var(--side-border)}
+  .modal-tabs .seg{margin-bottom:12px}
+  .fld2{display:grid;grid-template-columns:1fr 1fr;gap:0 14px}
+  .docgrp{font-size:10.5px;letter-spacing:1.2px;text-transform:uppercase;color:var(--sand-dim);margin:18px 0 9px;padding-top:14px;border-top:1px solid var(--side-border)}
+  .docgrp:first-child{margin-top:0;padding-top:0;border-top:none}
+  .docmeta{font-size:11px;color:var(--sand-dim);flex-shrink:0}
+  .fileadd select{background:var(--side-3);border:1px solid var(--side-border);color:var(--sand-ink);font:inherit;font-size:12px;padding:7px 9px;border-radius:8px;outline:none}
   .mtable{width:100%;border-collapse:collapse;font-size:13px;margin-top:6px}
   .mtable th{text-align:left;font-size:10.5px;letter-spacing:.8px;text-transform:uppercase;color:var(--sand-dim);padding:6px 8px;border-bottom:1px solid var(--side-border)}
   .mtable td{padding:8px;border-bottom:1px solid var(--side-border)}.mtable input{width:100%;background:var(--side-3);border:1px solid var(--side-border);border-radius:6px;padding:5px 7px;font:inherit;font-size:12.5px;color:var(--sand-ink)}
@@ -904,6 +914,8 @@ body.role-installer [data-admin]{display:none!important}
   .modal-h{padding:14px 16px}
   .modal-b{padding:16px}
   .modal-f{padding:12px 16px}
+  .modal-tabs{padding:10px 16px 0}
+  .fld2{grid-template-columns:1fr}
   .filegrid,.photogrid{grid-template-columns:repeat(3,1fr)}
   /* More room to sign with a finger, which is the whole point on a phone. */
   .sgpad{height:210px}
@@ -1087,17 +1099,45 @@ body.role-installer [data-admin]{display:none!important}
     <div class="modal-f"><button class="btn ghost" id="svcDelete" style="display:none" onclick="deleteService()">Delete</button><div style="flex:1"></div><button class="btn ghost" onclick="$('svcBg').classList.remove('open')">Cancel</button><button class="btn" onclick="saveService()">Save</button></div>
   </div></div>
 
-  <div class="modal-bg" id="instBg" data-admin><div class="modal">
-    <div class="modal-h"><div class="mi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 21v-1a6 6 0 0 1 6-6h4a6 6 0 0 1 6 6v1"/></svg></div><div><h3 id="instTitle">Installer pay</h3><div class="ms">How this installer's cost is calculated</div></div><button class="x" onclick="$('instBg').classList.remove('open')">×</button></div>
+  <div class="modal-bg" id="instBg" data-admin><div class="modal" style="width:600px">
+    <div class="modal-h"><div class="mi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 21v-1a6 6 0 0 1 6-6h4a6 6 0 0 1 6 6v1"/></svg></div><div><h3 id="instTitle">Installer profile</h3><div class="ms" id="instName">—</div></div><button class="x" onclick="$('instBg').classList.remove('open')">×</button></div>
+    <div class="modal-tabs"><div class="seg ghost" id="ipTabs"><button class="on" onclick="ipTab('info')">Info</button><button onclick="ipTab('docs')">Documents</button><button onclick="ipTab('pay')">Pay</button></div></div>
     <div class="modal-b">
-      <div class="fld"><label>Installer</label><div class="val dim" id="instName">—</div></div>
-      <div class="fld"><label>Pay type</label><select id="instPayType" onchange="instRateUI()">
-        <option value="sub_1099">1099 subcontractor · % of price</option>
-        <option value="hourly">Hourly · $/hr</option>
-        <option value="salary">Salary · allocated $/hr</option>
-      </select></div>
-      <div class="fld"><label id="instRateLbl">Rate</label><input id="instRate" type="number" step="0.01" placeholder="0"></div>
-      <div class="limeta" id="instHint" style="padding:0 2px"></div>
+      <div id="ipInfo">
+        <div class="fld2">
+          <div class="fld"><label>Phone</label><input id="instPhone" type="tel" placeholder="(000) 000-0000"></div>
+          <div class="fld"><label>Email</label><input id="instEmail" type="email" placeholder="name@example.com"></div>
+        </div>
+        <div class="fld"><label>Address</label><input id="instAddress" type="text" placeholder="Street, city, postal code"></div>
+        <div class="fld"><label>Employment type</label><select id="instEmpType">
+          <option value="">Not set</option>
+          <option value="w2">W-2 employee</option>
+          <option value="1099">1099 contractor</option>
+          <option value="subcontractor">Subcontractor</option>
+        </select></div>
+        <div class="fld2">
+          <div class="fld"><label>Date of birth</label><input id="instDob" type="date"></div>
+          <div class="fld"><label>Start date</label><input id="instStart" type="date"></div>
+        </div>
+      </div>
+      <div id="ipDocs" hidden>
+        <div class="docgrp">Internal Documents</div>
+        <div class="fileadd"><select id="ipTypeInternal"><option value="application">Application</option><option value="resume">Resume</option><option value="tax_w2">W-2</option><option value="tax_1099">1099</option><option value="insurance">Insurance</option><option value="other">Other</option></select><button onclick="ipPick('internal')">+ Add document</button></div>
+        <div id="ipDocsInternal"></div>
+        <div class="docgrp">My Documents</div>
+        <div class="fileadd"><select id="ipTypeMine"><option value="commission_report">Commission report</option><option value="coi">Certificate of insurance</option><option value="other">Other</option></select><button onclick="ipPick('installer')">+ Add document</button></div>
+        <div id="ipDocsMine"></div>
+      </div>
+      <div id="ipPay" hidden>
+        <div class="fld"><label>Pay type</label><select id="instPayType" onchange="instRateUI()">
+          <option value="sub_1099">1099 subcontractor · % of price</option>
+          <option value="hourly">Hourly · $/hr</option>
+          <option value="salary">Salary · allocated $/hr</option>
+        </select></div>
+        <div class="fld"><label id="instRateLbl">Rate</label><input id="instRate" type="number" step="0.01" placeholder="0"></div>
+        <div class="limeta" id="instHint" style="padding:0 2px"></div>
+      </div>
+      <input type="file" id="ipFile" hidden accept=".pdf,.png,.jpg,.jpeg,.webp">
     </div>
     <div class="modal-f"><div style="flex:1"></div><button class="btn ghost" onclick="$('instBg').classList.remove('open')">Cancel</button><button class="btn" onclick="saveInstaller()">Save</button></div>
   </div></div>
@@ -1462,7 +1502,7 @@ function renderFiles(a){const box=$('drFiles');const files=a.files||[];const pho
    job's document opens in the same viewer without being copied onto this
    job's a.files, which is what the drawer's Files list renders from. */
 function openViewer(fileId){const a=currentItem();
-  const f=(((a&&a.files)||[]).find(x=>x.id===fileId))||PJ_FILES.find(x=>x.id===fileId);
+  const f=(((a&&a.files)||[]).find(x=>x.id===fileId))||PJ_FILES.find(x=>x.id===fileId)||IP_DOCS.find(x=>x.id===fileId);
   if(!f)return;
   $('viewTitle').textContent=f.name;$('viewIcon').innerHTML=`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">${f.kind==='pdf'?'<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/>':'<rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-5-5L5 21"/>'}</svg>`;
   $('viewBody').innerHTML=f.kind==='pdf'?`<iframe src="${f.url}" style="width:100%;height:74vh;border:0;display:block;background:#fff"></iframe>`:`<img src="${f.url}" style="width:100%;display:block">`;
@@ -4565,18 +4605,114 @@ async function biRender(a){
       +'<td class="r">'+esc(msFmtDate(new Date(d.issued_at))||'')+'</td>'
       +'<td class="r">'+biMoney(d.total)+'</td></tr>';}).join('')+'</table>';}
 
-let editingInst=null;
+let editingInst=null,IP_DOCS=[],ipPendingGroup=null;
 function instRateUI(){const t=$('instPayType').value,lbl=$('instRateLbl'),hint=$('instHint');
-  if(t==='sub_1099'){lbl.textContent='Percent of job price (%)';hint.textContent='Cost = job price × this %. e.g. 40 = 40% of the dealer charge.';}
-  else if(t==='hourly'){lbl.textContent='Hourly rate ($/hr)';hint.textContent='Cost = rate × appointment duration.';}
-  else{lbl.textContent='Loaded hourly cost ($/hr)';hint.textContent='Salary allocated by time. Cost = loaded $/hr × appointment duration.';}}
-function editInstaller(id){if(!IS_ADMIN)return;const i=INSTALLERS.find(x=>x.id===id);if(!i)return;editingInst=id;
-  $('instName').textContent=i.name;$('instPayType').value=i.payType||'hourly';$('instRate').value=i.payRate!=null?i.payRate:'';instRateUI();$('instBg').classList.add('open');}
-async function saveInstaller(){if(!IS_ADMIN)return;if(!editingInst)return;const payType=$('instPayType').value,payRate=+$('instRate').value||0;
-  const {error}=await sb.from('installers').update({pay_type:payType,pay_rate:payRate}).eq('id',editingInst);
+  if(t==='sub_1099'){lbl.textContent='Percent of job price (%)';hint.textContent='Cost = job price \u00d7 this %. e.g. 40 = 40% of the dealer charge.';}
+  else if(t==='hourly'){lbl.textContent='Hourly rate ($/hr)';hint.textContent='Cost = rate \u00d7 appointment duration.';}
+  else{lbl.textContent='Loaded hourly cost ($/hr)';hint.textContent='Salary allocated by time. Cost = loaded $/hr \u00d7 appointment duration.';}}
+const IP_SECTIONS=['info','docs','pay'],IP_PANES={info:'ipInfo',docs:'ipDocs',pay:'ipPay'};
+function ipTab(sec){IP_SECTIONS.forEach(k=>{$(IP_PANES[k]).hidden=(k!==sec)});
+  $('ipTabs').querySelectorAll('button').forEach((b,i)=>b.classList.toggle('on',IP_SECTIONS[i]===sec));}
+/* A date column comes back as 'YYYY-MM-DD'; an <input type=date> wants exactly
+   that and silently shows blank for anything longer. */
+function ipDate(v){return v?String(v).slice(0,10):'';}
+/* Empty string is not NULL to Postgres: '' into a date column is a hard error
+   and '' into employment_type violates its CHECK. Every optional field goes
+   through here or through ||null before it is sent. */
+function ipNz(v){v=(v||'').trim();return v?v:null;}
+async function editInstaller(id){if(!IS_ADMIN)return;const i=INSTALLERS.find(x=>x.id===id);if(!i)return;
+  editingInst=id;IP_DOCS=[];
+  $('instName').textContent=i.name;
+  $('instPayType').value=i.payType||'hourly';$('instRate').value=i.payRate!=null?i.payRate:'';instRateUI();
+  ['instPhone','instEmail','instAddress','instDob','instStart'].forEach(k=>{$(k).value='';});
+  $('instEmpType').value='';
+  $('ipDocsInternal').innerHTML='';$('ipDocsMine').innerHTML='';
+  ipTab('info');$('instBg').classList.add('open');
+  /* The profile columns are read here, for ONE installer, rather than being
+     added to loadInstallers(). That query runs for every signed-in user on
+     every load; date of birth and home address have no business being shipped
+     to every browser just so the calendar can draw a name and a colour. */
+  const {data,error}=await sb.from('installers').select('phone,email,address,employment_type,dob,start_date').eq('id',id).single();
+  /* editingInst is re-checked because the admin can close this popup and open
+     another installer while the request is still in flight. */
+  if(error){console.error(error);toast('Could not load profile',true);}
+  else if(data&&editingInst===id){
+    $('instPhone').value=data.phone||'';$('instEmail').value=data.email||'';
+    $('instAddress').value=data.address||'';$('instEmpType').value=data.employment_type||'';
+    $('instDob').value=ipDate(data.dob);$('instStart').value=ipDate(data.start_date);}
+  await ipRefreshDocs();}
+async function saveInstaller(){if(!IS_ADMIN)return;if(!editingInst)return;
+  const payType=$('instPayType').value,payRate=+$('instRate').value||0;
+  const patch={pay_type:payType,pay_rate:payRate,
+    phone:ipNz($('instPhone').value),email:ipNz($('instEmail').value),address:ipNz($('instAddress').value),
+    employment_type:$('instEmpType').value||null,
+    dob:$('instDob').value||null,start_date:$('instStart').value||null};
+  const {error}=await sb.from('installers').update(patch).eq('id',editingInst);
   if(error){toast('Save failed',true);console.error(error);return;}
   const i=INSTALLERS.find(x=>x.id===editingInst);if(i){i.payType=payType;i.payRate=payRate;}
-  $('instBg').classList.remove('open');if(page==='installers')buildGeneric('installers');toast('Pay updated');}
+  $('instBg').classList.remove('open');if(page==='installers')buildGeneric('installers');toast('Profile saved');}
+const IP_TYPES={application:'Application',resume:'Resume',tax_w2:'W-2',tax_1099:'1099',insurance:'Insurance',commission_report:'Commission report',coi:'Certificate of insurance',other:'Other'};
+async function ipLoadDocs(installerId){
+  const {data,error}=await sb.from('installer_documents')
+    .select('id,doc_group,doc_type,kind,name,storage_path,uploaded_at,uploader_email')
+    .eq('installer_id',installerId).order('uploaded_at');
+  if(error){console.error(error);return[];}
+  const rows=data||[];if(!rows.length)return[];
+  const paths=rows.map(d=>d.storage_path);
+  /* Signed URLs only, exactly as loadFiles does. installer-files is private
+     from the day it is created, so getPublicUrl would 400 here and a fallback
+     to it would hide the failure instead of surfacing it. */
+  const {data:signed,error:se}=await sb.storage.from('installer-files').createSignedUrls(paths,SIGNED_URL_TTL);
+  if(se)console.error('createSignedUrls installer-files',se);
+  const byPath=new Map();
+  (signed||[]).forEach((s,i)=>{if(s&&s.signedUrl)byPath.set(s.path||paths[i],s.signedUrl);});
+  return rows.map(d=>({id:d.id,group:d.doc_group,type:d.doc_type,kind:d.kind,name:d.name,
+    url:byPath.get(d.storage_path)||null,path:d.storage_path,uploaded:d.uploaded_at||null,who:d.uploader_email||null}));}
+async function ipRefreshDocs(){if(!editingInst)return;
+  $('ipDocsInternal').innerHTML='<div class="fileempty">Loading\u2026</div>';
+  $('ipDocsMine').innerHTML='<div class="fileempty">Loading\u2026</div>';
+  IP_DOCS=await ipLoadDocs(editingInst);ipRenderDocs();}
+function ipDocRow(d){const id=esc(d.id),p=esc(d.path);
+  return '<div class="filepdf"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" onclick="openViewer(\''+id+'\')"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>'
+    +'<span onclick="openViewer(\''+id+'\')" style="flex:1;cursor:pointer">'+esc(d.name)+'</span>'
+    +'<span class="docmeta">'+esc(IP_TYPES[d.type]||d.type||'')+'</span>'
+    +'<span class="vw" onclick="openViewer(\''+id+'\')">View \u203a</span>'
+    +'<span class="filedel" onclick="event.stopPropagation();ipDeleteDoc(\''+id+'\',\''+p+'\')">\u00d7</span></div>';}
+/* Newest first, same convention the drawer's document list uses. filter()
+   already returns a fresh array, so reverse() cannot disturb IP_DOCS. */
+function ipRenderDocs(){
+  [['internal','ipDocsInternal','No internal documents yet.'],
+   ['installer','ipDocsMine','No installer-facing documents yet.']].forEach(function(g){
+    const rows=IP_DOCS.filter(d=>d.group===g[0]).reverse();
+    $(g[1]).innerHTML=rows.length?rows.map(ipDocRow).join(''):'<div class="fileempty">'+g[2]+'</div>';});}
+function ipPick(group){if(!editingInst)return;ipPendingGroup=group;const inp=$('ipFile');inp.value='';inp.click();}
+async function ipUploadDoc(installerId,file,group,docType){
+  const safe=file.name.replace(/[^\w.\-]/g,'_');
+  /* <installerId>/<timestamp>_<name>. The first path segment is what the
+     installer_files_tenant_* storage policies resolve back to an installer,
+     so this shape is load-bearing, not cosmetic. */
+  const path=installerId+'/'+Date.now()+'_'+safe;
+  const {error:ue}=await sb.storage.from('installer-files').upload(path,file);if(ue)throw ue;
+  const kind=/\.pdf$/i.test(file.name)?'pdf':(/\.(png|jpe?g|gif|webp)$/i.test(file.name)?'photo':'doc');
+  /* uploaded_by and uploader_email are column DEFAULTs, filled from auth.uid()
+     and the JWT. Deliberately NOT sent from the client - sending them is how
+     files.uploaded_by ended up hardcoded to one name on every job attachment. */
+  const {error:ie}=await sb.from('installer_documents')
+    .insert({installer_id:installerId,doc_group:group,doc_type:docType,kind:kind,name:file.name,storage_path:path});
+  if(ie)throw ie;}
+async function ipDeleteDoc(id,path){
+  try{await sb.storage.from('installer-files').remove([path]);
+    const {error}=await sb.from('installer_documents').delete().eq('id',id);if(error)throw error;
+    await ipRefreshDocs();toast('Document removed');}
+  catch(e){console.error(e);toast('Could not remove document',true);}}
+$('ipFile').addEventListener('change',async function(){
+  const f=this.files&&this.files[0];
+  if(!f||!editingInst||!ipPendingGroup){this.value='';return;}
+  const group=ipPendingGroup;ipPendingGroup=null;
+  const docType=$(group==='internal'?'ipTypeInternal':'ipTypeMine').value;
+  try{await ipUploadDoc(editingInst,f,group,docType);await ipRefreshDocs();toast('Document uploaded');}
+  catch(e){console.error('installer doc upload',e);toast('Upload failed',true);}
+  this.value='';});
 $('instBg').addEventListener('click',e=>{if(e.target.id==='instBg')$('instBg').classList.remove('open')});
 $('drInstaller').addEventListener('change',()=>drRenderMargin(currentItem()));
 $('drDurH').addEventListener('change',()=>drRenderMargin(currentItem()));
@@ -4754,7 +4890,7 @@ function miniCal(){const m=monthAnchor(0),offset=(m.getDay()+6)%7,dim=daysInMont
 function buildGeneric(p){const g=$('genericView');
   if(p==='toschedule'){const ready=queue.filter(readyToSchedule);const awaiting=queue.filter(stillAwaiting).length;
     g.innerHTML=`<div class="ts-wrap"><div class="ts-main"><div class="gp-head">To Schedule</div><div class="gp-sub">${ready.length} jobs ready to book.${awaiting?` ${awaiting} more awaiting product in Receiving.`:''}</div>${ready.map(j=>{const aw=partialAwaiting(j)?`<span class="awtag light">⏳ awaiting product</span>`:'';return `<div class="grow" style="cursor:pointer" onclick="openDrawer('${j.id}')"><span class="gt" style="background:rgba(216,198,160,.28);color:#7a6c45">${j.type}</span><div style="flex:1"><div class="gname">${j.cust} ${aw}</div><div class="gmeta">${j.scope} · ${j.addr}</div></div><div class="gmeta">${j.dealer}</div></div>`}).join('')||'<div class="empty"><h3>Queue is clear</h3><p>No jobs ready to schedule.</p></div>'}</div><div class="ts-side">${miniCal()}</div></div>`;return}
-  if(p==='installers'){markConflicts();g.innerHTML=`<div class="gp-head">Installers</div><div class="gp-sub">Crew load &amp; pay setup. Pay type drives cost and margin.</div><div class="gcards">${INSTALLERS.filter(i=>i.id!=='un').map(i=>{const jobs=appts.filter(a=>a.installer===i.id);const conf=jobs.filter(a=>a._conflict).length;const pay=i.payType==='sub_1099'?`1099 · ${i.payRate||0}% of price`:`${i.payType==='salary'?'Salary':'Hourly'} · ${fmtMoney(i.payRate||0)}/hr`;return `<div class="gcard"><h4><span class="dot" style="background:${i.color}"></span>${i.name}<button class="pedit" onclick="editInstaller('${i.id}')">Edit pay</button></h4><div class="gstat"><div><b>${jobs.length}</b>jobs this week</div><div><b style="color:${conf?'#d9605c':'var(--ink)'}">${conf}</b>conflicts</div></div><div class="ipay">${pay}</div></div>`}).join('')}</div>`;return}
+  if(p==='installers'){markConflicts();g.innerHTML=`<div class="gp-head">Installers</div><div class="gp-sub">Crew load &amp; pay setup. Pay type drives cost and margin.</div><div class="gcards">${INSTALLERS.filter(i=>i.id!=='un').map(i=>{const jobs=appts.filter(a=>a.installer===i.id);const conf=jobs.filter(a=>a._conflict).length;const pay=i.payType==='sub_1099'?`1099 · ${i.payRate||0}% of price`:`${i.payType==='salary'?'Salary':'Hourly'} · ${fmtMoney(i.payRate||0)}/hr`;return `<div class="gcard"><h4><span class="dot" style="background:${i.color}"></span>${i.name}<button class="pedit" onclick="editInstaller('${i.id}')">Profile</button></h4><div class="gstat"><div><b>${jobs.length}</b>jobs this week</div><div><b style="color:${conf?'#d9605c':'var(--ink)'}">${conf}</b>conflicts</div></div><div class="ipay">${pay}</div></div>`}).join('')}</div>`;return}
   if(p==='dealers'){buildDealers();return}
   if(p==='inventory'){RECV_NOTE_N=null;buildReceiving();return}
   if(p==='rates'){buildRates();return}
