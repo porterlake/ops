@@ -4707,14 +4707,20 @@ async function ipLoginCheck(id,email){
   const btn=$('instResetBtn'),msg=$('instResetMsg');
   btn.disabled=true;ipResetArm(false);
   const e=(email||'').trim();
-  if(!e){msg.textContent='Add an email address to this profile and save it first.';return;}
-  msg.textContent='Checking for a login account\u2026';
-  const {data,error}=await sb.rpc('installer_has_login',{p_email:e});
+  msg.textContent='Checking for a login account…';
+  /* Keyed on the installer id, NOT on a typed email. public.profiles carries
+     installer_id, which is the real relationship between a person and their
+     login; matching on an email string was a workaround for a link that
+     already existed and could drift the moment the two differed. */
+  const {data,error}=await sb.rpc('installer_has_login',{p_installer_id:id});
   /* The admin can close this popup and open another while the call is in
      flight; a late answer must not light up the wrong installer's button. */
   if(editingInst!==id)return;
-  if(error){console.error('installer_has_login',error);msg.textContent='Login check unavailable \u2014 the installer_has_login function is not installed on this project yet.';return;}
+  if(error){console.error('installer_has_login',error);msg.textContent='Login check failed — the database error is in the browser console.';return;}
   if(!data){msg.textContent='No login account for this installer.';return;}
+  /* They have a login, but the link still needs somewhere to go and
+     resetPasswordForEmail takes an address, not an id. */
+  if(!e){msg.textContent='This installer has a login, but no email address is saved here to send the link to.';return;}
   btn.disabled=false;ipResetIdleMsg();}
 /* Emailing a staff member should not happen on one stray tap, so the button
    arms a Confirm/Cancel pair in place. Deliberately NOT a second .modal-bg:
