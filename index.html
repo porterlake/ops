@@ -336,6 +336,10 @@
   #drMargin .pcust{color:#8fa8c4;font-size:11px}
   #drMargin tr.tot td{font-weight:700;font-size:14px;border-top:1px solid var(--side-border);padding-top:7px}
   .ipay{margin-top:10px;font-size:12.5px;color:var(--sand);background:var(--side-2);border:1px solid var(--side-border);border-radius:8px;padding:7px 10px}
+  /* Archived installer (v71). The Installers tab is the LIGHT palette, so the
+     badge uses the light-area red, not a sand/dark token. */
+  .gcard.ginactive{opacity:.55}
+  .ibadge{font-size:9.5px;letter-spacing:.8px;text-transform:uppercase;font-weight:800;color:#a3211d;background:rgba(163,33,29,.12);border:1px solid rgba(163,33,29,.3);border-radius:5px;padding:2px 6px}
   .rseg{display:inline-flex;background:var(--side-2);border:1px solid var(--side-border);border-radius:9px;padding:3px;gap:2px}
   .rseg button{background:none;border:none;color:var(--sand-dim);font:inherit;font-size:12.5px;font-weight:600;padding:5px 12px;border-radius:6px;cursor:pointer}
   .rseg button.on{background:var(--sand);color:#211b10}
@@ -1114,7 +1118,13 @@ body.role-installer [data-admin]{display:none!important}
           <option value="w2">W-2 employee</option>
           <option value="1099">1099 contractor</option>
           <option value="subcontractor">Subcontractor</option>
+          <option value="owner">Owner</option>
         </select></div>
+        <div class="fld"><label>Employment status</label><select id="instEmpStatus" onchange="ipStatusHint()">
+          <option value="active">Active</option>
+          <option value="inactive">Inactive (archived)</option>
+        </select></div>
+        <div class="limeta" id="instStatusHint" style="padding:0 2px;margin-bottom:16px"></div>
         <div class="fld2">
           <div class="fld"><label>Date of birth</label><input id="instDob" type="date"></div>
           <div class="fld"><label>Start date</label><input id="instStart" type="date"></div>
@@ -1182,9 +1192,13 @@ function sizeCalendar(){if(view==='month')return;const wrap=document.querySelect
   if(avail<=0)return;
   ROW=Math.max(ROW_MIN,Math.min(ROW_MAX,Math.floor(avail/rows)));
   document.documentElement.style.setProperty('--row-h',ROW+'px');}
-let INSTALLERS=[];
+let INSTALLERS=[],ALL_INSTALLERS=[];
 const UNASSIGNED={id:'un',name:'Unassigned',color:'#9aa1ab'};
-function instById(id){return (id&&id!=='un'&&INSTALLERS.find(i=>i.id===id))||UNASSIGNED}
+/* ALL_INSTALLERS is the fallback so a name survives on historical jobs after
+   someone is archived (employment_status) or unchecked for scheduling
+   (active). Without it this returns UNASSIGNED and every past appointment,
+   measure sheet and completion report reads "Unassigned". */
+function instById(id){return (id&&id!=='un'&&(INSTALLERS.find(i=>i.id===id)||ALL_INSTALLERS.find(i=>i.id===id)))||UNASSIGNED}
 const TYPES={"Measure":{c:"#d8c6a0"},"Install":{c:"#d8c6a0"},"Return Trip":{c:"#d8c6a0"}};
 const STATUS_ORDER=["rts","hold","scheduled","otw","progress","done","issue"];
 const STATUS={rts:{label:"Ready to Schedule",short:"RTS",color:"#9aa1ab"},hold:{label:"On Hold",short:"On Hold",color:"#b08a63"},scheduled:{label:"Scheduled",short:"Scheduled",color:"#5D84A5"},otw:{label:"On the Way",short:"On the Way",color:"#EEA504"},progress:{label:"In Progress",short:"In Progress",color:"#F7F1E1"},done:{label:"Completed",short:"Completed",color:"#606C38"},issue:{label:"Issue Reported",short:"Issue",color:"#7B1010"}};
@@ -1310,8 +1324,18 @@ async function loadDealers(){try{const {data,error}=await sb.from('dealers').sel
   DEALERS.length=0;data.forEach(d=>DEALERS.push({id:d.id,name:d.name,discount:+d.discount_pct||0,phone:d.phone||''}));
   /* DEALERS fills after the first render; refresh if the user is already on the page. (v22) */
   if(page==='dealers')buildGeneric('dealers');}catch(e){console.error(e);toast('Could not reach database',true);}}
-async function loadInstallers(){try{const {data,error}=await sb.from('installers').select('id,name,color,pay_type,pay_rate').eq('active',true).order('name');
-  if(error){console.error(error);return;}INSTALLERS=(data||[]).map(i=>({id:i.id,name:i.name,color:i.color||'#5b8def',payType:i.pay_type||'hourly',payRate:i.pay_rate!=null?+i.pay_rate:0}));populateInstallerFilter();}catch(e){console.error(e)}}
+const INST_COLS='id,name,color,pay_type,pay_rate,employment_status';
+const instMap=i=>({id:i.id,name:i.name,color:i.color||'#5b8def',payType:i.pay_type||'hourly',payRate:i.pay_rate!=null?+i.pay_rate:0,status:i.employment_status||'active'});
+/* employment_status archives a person; the separate `active` column controls
+   scheduling visibility. They are different concepts and neither is derived
+   from the other. INSTALLERS stays filtered on active exactly as before; the
+   second, unfiltered read exists only so names and pay rates still resolve on
+   work that was done before someone left. */
+async function loadInstallers(){try{const {data,error}=await sb.from('installers').select(INST_COLS).eq('active',true).order('name');
+  if(error){console.error(error);return;}INSTALLERS=(data||[]).map(instMap);
+  const {data:all,error:ae}=await sb.from('installers').select(INST_COLS).order('name');
+  if(ae)console.error(ae);else ALL_INSTALLERS=(all||[]).map(instMap);
+  populateInstallerFilter();}catch(e){console.error(e)}}
 function populateInstallerFilter(){const s=$('instFilter');if(!s)return;s.innerHTML='<option value="all">All installers</option>';INSTALLERS.forEach(i=>{const o=document.createElement('option');o.value=i.id;o.textContent=i.name;s.appendChild(o)});const u=document.createElement('option');u.value='un';u.textContent='Unassigned';s.appendChild(u);s.value=instFilter;}
 const pad=n=>String(n).padStart(2,'0');
 function dateKey(d){return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`}
@@ -1438,7 +1462,16 @@ function openDrawer(id){let a=appts.find(x=>x.id===id),mode='appt';if(!a){a=queu
   renderWO(a.type);
   const ss=$('drStatus');ss.innerHTML='';STATUS_ORDER.forEach(k=>{const o=document.createElement('option');o.value=k;o.textContent=STATUS[k].label;ss.appendChild(o)});ss.value=a.status||'rts';
   $('issueBanner').classList.toggle('show',(a.status||'')==='issue');
-  const sel=$('drInstaller');sel.innerHTML='';[...INSTALLERS,UNASSIGNED].forEach(i=>{const o=document.createElement('option');o.value=i.id;o.textContent=i.name;sel.appendChild(o)});sel.value=a.installer||'un';
+  /* Archived installers are not offered for a NEW assignment, but one already
+     on this appointment is kept in the list. Dropping it would leave sel.value
+     unmatched, the browser would silently fall back to the first option, and
+     saving the drawer would reassign the job to whoever sorts first. The
+     current installer is looked up through ALL_INSTALLERS so this also holds
+     for someone who is merely active=false. */
+  const sel=$('drInstaller');sel.innerHTML='';const curId=a.installer||'un';
+  const opts=INSTALLERS.filter(i=>i.status!=='inactive');
+  if(curId!=='un'&&!opts.some(i=>i.id===curId)){const c=INSTALLERS.find(i=>i.id===curId)||ALL_INSTALLERS.find(i=>i.id===curId);if(c)opts.push(c);}
+  [...opts,UNASSIGNED].forEach(i=>{const o=document.createElement('option');o.value=i.id;o.textContent=i.name+(i.status==='inactive'?' (inactive)':'');sel.appendChild(o)});sel.value=curId;
   /* v64: one Edit Job button in both modes. Unschedule (appt) and Remove
      (queue) moved INSIDE the popup, each behind a confirmation - neither had
      one before, and Remove deletes a job outright. The button loses .del
@@ -4610,6 +4643,9 @@ function instRateUI(){const t=$('instPayType').value,lbl=$('instRateLbl'),hint=$
   if(t==='sub_1099'){lbl.textContent='Percent of job price (%)';hint.textContent='Cost = job price \u00d7 this %. e.g. 40 = 40% of the dealer charge.';}
   else if(t==='hourly'){lbl.textContent='Hourly rate ($/hr)';hint.textContent='Cost = rate \u00d7 appointment duration.';}
   else{lbl.textContent='Loaded hourly cost ($/hr)';hint.textContent='Salary allocated by time. Cost = loaded $/hr \u00d7 appointment duration.';}}
+function ipStatusHint(){$('instStatusHint').textContent=$('instEmpStatus').value==='inactive'
+  ?'Archived. Not offered for new job assignments. Existing and past jobs, reports and signatures keep this name.'
+  :'Active. Available for new job assignments.';}
 const IP_SECTIONS=['info','docs','pay'],IP_PANES={info:'ipInfo',docs:'ipDocs',pay:'ipPay'};
 function ipTab(sec){IP_SECTIONS.forEach(k=>{$(IP_PANES[k]).hidden=(k!==sec)});
   $('ipTabs').querySelectorAll('button').forEach((b,i)=>b.classList.toggle('on',IP_SECTIONS[i]===sec));}
@@ -4625,31 +4661,36 @@ async function editInstaller(id){if(!IS_ADMIN)return;const i=INSTALLERS.find(x=>
   $('instName').textContent=i.name;
   $('instPayType').value=i.payType||'hourly';$('instRate').value=i.payRate!=null?i.payRate:'';instRateUI();
   ['instPhone','instEmail','instAddress','instDob','instStart'].forEach(k=>{$(k).value='';});
-  $('instEmpType').value='';
+  $('instEmpType').value='';$('instEmpStatus').value=i.status||'active';ipStatusHint();
   $('ipDocsInternal').innerHTML='';$('ipDocsMine').innerHTML='';
   ipTab('info');$('instBg').classList.add('open');
   /* The profile columns are read here, for ONE installer, rather than being
      added to loadInstallers(). That query runs for every signed-in user on
      every load; date of birth and home address have no business being shipped
      to every browser just so the calendar can draw a name and a colour. */
-  const {data,error}=await sb.from('installers').select('phone,email,address,employment_type,dob,start_date').eq('id',id).single();
+  const {data,error}=await sb.from('installers').select('phone,email,address,employment_type,dob,start_date,employment_status').eq('id',id).single();
   /* editingInst is re-checked because the admin can close this popup and open
      another installer while the request is still in flight. */
   if(error){console.error(error);toast('Could not load profile',true);}
   else if(data&&editingInst===id){
     $('instPhone').value=data.phone||'';$('instEmail').value=data.email||'';
     $('instAddress').value=data.address||'';$('instEmpType').value=data.employment_type||'';
-    $('instDob').value=ipDate(data.dob);$('instStart').value=ipDate(data.start_date);}
+    $('instDob').value=ipDate(data.dob);$('instStart').value=ipDate(data.start_date);
+    $('instEmpStatus').value=data.employment_status||'active';ipStatusHint();}
   await ipRefreshDocs();}
 async function saveInstaller(){if(!IS_ADMIN)return;if(!editingInst)return;
   const payType=$('instPayType').value,payRate=+$('instRate').value||0;
   const patch={pay_type:payType,pay_rate:payRate,
     phone:ipNz($('instPhone').value),email:ipNz($('instEmail').value),address:ipNz($('instAddress').value),
     employment_type:$('instEmpType').value||null,
+    employment_status:$('instEmpStatus').value||'active',
     dob:$('instDob').value||null,start_date:$('instStart').value||null};
   const {error}=await sb.from('installers').update(patch).eq('id',editingInst);
   if(error){toast('Save failed',true);console.error(error);return;}
-  const i=INSTALLERS.find(x=>x.id===editingInst);if(i){i.payType=payType;i.payRate=payRate;}
+  /* Both caches are updated: INSTALLERS drives the cards and the assignment
+     dropdown, ALL_INSTALLERS is what history resolves through. */
+  const st=$('instEmpStatus').value||'active';
+  [INSTALLERS,ALL_INSTALLERS].forEach(arr=>{const i=arr.find(x=>x.id===editingInst);if(i){i.payType=payType;i.payRate=payRate;i.status=st;}});
   $('instBg').classList.remove('open');if(page==='installers')buildGeneric('installers');toast('Profile saved');}
 const IP_TYPES={application:'Application',resume:'Resume',tax_w2:'W-2',tax_1099:'1099',insurance:'Insurance',commission_report:'Commission report',coi:'Certificate of insurance',other:'Other'};
 async function ipLoadDocs(installerId){
@@ -4718,7 +4759,10 @@ $('drInstaller').addEventListener('change',()=>drRenderMargin(currentItem()));
 $('drDurH').addEventListener('change',()=>drRenderMargin(currentItem()));
 $('drDurM').addEventListener('change',()=>drRenderMargin(currentItem()));
 // ---- Phase D: Reports (margin roll-ups) ----
-function apptFinance(a){const P=jobPricing(a);const rev=P.total;const inst=INSTALLERS.find(i=>i.id===a.installer);
+/* Same fallback as instById, for the same reason: without it an archived
+   installer's past jobs lose their pay rate, cost drops to 0 and every
+   historical margin silently becomes full revenue. */
+function apptFinance(a){const P=jobPricing(a);const rev=P.total;const inst=INSTALLERS.find(i=>i.id===a.installer)||ALL_INSTALLERS.find(i=>i.id===a.installer);
   let cost=null;if(inst){const rate=+inst.payRate||0;cost=inst.payType==='sub_1099'?rev*rate/100:rate*(a.dur||((a.estMins||120)/60));}
   const c=cost==null?0:cost;return {rev,cost:c,margin:rev-c,inst,assigned:!!inst};}
 let reportPeriod='month',reportGroup='dealer',reportStatus='all',reportInst='all',reportDealer='all';
@@ -4890,7 +4934,7 @@ function miniCal(){const m=monthAnchor(0),offset=(m.getDay()+6)%7,dim=daysInMont
 function buildGeneric(p){const g=$('genericView');
   if(p==='toschedule'){const ready=queue.filter(readyToSchedule);const awaiting=queue.filter(stillAwaiting).length;
     g.innerHTML=`<div class="ts-wrap"><div class="ts-main"><div class="gp-head">To Schedule</div><div class="gp-sub">${ready.length} jobs ready to book.${awaiting?` ${awaiting} more awaiting product in Receiving.`:''}</div>${ready.map(j=>{const aw=partialAwaiting(j)?`<span class="awtag light">⏳ awaiting product</span>`:'';return `<div class="grow" style="cursor:pointer" onclick="openDrawer('${j.id}')"><span class="gt" style="background:rgba(216,198,160,.28);color:#7a6c45">${j.type}</span><div style="flex:1"><div class="gname">${j.cust} ${aw}</div><div class="gmeta">${j.scope} · ${j.addr}</div></div><div class="gmeta">${j.dealer}</div></div>`}).join('')||'<div class="empty"><h3>Queue is clear</h3><p>No jobs ready to schedule.</p></div>'}</div><div class="ts-side">${miniCal()}</div></div>`;return}
-  if(p==='installers'){markConflicts();g.innerHTML=`<div class="gp-head">Installers</div><div class="gp-sub">Crew load &amp; pay setup. Pay type drives cost and margin.</div><div class="gcards">${INSTALLERS.filter(i=>i.id!=='un').map(i=>{const jobs=appts.filter(a=>a.installer===i.id);const conf=jobs.filter(a=>a._conflict).length;const pay=i.payType==='sub_1099'?`1099 · ${i.payRate||0}% of price`:`${i.payType==='salary'?'Salary':'Hourly'} · ${fmtMoney(i.payRate||0)}/hr`;return `<div class="gcard"><h4><span class="dot" style="background:${i.color}"></span>${i.name}<button class="pedit" onclick="editInstaller('${i.id}')">Profile</button></h4><div class="gstat"><div><b>${jobs.length}</b>jobs this week</div><div><b style="color:${conf?'#d9605c':'var(--ink)'}">${conf}</b>conflicts</div></div><div class="ipay">${pay}</div></div>`}).join('')}</div>`;return}
+  if(p==='installers'){markConflicts();g.innerHTML=`<div class="gp-head">Installers</div><div class="gp-sub">Crew load &amp; pay setup. Pay type drives cost and margin.</div><div class="gcards">${INSTALLERS.filter(i=>i.id!=='un').map(i=>{const inact=i.status==='inactive';const jobs=appts.filter(a=>a.installer===i.id);const conf=jobs.filter(a=>a._conflict).length;const pay=i.payType==='sub_1099'?`1099 · ${i.payRate||0}% of price`:`${i.payType==='salary'?'Salary':'Hourly'} · ${fmtMoney(i.payRate||0)}/hr`;return `<div class="gcard${inact?' ginactive':''}"><h4><span class="dot" style="background:${i.color}"></span>${i.name}${inact?'<span class="ibadge">Inactive</span>':''}<button class="pedit" onclick="editInstaller('${i.id}')">Profile</button></h4><div class="gstat"><div><b>${jobs.length}</b>jobs this week</div><div><b style="color:${conf?'#d9605c':'var(--ink)'}">${conf}</b>conflicts</div></div><div class="ipay">${pay}</div></div>`}).join('')}</div>`;return}
   if(p==='dealers'){buildDealers();return}
   if(p==='inventory'){RECV_NOTE_N=null;buildReceiving();return}
   if(p==='rates'){buildRates();return}
