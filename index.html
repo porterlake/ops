@@ -474,6 +474,11 @@
   .docgrp:first-child{margin-top:0;padding-top:0;border-top:none}
   .docmeta{font-size:11px;color:var(--sand-dim);flex-shrink:0}
   .fileadd select{background:var(--side-3);border:1px solid var(--side-border);color:var(--sand-ink);font:inherit;font-size:12px;padding:7px 9px;border-radius:8px;outline:none}
+  /* The [hidden] partner rule is required, not decorative: a display value in
+     an author stylesheet beats the UA sheet's [hidden]{display:none}, so
+     without it this row would ignore the hidden attribute entirely. */
+  .ipconfirm{display:flex;gap:8px}
+  .ipconfirm[hidden]{display:none}
   .mtable{width:100%;border-collapse:collapse;font-size:13px;margin-top:6px}
   .mtable th{text-align:left;font-size:10.5px;letter-spacing:.8px;text-transform:uppercase;color:var(--sand-dim);padding:6px 8px;border-bottom:1px solid var(--side-border)}
   .mtable td{padding:8px;border-bottom:1px solid var(--side-border)}.mtable input{width:100%;background:var(--side-3);border:1px solid var(--side-border);border-radius:6px;padding:5px 7px;font:inherit;font-size:12.5px;color:var(--sand-ink)}
@@ -1114,7 +1119,11 @@ body.role-installer [data-admin]{display:none!important}
           <div class="fld"><label>Email</label><input id="instEmail" type="email" placeholder="name@example.com"></div>
         </div>
         <div class="fld"><label>Login</label>
-          <button class="btn ghost" id="instResetBtn" onclick="ipResetPassword()" disabled>Reset password</button>
+          <button class="btn ghost" id="instResetBtn" onclick="ipResetConfirm()" disabled>Reset password</button>
+          <div class="ipconfirm" id="instResetConfirm" hidden>
+            <button class="btn" id="instResetYes" onclick="ipResetPassword()">Send reset link</button>
+            <button class="btn ghost" id="instResetNo" onclick="ipResetCancel()">Cancel</button>
+          </div>
           <div class="limeta" id="instResetMsg" style="padding:7px 2px 0"></div>
         </div>
         <div class="fld"><label>Address</label><input id="instAddress" type="text" placeholder="Street, city, postal code"></div>
@@ -4668,7 +4677,7 @@ async function editInstaller(id){if(!IS_ADMIN)return;const i=INSTALLERS.find(x=>
   ['instPhone','instEmail','instAddress','instDob','instStart'].forEach(k=>{$(k).value='';});
   $('instEmpType').value='';$('instEmpStatus').value=i.status||'active';ipStatusHint();
   $('ipDocsInternal').innerHTML='';$('ipDocsMine').innerHTML='';
-  $('instResetBtn').disabled=true;$('instResetMsg').textContent='';
+  $('instResetBtn').disabled=true;$('instResetMsg').textContent='';ipResetArm(false);
   ipTab('info');$('instBg').classList.add('open');
   /* The profile columns are read here, for ONE installer, rather than being
      added to loadInstallers(). That query runs for every signed-in user on
@@ -4696,7 +4705,7 @@ async function editInstaller(id){if(!IS_ADMIN)return;const i=INSTALLERS.find(x=>
    the durable fix and belongs with the role system. */
 async function ipLoginCheck(id,email){
   const btn=$('instResetBtn'),msg=$('instResetMsg');
-  btn.disabled=true;
+  btn.disabled=true;ipResetArm(false);
   const e=(email||'').trim();
   if(!e){msg.textContent='Add an email address to this profile and save it first.';return;}
   msg.textContent='Checking for a login account\u2026';
@@ -4706,17 +4715,29 @@ async function ipLoginCheck(id,email){
   if(editingInst!==id)return;
   if(error){console.error('installer_has_login',error);msg.textContent='Login check unavailable \u2014 the installer_has_login function is not installed on this project yet.';return;}
   if(!data){msg.textContent='No login account for this installer.';return;}
-  btn.disabled=false;msg.textContent='Sends a password reset link to '+e+'.';}
+  btn.disabled=false;ipResetIdleMsg();}
+/* Emailing a staff member should not happen on one stray tap, so the button
+   arms a Confirm/Cancel pair in place. Deliberately NOT a second .modal-bg:
+   stacking another modal over this one would put a second scroll container
+   inside the popup, which is the exact thing the modal chain is built to
+   avoid, and it would have to fight instBg for z-index as well. */
+function ipResetArm(on){$('instResetConfirm').hidden=!on;$('instResetBtn').hidden=!!on;}
+function ipResetIdleMsg(){const e=($('instEmail').value||'').trim();
+  $('instResetMsg').textContent=e?'Sends a password reset link to '+e+'.':'';}
+function ipResetConfirm(){if(!IS_ADMIN||!editingInst)return;
+  const e=($('instEmail').value||'').trim();if(!e)return;
+  ipResetArm(true);$('instResetMsg').textContent='Send a password reset link to '+e+'?';}
+function ipResetCancel(){ipResetArm(false);ipResetIdleMsg();}
 async function ipResetPassword(){
   if(!IS_ADMIN||!editingInst)return;
   const e=($('instEmail').value||'').trim();if(!e)return;
-  const btn=$('instResetBtn'),msg=$('instResetMsg'),label=btn.textContent;
-  btn.disabled=true;btn.textContent='Sending\u2026';
+  const yes=$('instResetYes'),no=$('instResetNo'),msg=$('instResetMsg'),label=yes.textContent;
+  yes.disabled=true;no.disabled=true;yes.textContent='Sending\u2026';
   /* redirectTo has to be on the project's Redirect URLs allow-list or Supabase
      quietly substitutes the Site URL instead. location.pathname preserves the
      /ops/ base path GitHub Pages serves from. */
   const {error}=await sb.auth.resetPasswordForEmail(e,{redirectTo:location.origin+location.pathname});
-  btn.textContent=label;btn.disabled=false;
+  yes.textContent=label;yes.disabled=false;no.disabled=false;ipResetArm(false);
   if(error){console.error('resetPasswordForEmail',error);toast('Could not send the reset link',true);msg.textContent=error.message||'Send failed.';return;}
   toast('Reset link sent to <b>'+esc(e)+'</b>');msg.textContent='Reset link sent to '+e+'.';}
 async function saveInstaller(){if(!IS_ADMIN)return;if(!editingInst)return;
