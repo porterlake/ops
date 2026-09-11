@@ -339,6 +339,11 @@
   /* Archived installer (v71). The Installers tab is the LIGHT palette, so the
      badge uses the light-area red, not a sand/dark token. */
   .gcard.ginactive{opacity:.55}
+  /* Closed appointment (v77). Text decoration and opacity only - this rule sets
+     no geometry at all, so card position, height and drop-hour maths are
+     untouched. Deliberately does not name the row-height custom property, so the
+     grep that counts its occurrences stays a clean invariant check. */
+  .appt.closed{text-decoration:line-through;opacity:.78}
   .ibadge{font-size:9.5px;letter-spacing:.8px;text-transform:uppercase;font-weight:800;color:#a3211d;background:rgba(163,33,29,.12);border:1px solid rgba(163,33,29,.3);border-radius:5px;padding:2px 6px}
   .rseg{display:inline-flex;background:var(--side-2);border:1px solid var(--side-border);border-radius:9px;padding:3px;gap:2px}
   .rseg button{background:none;border:none;color:var(--sand-dim);font:inherit;font-size:12.5px;font-weight:600;padding:5px 12px;border-radius:6px;cursor:pointer}
@@ -666,6 +671,24 @@ body.role-installer [data-admin]{display:none!important}
 .dl-cust .c{background:var(--card);border:1px solid var(--border);border-radius:11px;padding:11px 13px}
 .dl-cust .c b{display:block;font-size:13px;color:var(--ink);margin-bottom:3px}
 .dl-cust .c span{font-size:11.5px;color:var(--muted);display:block;line-height:1.5}
+.dl-cust .c{cursor:pointer;transition:.14s}
+.dl-cust .c:hover{border-color:#b49e6f}
+.dl-cust .c.on{border-color:#b49e6f;box-shadow:0 0 0 1px #b49e6f inset}
+.dl-info{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:7px 18px;margin:10px 0 4px}
+.dl-info-r{display:flex;gap:10px;font-size:12.5px;align-items:baseline}
+.dl-info-r span{color:var(--muted);min-width:64px}.dl-info-r b{color:var(--ink);font-weight:600}
+.dl-form{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px 16px;margin:10px 0 4px}
+.dl-form .fld label{color:var(--muted)}
+.dl-form .fld input{background:#fff;border:1px solid var(--border);color:var(--ink)}
+.dl-actions{display:flex;gap:8px;justify-content:flex-end}
+.dl-seg{margin-left:10px;vertical-align:middle}
+.dl-seg button{font-size:11px;padding:3px 9px}
+.dl-types{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:9px}
+.dl-type{background:var(--card);border:1px solid var(--border);border-radius:11px;padding:10px 12px}
+.dl-type b{display:block;font-size:13px;color:var(--ink)}
+.dl-type span{font-size:11.5px;color:var(--muted)}
+.dl-filt{font-size:11px;font-weight:500;color:var(--muted);text-transform:none;letter-spacing:0}
+.dl-jr.closed td{text-decoration:line-through;opacity:.7}
 .rep-table tr.dl-jr{cursor:pointer}
 .rep-table tr.dl-jr:hover td{background:var(--raised)}
 
@@ -1214,14 +1237,14 @@ const UNASSIGNED={id:'un',name:'Unassigned',color:'#9aa1ab'};
    measure sheet and completion report reads "Unassigned". */
 function instById(id){return (id&&id!=='un'&&(INSTALLERS.find(i=>i.id===id)||ALL_INSTALLERS.find(i=>i.id===id)))||UNASSIGNED}
 const TYPES={"Measure":{c:"#d8c6a0"},"Install":{c:"#d8c6a0"},"Return Trip":{c:"#d8c6a0"}};
-const STATUS_ORDER=["rts","hold","scheduled","otw","progress","done","issue"];
-const STATUS={rts:{label:"Ready to Schedule",short:"RTS",color:"#9aa1ab"},hold:{label:"On Hold",short:"On Hold",color:"#b08a63"},scheduled:{label:"Scheduled",short:"Scheduled",color:"#5D84A5"},otw:{label:"On the Way",short:"On the Way",color:"#EEA504"},progress:{label:"In Progress",short:"In Progress",color:"#F7F1E1"},done:{label:"Completed",short:"Completed",color:"#606C38"},issue:{label:"Issue Reported",short:"Issue",color:"#7B1010"}};
+const STATUS_ORDER=["rts","hold","scheduled","otw","progress","done","issue","closed"];
+const STATUS={rts:{label:"Ready to Schedule",short:"RTS",color:"#9aa1ab"},hold:{label:"On Hold",short:"On Hold",color:"#b08a63"},scheduled:{label:"Scheduled",short:"Scheduled",color:"#5D84A5"},otw:{label:"On the Way",short:"On the Way",color:"#EEA504"},progress:{label:"In Progress",short:"In Progress",color:"#F7F1E1"},done:{label:"Completed",short:"Completed",color:"#606C38"},issue:{label:"Issue Reported",short:"Issue",color:"#7B1010"},closed:{label:"Closed",short:"Closed",color:"#4a4f45"}};
 /* Light-stage status colors (v25). The STATUS map above is tuned for the dark
    calendar stage; measured against the light stage, progress #F7F1E1 is 1.13:1,
    otw 2.10 and rts 2.61 — unusable. These are hue-matched replacements, all
    >=4.16:1 on both #ffffff and #f3f2ed. STATUS itself is deliberately NOT
    modified, so the dark drawer, reports and dealer tables keep their colors. */
-const STATUS_LIGHT={rts:"#6E757E",hold:"#8A6742",scheduled:"#41627F",otw:"#9A6B04",progress:"#1F7A6B",done:"#4d7010",issue:"#a3211d"};
+const STATUS_LIGHT={rts:"#6E757E",hold:"#8A6742",scheduled:"#41627F",otw:"#9A6B04",progress:"#1F7A6B",done:"#4d7010",issue:"#a3211d",closed:"#5A6152"};
 const statusColor=k=>STATUS_LIGHT[k]||(STATUS[k]?STATUS[k].color:"#6E757E");
 /* v27: STATUS_TEXT is the same palette, one step darker only where it had to be. A dot
    is a non-text graphic and answers to WCAG 1.4.11 (3:1); the status WORD beside it is
@@ -1230,7 +1253,7 @@ const statusColor=k=>STATUS_LIGHT[k]||(STATUS[k]?STATUS[k].color:"#6E757E");
    byte. Only rts (4.66:1) and otw (4.69:1) sat close enough to the line to be worth
    fixing; both are scaled toward black, so hue is unchanged and only lightness moves.
    Floor is now 5.12:1. Dots keep the brighter STATUS_LIGHT value, text reads here. */
-const STATUS_TEXT={rts:"#636971",hold:"#8A6742",scheduled:"#41627F",otw:"#8b6004",progress:"#1F7A6B",done:"#4d7010",issue:"#a3211d"};
+const STATUS_TEXT={rts:"#636971",hold:"#8A6742",scheduled:"#41627F",otw:"#8b6004",progress:"#1F7A6B",done:"#4d7010",issue:"#a3211d",closed:"#4F554A"};
 const statusText=k=>STATUS_TEXT[k]||statusColor(k);
 const ICONS={phone:'<path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1.9.3 1.8.6 2.6a2 2 0 0 1-.5 2.1L8 9.6a16 16 0 0 0 6 6l1.2-1.2a2 2 0 0 1 2.1-.5c.8.3 1.7.5 2.6.6a2 2 0 0 1 1.7 2z"/>',chat:'<path d="M21 11.5a8.4 8.4 0 0 1-9 8.4 8.5 8.5 0 0 1-3.8-.9L3 21l1.9-5.7A8.4 8.4 0 0 1 4 11.5a8.5 8.5 0 0 1 17 0z"/>',ruler:'<path d="M3 11l8-8 10 10-8 8z"/><path d="M7 9l2 2M11 7l2 2M9 13l2 2"/>',send:'<path d="M22 2L11 13M22 2l-7 20-4-9-9-4z"/>',cam:'<path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/>',doc:'<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M9 13h6M9 17h6"/>',box:'<path d="M21 16V8a2 2 0 0 0-1-1.7l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.7l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><path d="M3.3 7L12 12l8.7-5M12 22V12"/>',check:'<path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>',link:'<path d="M10 13a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1.5 1.5"/><path d="M14 11a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1.5-1.5"/>',cr:'<path d="M9 11l3 3 5-6"/><path d="M21 12a9 9 0 1 1-6.2-8.6"/>',
   asr:'<path d="M9 2h6a2 2 0 0 1 2 2v1h1a2 2 0 0 1 2 2v13a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h1V4a2 2 0 0 1 2-2z"/><path d="M9 12h6M9 16h4"/>',
@@ -1296,12 +1319,13 @@ function defaultMins(type){return type==='Install'?180:60}
 function hmToMins(h,m){return (+h)*60+(+m)}
 function fillDur(hSel,mSel,mins){hSel.innerHTML='';for(let h=0;h<=8;h++)hSel.appendChild(new Option(h,h));mSel.innerHTML='';[0,15,30,45].forEach(m=>mSel.appendChild(new Option(String(m).padStart(2,'0'),m)));const M=Math.max(0,mins||0);hSel.value=Math.min(8,Math.floor(M/60));mSel.value=[0,15,30,45].reduce((p,c)=>Math.abs(c-M%60)<Math.abs(p-M%60)?c:p,0);}
 function mapJob(j){return {id:j.id,type:j.type,customerId:j.customer_id,dealerId:j.dealer_id,estMins:j.estimated_minutes||120,
+  completedAt:j.completed_at||null,closedAt:j.closed_at||null,
   cust:j.customers?j.customers.name:'—',dealer:j.dealers?j.dealers.name:'—',
   addr:j.site_address||'—',phone:j.customers?(j.customers.phone||''):'',scope:j.scope||'—',
   awaitingProduct:j.awaiting_product,override:j.override_schedule||false,
   lineItems:(j.line_items||[]).map(li=>({id:li.id,desc:li.description,qty:li.qty,delivered:li.delivered,by:li.delivered_by||'',serviceId:li.service_id||null,unitPrice:li.unit_price,minCharge:li.min_charge,isCustom:!!li.is_custom})),dealerDiscount:j.dealers?(+j.dealers.discount_pct||0):0};}
 async function loadJobs(){try{const {data,error}=await sb.from('jobs')
-    .select('id,customer_id,dealer_id,type,site_address,scope,estimated_minutes,awaiting_product,override_schedule,customers(name,phone),dealers(name,discount_pct),line_items(id,description,qty,delivered,delivered_by,service_id,unit_price,min_charge,is_custom)')
+    .select('id,customer_id,dealer_id,type,site_address,scope,estimated_minutes,awaiting_product,override_schedule,completed_at,closed_at,customers(name,phone),dealers(name,discount_pct),line_items(id,description,qty,delivered,delivered_by,service_id,unit_price,min_charge,is_custom)')
     .order('created_at',{ascending:true});
   if(error){console.error(error);toast('Could not load jobs',true);return;}
   const scheduled=new Set(appts.map(a=>a.jobId));
@@ -1360,9 +1384,10 @@ function mapAppt(r){const j=r.jobs||{};const d=new Date(r.start_time);return {id
   type:j.type||'Install',cust:j.customers?j.customers.name:'—',dealer:j.dealers?j.dealers.name:'—',addr:j.site_address||'—',
   phone:j.customers?(j.customers.phone||''):'',scope:j.scope||'—',customerId:j.customer_id,dealerId:j.dealer_id,estMins:j.estimated_minutes||120,
   awaitingProduct:j.awaiting_product,override:j.override_schedule||false,
+  completedAt:j.completed_at||null,closedAt:j.closed_at||null,
   lineItems:(j.line_items||[]).map(li=>({id:li.id,desc:li.description,qty:li.qty,delivered:li.delivered,by:li.delivered_by||'',serviceId:li.service_id||null,unitPrice:li.unit_price,minCharge:li.min_charge,isCustom:!!li.is_custom})),dealerDiscount:j.dealers?(+j.dealers.discount_pct||0):0,files:[]};}
 async function loadAppointments(){try{const {data,error}=await sb.from('appointments')
-    .select('id,job_id,installer_id,status,start_time,duration_minutes,notes,jobs(type,site_address,scope,estimated_minutes,awaiting_product,override_schedule,customer_id,dealer_id,customers(name,phone),dealers(name,discount_pct),line_items(id,description,qty,delivered,delivered_by,service_id,unit_price,min_charge,is_custom))')
+    .select('id,job_id,installer_id,status,start_time,duration_minutes,notes,jobs(type,site_address,scope,estimated_minutes,awaiting_product,override_schedule,completed_at,closed_at,customer_id,dealer_id,customers(name,phone),dealers(name,discount_pct),line_items(id,description,qty,delivered,delivered_by,service_id,unit_price,min_charge,is_custom))')
     .order('start_time',{ascending:true});
   if(error){console.error(error);toast('Could not load appointments',true);return;}
   appts=(data||[]).map(mapAppt);markConflicts();render();}catch(e){console.error(e)}}
@@ -1374,7 +1399,7 @@ const isBaseWeek=()=>weekOffset===0, isBaseMonth=()=>monthOffset===0;
 function markConflicts(){appts.forEach(a=>a._conflict=false);for(let i=0;i<appts.length;i++)for(let j=i+1;j<appts.length;j++){const A=appts[i],B=appts[j];if(A.installer!=="un"&&A.installer===B.installer&&A.dateKey===B.dateKey&&A.start<B.start+B.dur&&B.start<A.start+A.dur){A._conflict=true;B._conflict=true}}}
 
 function apptCard(a){const s=STATUS[a.status],sc=statusColor(a.status),st=statusText(a.status),inst=instById(a.installer);const unassigned=(a.installer==='un'||!a.installer);
-  const el=document.createElement('div');el.className='appt'+(a.id===selectedId?' sel':'')+(a._conflict?' conflict':'')+(unassigned?' unassigned':'');
+  const el=document.createElement('div');el.className='appt'+(a.id===selectedId?' sel':'')+(a._conflict?' conflict':'')+(unassigned?' unassigned':'')+(isClosed(a)?' closed':'');
   el.style.top=(a.start-START_HOUR)*ROW+2+'px';el.style.height=(a.dur*ROW-6)+'px';
   /* v27: background, border-color and box-shadow are NO LONGER written inline. The
      status-tinted gradient, the 90%-opacity status outline and the status glow are all
@@ -1428,7 +1453,7 @@ function render(){sizeCalendar();markConflicts();const cal=$('cal');cal.innerHTM
   if(view==='week')buildWeek();else if(view==='day')buildDay();else buildMonth();
   const days=weekDays(weekOffset);
   $('rangeLbl').textContent=view==='month'?monthLabel(monthOffset):view==='day'?`${days[selectedDay].dow} ${MONTHN[days[selectedDay].date.getMonth()].slice(0,3)} ${days[selectedDay].num}, ${days[selectedDay].date.getFullYear()}`:weekLabel(days);
-  const un=appts.filter(a=>(a.installer==='un'||!a.installer)&&a.status!=='done').length;const b=$('assignBanner');
+  const un=appts.filter(a=>(a.installer==='un'||!a.installer)&&!isDone(a)).length;const b=$('assignBanner');
   if(un){b.style.display='flex';b.innerHTML=`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9v4M12 17h.01"/></svg>${un} scheduled job${un>1?'s':''} need an installer assigned — click to review`;b.onclick=()=>{instFilter='un';const s=$('instFilter');if(s)s.value='un';render()};}
   else b.style.display='none';}
 function setView(v){view=v;document.querySelectorAll('#viewSeg button').forEach(b=>b.classList.toggle('on',b.dataset.v===v));render()}
@@ -1474,7 +1499,14 @@ function openDrawer(id){let a=appts.find(x=>x.id===id),mode='appt';if(!a){a=queu
   document.querySelectorAll('#drType .chip').forEach(c=>{const on=c.dataset.t===a.type;c.classList.toggle('on',on);c.style.background=on?TYPES[a.type].c:''});
   drTypeShow(a.type);
   renderWO(a.type);
-  const ss=$('drStatus');ss.innerHTML='';STATUS_ORDER.forEach(k=>{const o=document.createElement('option');o.value=k;o.textContent=STATUS[k].label;ss.appendChild(o)});ss.value=a.status||'rts';
+  /* Closing is an office action - payment received - so only an admin is offered
+   it. An already-closed job keeps the option even for a non-admin: drop it and
+   ss.value finds no match, the browser falls back to option zero, and the next
+   save silently rewrites the job's status. Same trap as the installer list. */
+  const ss=$('drStatus');ss.innerHTML='';
+  STATUS_ORDER.filter(k=>k!=='closed'||IS_ADMIN||a.status==='closed')
+    .forEach(k=>{const o=document.createElement('option');o.value=k;o.textContent=STATUS[k].label;ss.appendChild(o)});
+  ss.value=a.status||'rts';
   $('issueBanner').classList.toggle('show',(a.status||'')==='issue');
   /* Archived installers are not offered for a NEW assignment, but one already
      on this appointment is kept in the list. Dropping it would leave sel.value
@@ -1560,12 +1592,24 @@ function closeDrawer(){selectedId=null;$('drawer').classList.remove('open');rend
 function renderWO(type){const set=WO[type],box=$('woBlock');box.innerHTML=`<div class="wo-h"><i style="background:${set.color}"></i>${type} work order</div><div class="wo-actions">${set.actions.map(a=>`<button class="wo-btn" data-ic="${a.ic}" data-label="${a.label}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">${ICONS[a.ic]}</svg>${a.label}<span class="arr">›</span></button>`).join('')}</div>`;box.querySelectorAll('.wo-btn').forEach(b=>b.onclick=()=>openModal(b.dataset.ic,b.dataset.label));}
 async function saveDrawer(){const inQ=drawerMode==='queue';const a=(inQ?queue:appts).find(x=>x.id===selectedId);if(!a)return;
   a.scope=$('drScope').value;a.type=document.querySelector('#drType .chip.on').dataset.t;
-  a.status=$('drStatus').value;a.installer=$('drInstaller').value;
+  /* Belt and braces with the option filter above: a non-admin cannot land a
+     'closed' write even by editing the DOM. */
+  const wantStatus=$('drStatus').value;
+  a.status=(wantStatus==='closed'&&!IS_ADMIN)?(a.status||'rts'):wantStatus;
+  a.installer=$('drInstaller').value;
   const mins=Math.max(15,hmToMins($('drDurH').value,$('drDurM').value)||defaultMins(a.type));
   if(inQ){a.estMins=mins;const {error}=await sb.from('jobs').update({type:a.type,scope:a.scope,estimated_minutes:mins,site_address:a.addr==='—'?null:a.addr}).eq('id',a.id);if(error)console.error(error);renderQueue();if(page==='toschedule')buildGeneric('toschedule');toast('Saved');closeDrawer();return;}
   a.dur=mins/60;a.estMins=mins;
   const {error:ae}=await sb.from('appointments').update({installer_id:a.installer==='un'?null:a.installer,status:a.status,duration_minutes:mins}).eq('id',a.id);if(ae)console.error(ae);
-  if(a.jobId){const {error:je}=await sb.from('jobs').update({type:a.type,scope:a.scope,estimated_minutes:mins}).eq('id',a.jobId);if(je)console.error(je);}
+  /* completed_at and closed_at live on JOBS while status lives on
+     APPOINTMENTS, so the stamp rides along with the job update here.
+     Each is written ONCE and never overwritten: re-saving a completed job
+     must not move the date its revenue is recognised on. */
+  if(a.jobId){const jp={type:a.type,scope:a.scope,estimated_minutes:mins};
+    const nowIso=new Date().toISOString();
+    if(isDone(a)&&!a.completedAt){jp.completed_at=nowIso;a.completedAt=nowIso;}
+    if(isClosed(a)&&!a.closedAt){jp.closed_at=nowIso;a.closedAt=nowIso;}
+    const {error:je}=await sb.from('jobs').update(jp).eq('id',a.jobId);if(je)console.error(je);}
   markConflicts();render();
   const nm=instById(a.installer).name.split(' ')[0];
   toast(a._conflict?`Saved — <b>heads up:</b> ${nm} is double-booked`:'Saved',a._conflict);closeDrawer();}
@@ -1859,7 +1903,7 @@ function dlrOpen(){
   $('dlrName').textContent=info.name;
 
   let h='<div class="wo-actions">'
-    +'<button type="button" class="wo-btn" disabled style="'+soon+'">'+dlrIco('link')+'View Dealer Profile'+tag+'</button>'
+    +'<button type="button" class="wo-btn" onclick="dlrViewProfile()">'+dlrIco('link')+'View Dealer Profile'+arr+'</button>'
     +'<button type="button" class="wo-btn" disabled style="'+soon+'">'+dlrIco('doc')+'View Customer File / History'+tag+'</button>';
 
   /* Call and text are phone actions. On a desktop a tel: link mostly does
@@ -1882,6 +1926,10 @@ function dlrOpen(){
   $('dlrBg').classList.add('open');
 }
 function dlrClosePopup(){$('dlrBg').classList.remove('open');}
+function dlrViewProfile(){const a=currentItem();const id=a&&a.dealerId;
+  if(!id){toast('No dealer account linked to this job',true);return;}
+  dealerSel=id;dealerCustSel[id]=null;dealerEdit=false;
+  dlrClosePopup();closeDrawer();navTo('dealers');}
 $('drDealer').onclick=dlrOpen;
 /* Product status is now the way in to the stock view (v65), replacing the
    Confirm Stock Received button that used to sit on the Install and Return
@@ -4858,7 +4906,15 @@ function setReportGroup(x){reportGroup=x;buildReports();}
 function setReportStatus(s){reportStatus=s;buildReports();}
 function setReportInst(v){reportInst=v;buildReports();}
 function setReportDealer(v){reportDealer=v;buildReports();}
-function isDone(a){return a.status==='done';}
+/* CLOSED means the money arrived, and money only arrives after the work is
+   finished - so closed IMPLIES completed. Every question of the form "is this
+   job complete" has to accept both, or closing a job silently drops it out of
+   completed counts and completed revenue and re-counts it as open work. */
+function isDone(a){return a.status==='done'||a.status==='closed';}
+function isClosed(a){return a.status==='closed';}
+/* Completed but not yet paid. This is the Outstanding definition, and the only
+   place a bare 'done' comparison is still correct. */
+function isOutstanding(a){return a.status==='done';}
 function exportReportPDF(){window.print();}
 function buildReports(){const g=$('genericView');
   const inPeriod=appts.filter(a=>inReportPeriod(a.dateKey));
@@ -5033,7 +5089,51 @@ function buildGeneric(p){const g=$('genericView');
    Discount and every money figure carry data-admin, so the v21 rule
    `body.role-installer [data-admin]{display:none!important}` hides them from
    installers while the page itself stays usable as a dealer/contact lookup. ===== */
-let dealerSel=null,dealerSearch='',dealerCust={};
+let dealerSel=null,dealerSearch='',dealerCust={},dealerCustSel={},dealerFull={},dealerEdit=false,dealerPeriod='all';
+const DL_PERIODS=[['all','All time'],['ytd','YTD'],['qtr','QTR'],['month','Month'],['week','Week']];
+/* Revenue is bucketed by COMPLETION date. The app has no completed_at column,
+   so the appointment's own dateKey is the stand-in: a job finished late buckets
+   on the day it was scheduled, not the day it was actually finished. */
+function dlInPeriod(key,p){if(p==='all')return true;if(!key)return false;
+  const [y,m,d]=key.split('-').map(Number);const dt=new Date(y,m-1,d);
+  if(p==='ytd')return y===TODAY.getFullYear();
+  if(p==='qtr')return y===TODAY.getFullYear()&&Math.floor((m-1)/3)===Math.floor(TODAY.getMonth()/3);
+  if(p==='month')return y===TODAY.getFullYear()&&(m-1)===TODAY.getMonth();
+  if(p==='week'){const s=new Date(BASE_MON);s.setHours(0,0,0,0);const e=new Date(s);e.setDate(e.getDate()+7);return dt>=s&&dt<e;}
+  return true;}
+/* The date revenue is recognised on. completed_at is the accurate stamp and is
+   captured going forward; anything completed before those columns existed has
+   none, so the scheduled date stands in rather than the job silently dropping
+   out of every period. Returns YYYY-MM-DD to match dateKey. */
+function revDateKey(x){if(x.completedAt){const d=new Date(x.completedAt);
+  if(!isNaN(d))return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
+  return x.dateKey||null;}
+function dlSetPeriod(p){dealerPeriod=p;renderDealerDetail();}
+function dlPickCustomer(cid){const cur=dealerCustSel[dealerSel];dealerCustSel[dealerSel]=(cur===cid)?null:cid;renderDealerDetail();}
+/* Only name, discount and phone live in the global DEALERS list; the rest is
+   read on demand rather than widening the query that runs for every user on
+   every boot. */
+async function loadDealerFull(id){if(dealerFull[id])return;dealerFull[id]='loading';
+  try{const {data,error}=await sb.from('dealers').select('id,name,contact_name,email,phone,address,discount_pct').eq('id',id).single();
+    dealerFull[id]=error?{}:(data||{});if(error)console.error(error);}
+  catch(e){console.error(e);dealerFull[id]={};}
+  if(page==='dealers'&&dealerSel===id)renderDealerDetail();}
+function dlEdit(on){dealerEdit=!!on;renderDealerDetail();}
+async function dlSaveInfo(){if(!IS_ADMIN||!dealerSel)return;
+  const nm=($('dlfName').value||'').trim();
+  if(!nm){toast('Dealer name cannot be blank',true);return;}
+  const disc=Math.max(0,Math.min(100,+$('dlfDisc').value||0));
+  const patch={name:nm,contact_name:($('dlfContact').value||'').trim()||null,
+    email:($('dlfEmail').value||'').trim()||null,phone:($('dlfPhone').value||'').trim()||null,
+    address:($('dlfAddr').value||'').trim()||null,discount_pct:disc};
+  const {error}=await sb.from('dealers').update(patch).eq('id',dealerSel);
+  if(error){console.error(error);toast('Save failed',true);return;}
+  dealerFull[dealerSel]=Object.assign({},dealerFull[dealerSel]||{},patch,{id:dealerSel});
+  /* DEALERS drives the left list, the job drawer label and pricing, so the
+     cached copy has to move with the write. */
+  const d=DEALERS.find(x=>x.id===dealerSel);if(d){d.name=nm;d.discount=disc;d.phone=patch.phone||'';}
+  appts.concat(queue).forEach(j=>{if(j.dealerId===dealerSel){j.dealer=nm;j.dealerDiscount=disc;}});
+  dealerEdit=false;renderDealerRows();renderDealerDetail();toast('Dealer saved');}
 function dealerJobs(id){return [...appts,...queue].filter(x=>x.dealerId===id);}
 
 function buildDealers(){const g=$('genericView');
@@ -5062,34 +5162,83 @@ function renderDealerRows(){const el=document.querySelector('.dl-rows');if(!el)r
       <span class="dl-meta">${d.discount?`<span class="dl-disc" data-admin>${d.discount}%</span>`:''}<span class="dl-ct">${dealerJobs(d.id).length}</span></span>
     </div>`).join(''):`<div class="dl-empty">No dealers match that search.</div>`;}
 
+function dlTile(v,l,cls){return '<div class="inv-stat'+(cls?' '+cls:'')+'" data-admin><b>'+v+'</b><span>'+l+'</span></div>';}
 function renderDealerDetail(){const el=document.querySelector('.dl-detail');if(!el)return;
   const d=DEALERS.find(x=>x.id===dealerSel);
   if(!d){el.innerHTML=`<div class="dl-empty">Select a dealer to see their detail.</div>`;return;}
   const jobs=dealerJobs(d.id);
-  const done=jobs.filter(x=>x.status==='done').length;
-  const sched=jobs.filter(x=>x.dateKey&&x.status!=='done').length;
-  const unsched=jobs.length-done-sched;
-  let revDone=0,revOpen=0;
-  jobs.forEach(x=>{const t=jobPricing(x).total;if(x.status==='done')revDone+=t;else revOpen+=t;});
-  const sorted=[...jobs].sort((a,b)=>(b.dateKey||'').localeCompare(a.dateKey||''));
-  const jr=sorted.length?sorted.map(x=>`<tr class="dl-jr" data-jid="${x.id}"><td>${x.dateKey||'—'}</td><td class="nm">${x.cust}</td><td>${x.type}</td><td class="r">${x.status?(STATUS[x.status]?STATUS[x.status].label:x.status):'Unscheduled'}</td><td class="r" data-admin>${fmtMoney(jobPricing(x).total)}</td></tr>`).join('')
-    :`<tr><td colspan="5" style="text-align:center;color:var(--muted);padding:22px">No jobs on record for this account.</td></tr>`;
-  const cache=dealerCust[d.id];let custHtml;
-  if(Array.isArray(cache)){custHtml=cache.length?`<div class="dl-cust">${cache.map(c=>`<div class="c"><b>${c.name}</b><span>${c.default_address||'No address on file'}</span>${c.phone?`<span>${c.phone}</span>`:''}</div>`).join('')}</div>`:`<div class="dl-empty">No customers on file for this account.</div>`;}
-  else{custHtml=`<div class="dl-empty">Loading customers…</div>`;loadDealerCustomers(d.id);}
-  el.innerHTML=`<div class="dl-h"><h3>${d.name}</h3>${d.discount?`<span class="dl-badge" data-admin>${d.discount}% dealer discount</span>`:''}</div>
+  const done=jobs.filter(isDone).length, upcoming=jobs.length-done;
+
+  /* Revenue tiles. Completed revenue is filtered by the selected period;
+     forecast and outstanding are live totals and deliberately are not. */
+  let revPeriod=0,forecast=0,outstanding=0,revAllDone=0;
+  jobs.forEach(x=>{const t=jobPricing(x).total;
+    if(isDone(x)){revAllDone+=t;if(dlInPeriod(revDateKey(x),dealerPeriod))revPeriod+=t;}
+    else forecast+=t;
+    if(isOutstanding(x))outstanding+=t;});
+
+  /* Company denominator, same period and same rule, so the share is
+     revenue-over-revenue rather than a job count dressed up as one. */
+  let coRev=0;[...appts,...queue].forEach(x=>{if(isDone(x)&&dlInPeriod(revDateKey(x),dealerPeriod))coRev+=jobPricing(x).total;});
+  const share=coRev>0?(revPeriod/coRev*100):0;
+
+  const types={};jobs.forEach(x=>{const t=x.type||'Other';types[t]=(types[t]||0)+1;});
+  const typeRows=Object.keys(types).sort((a,b)=>types[b]-types[a]).map(t=>
+    '<div class="dl-type"><b>'+esc(t)+'</b><span>'+types[t]+' \u00b7 '+(jobs.length?Math.round(types[t]/jobs.length*100):0)+'%</span></div>').join('')
+    ||'<div class="dl-empty">No jobs on record.</div>';
+
+  const seg=DL_PERIODS.map(([v,l])=>'<button class="'+(dealerPeriod===v?'on':'')+'" onclick="dlSetPeriod(\''+v+'\')">'+l+'</button>').join('');
+
+  /* ---- editable dealer info ---- */
+  const full=dealerFull[d.id];
+  let info;
+  if(!full||full==='loading'){info='<div class="dl-empty">Loading account details\u2026</div>';if(!full)loadDealerFull(d.id);}
+  else if(dealerEdit&&IS_ADMIN){
+    info='<div class="dl-form">'
+      +'<div class="fld2"><div class="fld"><label>Dealer name</label><input id="dlfName" type="text" value="'+esc(full.name||d.name||'')+'"></div>'
+      +'<div class="fld"><label>Contact</label><input id="dlfContact" type="text" value="'+esc(full.contact_name||'')+'"></div></div>'
+      +'<div class="fld2"><div class="fld"><label>Email</label><input id="dlfEmail" type="email" value="'+esc(full.email||'')+'"></div>'
+      +'<div class="fld"><label>Phone</label><input id="dlfPhone" type="tel" value="'+esc(full.phone||'')+'"></div></div>'
+      +'<div class="fld"><label>Address</label><input id="dlfAddr" type="text" value="'+esc(full.address||'')+'"></div>'
+      +'<div class="fld"><label>Dealer discount (%)</label><input id="dlfDisc" type="number" step="0.01" min="0" max="100" value="'+(full.discount_pct!=null?full.discount_pct:(d.discount||0))+'"></div>'
+      +'<div class="dl-actions"><button class="btn" onclick="dlSaveInfo()">Save</button><button class="btn ghost" onclick="dlEdit(false)">Cancel</button></div>'
+      +'</div>';}
+  else{
+    const row=(l,v)=>'<div class="dl-info-r"><span>'+l+'</span><b>'+(v?esc(v):'\u2014')+'</b></div>';
+    info='<div class="dl-info">'+row('Contact',full.contact_name)+row('Email',full.email)+row('Phone',full.phone)
+      +row('Address',full.address)+row('Discount',(full.discount_pct!=null?full.discount_pct:d.discount||0)+'%')+'</div>';}
+
+  /* ---- customers, now clickable ---- */
+  const cache=dealerCust[d.id];const csel=dealerCustSel[d.id]||null;let custHtml;
+  if(Array.isArray(cache)){custHtml=cache.length
+    ?'<div class="dl-cust">'+cache.map(c=>'<div class="c'+(csel===c.id?' on':'')+'" data-cid="'+esc(c.id)+'"><b>'+esc(c.name)+'</b><span>'+esc(c.default_address||'No address on file')+'</span>'+(c.phone?'<span>'+esc(c.phone)+'</span>':'')+'</div>').join('')+'</div>'
+    :'<div class="dl-empty">No customers on file for this account.</div>';}
+  else{custHtml='<div class="dl-empty">Loading customers\u2026</div>';loadDealerCustomers(d.id);}
+
+  const shown=csel?jobs.filter(x=>x.customerId===csel):jobs;
+  const selName=csel&&Array.isArray(cache)?(cache.find(c=>c.id===csel)||{}).name:null;
+  const sorted=[...shown].sort((a,b)=>(b.dateKey||'').localeCompare(a.dateKey||''));
+  const jr=sorted.length?sorted.map(x=>'<tr class="dl-jr'+(isClosed(x)?' closed':'')+'" data-jid="'+x.id+'"><td>'+(x.dateKey||'\u2014')+'</td><td class="nm">'+esc(x.cust)+'</td><td>'+esc(x.type)+'</td><td class="r">'+(x.status?(STATUS[x.status]?STATUS[x.status].label:x.status):'Unscheduled')+'</td><td class="r" data-admin>'+fmtMoney(jobPricing(x).total)+'</td></tr>').join('')
+    :'<tr><td colspan="5" style="text-align:center;color:var(--muted);padding:22px">'+(csel?'No jobs for this customer.':'No jobs on record for this account.')+'</td></tr>';
+
+  el.innerHTML=`<div class="dl-h"><h3>${esc(d.name)}</h3>${d.discount?`<span class="dl-badge" data-admin>${d.discount}% dealer discount</span>`:''}${IS_ADMIN&&!dealerEdit?'<button class="pedit" onclick="dlEdit(true)">Edit</button>':''}</div>
+    ${info}
+    <div class="dl-sec">Account revenue <span class="seg ghost dl-seg">${seg}</span></div>
     <div class="inv-bar">
-      <div class="inv-stat"><b>${jobs.length}</b><span>Total jobs</span></div>
-      <div class="inv-stat"><b>${sched}</b><span>Scheduled</span></div>
-      <div class="inv-stat"><b>${unsched}</b><span>Unscheduled</span></div>
-      <div class="inv-stat hl"><b>${done}</b><span>Completed</span></div>
-      <div class="inv-stat" data-admin><b style="color:#4d7010">${fmtMoney(revDone)}</b><span>Completed revenue</span></div>
-      <div class="inv-stat" data-admin><b>${fmtMoney(revOpen)}</b><span>Open value</span></div>
+      ${dlTile(jobs.length+'','Total jobs')}
+      ${dlTile(done+' / '+upcoming,'Completed / upcoming')}
+      ${dlTile(share.toFixed(1)+'%','Share of company revenue')}
+      ${dlTile(fmtMoney(revPeriod),'Account revenue')}
+      ${dlTile(fmtMoney(forecast),'Forecast revenue')}
+      ${dlTile(fmtMoney(outstanding),'Total outstanding','hl')}
     </div>
-    <div class="dl-sec">Customers</div>${custHtml}
+    <div class="dl-sec">Job types</div><div class="dl-types">${typeRows}</div>
+    <div class="dl-sec">Customers${selName?' <span class="dl-filt">filtered to '+esc(selName)+' \u00b7 tap again to clear</span>':''}</div>${custHtml}
     <div class="dl-sec">Jobs</div>
     <table class="rep-table"><thead><tr><th>Date</th><th>Customer</th><th>Type</th><th class="r">Status</th><th class="r" data-admin>Value</th></tr></thead><tbody>${jr}</tbody></table>`;
-  el.querySelector('tbody').addEventListener('click',e=>{const tr=e.target.closest('.dl-jr');if(tr)openDrawer(tr.dataset.jid);});}
+  el.querySelector('tbody').addEventListener('click',e=>{const tr=e.target.closest('.dl-jr');if(tr)openDrawer(tr.dataset.jid);});
+  const cw=el.querySelector('.dl-cust');
+  if(cw)cw.addEventListener('click',e=>{const c=e.target.closest('.c');if(c&&c.dataset.cid)dlPickCustomer(c.dataset.cid);});}
 
 /* Mirrors the njFillCustomers query shape. Cached per dealer; 'loading' guards re-entry. */
 async function loadDealerCustomers(id){if(dealerCust[id])return;dealerCust[id]='loading';
