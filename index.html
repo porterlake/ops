@@ -5781,10 +5781,17 @@ let MISC_BY_JOB=null,miscEditId=null;
 async function miscLoad(){
   /* One query for the whole page rather than one per card, same shape as
      recvLoadNoteCounts. RLS already scopes the table to this tenant. */
+  /* Only columns the table actually has. Asking for one it does not is a 42703
+     on EVERY read, and the early return below skipped the re-render - so a row
+     that HAD saved never appeared and the half-typed form sat there looking
+     unsaved, with a success toast behind it. received_by is still rendered if
+     present, so adding those columns later needs no change here. */
   const {data,error}=await sb.from('misc_receiving')
-    .select('id,job_id,description,qty,received,received_by,created_at')
+    .select('id,job_id,description,qty,received,created_at')
     .order('created_at');
-  if(error){console.error('miscLoad',error);MISC_BY_JOB={};return;}
+  if(error){console.error('miscLoad',error);MISC_BY_JOB={};
+    toast('Could not load misc items: '+(error.message||'unknown error'),true);
+    miscRerenderRaw();return;}
   const m={};(data||[]).forEach(function(r){(m[r.job_id]=m[r.job_id]||[]).push(r);});
   MISC_BY_JOB=m;
   if(page==='inventory')buildReceiving();
@@ -5793,7 +5800,8 @@ function miscFor(jobId){return (MISC_BY_JOB&&MISC_BY_JOB[jobId])||[];}
 function miscFind(id){const m=MISC_BY_JOB||{};
   for(const k in m){const r=m[k].find(function(x){return x.id===id;});if(r)return r;}
   return null;}
-function miscRerender(){if(page==='inventory')buildReceiving();if($('stockBody'))stockInit();}
+function miscRerenderRaw(){if(page==='inventory')buildReceiving();if($('stockBody'))stockInit();}
+function miscRerender(){miscRerenderRaw();}
 function miscEdit(id){miscEditId=id;miscRerender();}
 function miscForm(jobId,r){const key=r?r.id:('new:'+jobId);
   return '<div class="miscform">'
@@ -5833,18 +5841,30 @@ async function miscSave(jobId,id){
      allows null or a positive integer and nothing in between. */
   const n=Math.round(+((q&&q.value))||0);
   const rec={description:desc,qty:n>0?n:null};
-  let error;
-  if(id){const r=await sb.from('misc_receiving').update(rec).eq('id',id);error=r.error;}
-  else{const r=await sb.from('misc_receiving').insert(Object.assign({job_id:jobId},rec));error=r.error;}
-  if(error){toast('Save failed',true);console.error('miscSave',error);return;}
+  /* .select() so the write returns the row it committed. Without it, a request
+     that touched nothing is indistinguishable from one that saved. tenant_id is
+     deliberately NOT sent: the column default resolves it and the RLS WITH
+     CHECK compares against the same tenant, so sending it can only disagree. */
+  const cols='id,job_id,description,qty,received,created_at';
+  let res;
+  if(id)res=await sb.from('misc_receiving').update(rec).eq('id',id).select(cols);
+  else res=await sb.from('misc_receiving').insert(Object.assign({job_id:jobId},rec)).select(cols);
+  if(res.error){console.error('miscSave',res.error);
+    toast('Save failed: '+(res.error.message||'unknown error'),true);return;}
+  if(!res.data||!res.data.length){
+    console.error('miscSave: the write returned no row');
+    toast('Save did not commit \u2014 nothing was written',true);return;}
   miscEditId=null;await miscLoad();toast(id?'Misc item updated':'Misc item added');}
 async function miscToggle(id){
   const r=miscFind(id);if(!r)return;
   const now=!r.received;
-  const {error}=await sb.from('misc_receiving')
-    .update({received:now,received_by:now?recvWho()+' \u00b7 '+shortDate():null,
-             received_at:now?new Date().toISOString():null}).eq('id',id);
-  if(error){toast('Update failed',true);console.error('miscToggle',error);return;}
+  /* received only. received_by and received_at are not on this table, and
+     writing a column that does not exist fails the whole update. */
+  const {data,error}=await sb.from('misc_receiving')
+    .update({received:now}).eq('id',id).select('id,received');
+  if(error){console.error('miscToggle',error);
+    toast('Update failed: '+(error.message||'unknown error'),true);return;}
+  if(!data||!data.length){toast('Nothing was updated',true);return;}
   await miscLoad();toast(now?'Misc item received':'Misc item un-marked');}
 async function miscRemove(id){
   const r=miscFind(id);if(!r)return;
@@ -5855,7 +5875,8 @@ async function miscRemove(id){
     ok:'Remove',danger:true});
   if(!ok)return;
   const {error}=await sb.from('misc_receiving').delete().eq('id',id);
-  if(error){toast('Could not remove',true);console.error('miscRemove',error);return;}
+  if(error){console.error('miscRemove',error);
+    toast('Could not remove: '+(error.message||'unknown error'),true);return;}
   if(miscEditId===id)miscEditId=null;
   await miscLoad();toast('Misc item removed');}
 let RECV_NOTE_N=null;
