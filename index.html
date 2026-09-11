@@ -1113,6 +1113,10 @@ body.role-installer [data-admin]{display:none!important}
           <div class="fld"><label>Phone</label><input id="instPhone" type="tel" placeholder="(000) 000-0000"></div>
           <div class="fld"><label>Email</label><input id="instEmail" type="email" placeholder="name@example.com"></div>
         </div>
+        <div class="fld"><label>Login</label>
+          <button class="btn ghost" id="instResetBtn" onclick="ipResetPassword()" disabled>Reset password</button>
+          <div class="limeta" id="instResetMsg" style="padding:7px 2px 0"></div>
+        </div>
         <div class="fld"><label>Address</label><input id="instAddress" type="text" placeholder="Street, city, postal code"></div>
         <div class="fld"><label>Employment type</label><select id="instEmpType">
           <option value="">Not set</option>
@@ -4664,6 +4668,7 @@ async function editInstaller(id){if(!IS_ADMIN)return;const i=INSTALLERS.find(x=>
   ['instPhone','instEmail','instAddress','instDob','instStart'].forEach(k=>{$(k).value='';});
   $('instEmpType').value='';$('instEmpStatus').value=i.status||'active';ipStatusHint();
   $('ipDocsInternal').innerHTML='';$('ipDocsMine').innerHTML='';
+  $('instResetBtn').disabled=true;$('instResetMsg').textContent='';
   ipTab('info');$('instBg').classList.add('open');
   /* The profile columns are read here, for ONE installer, rather than being
      added to loadInstallers(). That query runs for every signed-in user on
@@ -4678,7 +4683,42 @@ async function editInstaller(id){if(!IS_ADMIN)return;const i=INSTALLERS.find(x=>
     $('instAddress').value=data.address||'';$('instEmpType').value=data.employment_type||'';
     $('instDob').value=ipDate(data.dob);$('instStart').value=ipDate(data.start_date);
     $('instEmpStatus').value=data.employment_status||'active';ipStatusHint();}
+  await ipLoginCheck(id,(data&&data.email)||'');
   await ipRefreshDocs();}
+/* Whether an installer has a login is answered by installer_has_login(), an
+   admin-gated SECURITY DEFINER function. The app deliberately does not read
+   public.profiles directly - it never has, and opening that table to client
+   reads just to answer one yes/no question would be a poor trade.
+
+   The link between the two is the email address and nothing else: installers
+   carries no profile_id. If someone's login email differs from the one typed
+   here, this reports no account when they have one. A profile_id column is
+   the durable fix and belongs with the role system. */
+async function ipLoginCheck(id,email){
+  const btn=$('instResetBtn'),msg=$('instResetMsg');
+  btn.disabled=true;
+  const e=(email||'').trim();
+  if(!e){msg.textContent='Add an email address to this profile and save it first.';return;}
+  msg.textContent='Checking for a login account\u2026';
+  const {data,error}=await sb.rpc('installer_has_login',{p_email:e});
+  /* The admin can close this popup and open another while the call is in
+     flight; a late answer must not light up the wrong installer's button. */
+  if(editingInst!==id)return;
+  if(error){console.error('installer_has_login',error);msg.textContent='Login check unavailable \u2014 the installer_has_login function is not installed on this project yet.';return;}
+  if(!data){msg.textContent='No login account for this installer.';return;}
+  btn.disabled=false;msg.textContent='Sends a password reset link to '+e+'.';}
+async function ipResetPassword(){
+  if(!IS_ADMIN||!editingInst)return;
+  const e=($('instEmail').value||'').trim();if(!e)return;
+  const btn=$('instResetBtn'),msg=$('instResetMsg'),label=btn.textContent;
+  btn.disabled=true;btn.textContent='Sending\u2026';
+  /* redirectTo has to be on the project's Redirect URLs allow-list or Supabase
+     quietly substitutes the Site URL instead. location.pathname preserves the
+     /ops/ base path GitHub Pages serves from. */
+  const {error}=await sb.auth.resetPasswordForEmail(e,{redirectTo:location.origin+location.pathname});
+  btn.textContent=label;btn.disabled=false;
+  if(error){console.error('resetPasswordForEmail',error);toast('Could not send the reset link',true);msg.textContent=error.message||'Send failed.';return;}
+  toast('Reset link sent to <b>'+esc(e)+'</b>');msg.textContent='Reset link sent to '+e+'.';}
 async function saveInstaller(){if(!IS_ADMIN)return;if(!editingInst)return;
   /* A blank name would render as an empty label on every card, calendar
      appointment and PDF line that resolves through instById. Refuse it here
@@ -5552,6 +5592,44 @@ function gateForm(msg,ok){gate.classList.remove('hidden');
   pw.onkeydown=e=>{if(e.key==='Enter')submit();};
   em.onkeydown=e=>{if(e.key==='Enter')pw.focus();};
   em.focus();}
+/* ===== Password recovery (v73) =================================
+   A reset link lands back on the app with #type=recovery and supabase-js
+   consumes the token into a session. Without the screen below, resolveSession
+   would see that session, boot straight into the app, and the person would
+   never be asked to choose a password - so they would still be locked out on
+   their next visit. The button that sends the link is useless without this. */
+const RECOVERY_HASH=/(^|[#&])type=recovery(&|$)/;
+function gateRecovery(msg,ok){gate.classList.remove('hidden');
+  gateBody.innerHTML=`
+    <div class="gate-field"><label>New password</label>
+      <input class="gate-input" id="gNew" type="password" autocomplete="new-password" placeholder="Choose a password (8+ characters)"></div>
+    <div class="gate-field"><label>Confirm new password</label>
+      <input class="gate-input" id="gNew2" type="password" autocomplete="new-password" placeholder="Type it again"></div>
+    <button class="gate-btn" id="gSet">Set new password</button>
+    ${msg?`<div class="gate-err">${msg}</div>`:''}
+    ${ok?`<div class="gate-ok">${ok}</div>`:''}
+    <div class="gate-toggle">Not expecting this?
+      <button id="gCancel">Back to sign in</button></div>`;
+  const a=$('gNew'),b=$('gNew2');
+  $('gSet').onclick=doRecovery;
+  b.onkeydown=e=>{if(e.key==='Enter')doRecovery();};
+  a.onkeydown=e=>{if(e.key==='Enter')b.focus();};
+  $('gCancel').onclick=async()=>{await sb.auth.signOut();clearRecoveryHash();gateMode='signin';gateForm();};
+  a.focus();}
+/* Strip the token out of the address bar so a refresh, a back button or a
+   pasted URL cannot replay it. */
+function clearRecoveryHash(){try{history.replaceState(null,'',location.pathname+location.search);}catch(e){}}
+async function doRecovery(){
+  const p1=$('gNew').value,p2=$('gNew2').value;
+  if((p1||'').length<8){gateRecovery('Password must be at least 8 characters.');return;}
+  if(p1!==p2){gateRecovery('The two passwords do not match.');return;}
+  const go=$('gSet');go.disabled=true;go.textContent='Saving\u2026';
+  const {error}=await sb.auth.updateUser({password:p1});
+  if(error){gateRecovery(error.message);return;}
+  clearRecoveryHash();
+  await sb.auth.signOut();
+  gateMode='signin';
+  gateForm('','Password updated. Sign in with your new password.');}
 function gateBusy(txt){const go=$('gGo');if(go){go.disabled=true;go.textContent=txt;}}
 async function doSignin(){
   const email=$('gEmail').value.trim().toLowerCase(),pass=$('gPass').value;
@@ -5589,6 +5667,7 @@ function bootApp(){if(_booted)return;_booted=true;
   if(MOBILE_Q.matches&&view==='week')setView('day');
   renderQueue();render();loadAll();loadServices();}
 async function resolveSession(){
+  if(RECOVERY_HASH.test(location.hash)){gateMode='recovery';gateRecovery();return;}
   gateBody.innerHTML='<div class="gate-spin"></div>';gate.classList.remove('hidden');
   const {data:{session}}=await sb.auth.getSession();
   if(!session){gateMode='signin';gateForm();return;}
@@ -5596,7 +5675,13 @@ async function resolveSession(){
   if(error){console.error(error);gateMode='signin';gateForm('Could not load your profile: '+error.message);return;}
   if(!prof||!prof.profile_id){gateDenied(session.user&&session.user.email);return;}
   applyProfile(prof);gate.classList.add('hidden');bootApp();}
-sb.auth.onAuthStateChange((ev)=>{if(ev==='SIGNED_OUT'){PROFILE=null;IS_ADMIN=false;document.body.classList.add('role-installer');gateMode='signin';gateForm();}});
+sb.auth.onAuthStateChange((ev)=>{
+  if(ev==='PASSWORD_RECOVERY'){gateMode='recovery';gateRecovery();return;}
+  /* doRecovery signs out on purpose after setting the new password. The
+     gateMode guard stops this handler repainting a blank sign-in form over
+     the confirmation message that follows it. */
+  if(ev==='SIGNED_OUT'){PROFILE=null;IS_ADMIN=false;document.body.classList.add('role-installer');
+    if(gateMode!=='recovery'){gateMode='signin';gateForm();}}});
 $('siSignOut').onclick=async e=>{e.stopPropagation();menu.classList.remove('open');await sb.auth.signOut();};
 resolveSession();
 </script>
