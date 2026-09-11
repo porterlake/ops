@@ -458,6 +458,10 @@
   .rate-retired{font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);background:var(--raised);padding:1px 6px;border-radius:5px}
   .rate-notes{font-size:11.5px;color:var(--muted);margin-top:2px}
   .rate-unit{font-size:11px;font-weight:700;color:#7a6c45;background:rgba(216,198,160,.22);padding:3px 9px;border-radius:6px;white-space:nowrap}
+  /* Product is the overwhelming majority, so it reads quiet and Service reads
+     loud - the exception is what the eye needs to find on a 94-row sheet. */
+  .rtype{font-size:9.5px;font-weight:800;letter-spacing:.7px;text-transform:uppercase;padding:2px 6px;border-radius:5px;color:var(--muted);background:var(--page);border:1px solid var(--border);vertical-align:middle}
+  .rtype.svc{color:#7a6c45;background:rgba(216,198,160,.28);border-color:rgba(216,198,160,.55)}
   .rate-price{font-weight:800;font-size:15px;color:var(--ink);text-align:right;min-width:88px;white-space:nowrap}
   .rate-min{display:block;font-size:10px;font-weight:600;color:var(--muted)}
   .rq{color:var(--muted);font-weight:700;font-size:12px;text-transform:uppercase;letter-spacing:.5px}
@@ -1281,6 +1285,10 @@ body.role-installer [data-admin]{display:none!important}
       <div class="fld"><label>Name</label><input id="svcName" placeholder="e.g. Roller Shades"></div>
       <div class="fld"><label>Category</label><select id="svcCat"></select></div>
       <div class="fld"><label>Unit</label><select id="svcUnit"></select></div>
+      <div class="fld"><label>Type</label><select id="svcType">
+        <option value="product">Product &#183; physical stock, checked in via Receiving</option>
+        <option value="service">Service &#183; labour or fee, never stock</option>
+      </select></div>
       <div class="fld"><label>Price (dealer charge)</label><input id="svcPrice" type="number" step="0.01" placeholder="Leave blank for Quote Only"></div>
       <div class="fld"><label>Minimum charge (optional)</label><input id="svcMin" type="number" step="0.01" placeholder="e.g. 400"></div>
       <div class="fld"><label>Notes (optional)</label><input id="svcNotes" placeholder="e.g. +$5 motorization surcharge"></div>
@@ -1492,9 +1500,33 @@ async function loadJobs(){try{const {data,error}=await sb.from('jobs')
   queue=(data||[]).map(mapJob).filter(j=>!scheduled.has(j.id));renderQueue();
   if(page==='toschedule')buildGeneric('toschedule');if(page==='inventory')buildReceiving();
 }catch(e){console.error(e);toast('Could not reach database',true);}}
-function readyToSchedule(j){return j.override||!j.awaitingProduct||(j.lineItems&&j.lineItems.length>0&&j.lineItems.every(li=>li.delivered))}
-function stillAwaiting(j){return j.awaitingProduct&&!j.override&&(!j.lineItems||!j.lineItems.length||j.lineItems.some(li=>!li.delivered))}
-function partialAwaiting(x){return x.awaitingProduct&&x.lineItems&&x.lineItems.some(li=>!li.delivered)}
+/* A line counts as STOCK when its catalogue rate is a product. Anything that
+   cannot be resolved counts as stock: a custom typed line has no service_id,
+   and a rate deleted after the line was written no longer resolves. Showing
+   one extra row to tick is an annoyance; silently dropping a physical item
+   from check-in ships the job short, so the unknown case fails toward
+   visible. */
+function isStockLine(li){
+  if(!li)return false;
+  if(!li.serviceId)return true;
+  const s=SERVICES.find(x=>x.id===li.serviceId);
+  return !s||s.item_type!=='service';}
+function stockLines(list){return (list||[]).filter(isStockLine);}
+/* Readiness is judged on STOCK lines only. A service line can never be ticked
+   delivered because it is not shown in Receiving, so leaving these three
+   reading every line would strand any job with a service on it in awaiting-
+   product forever. A job whose lines are ALL services has nothing to receive
+   and is ready: stockLines() returns [], and [].every() is true.
+   The no-line-items-at-all case is deliberately left as it was. */
+function readyToSchedule(j){
+  if(j.override||!j.awaitingProduct)return true;
+  if(!j.lineItems||!j.lineItems.length)return false;
+  return stockLines(j.lineItems).every(li=>li.delivered);}
+function stillAwaiting(j){
+  if(!j.awaitingProduct||j.override)return false;
+  if(!j.lineItems||!j.lineItems.length)return true;
+  return stockLines(j.lineItems).some(li=>!li.delivered);}
+function partialAwaiting(x){return x.awaitingProduct&&x.lineItems&&stockLines(x.lineItems).some(li=>!li.delivered)}
 let appts=[
   {id:"a1",type:"Install",cust:"Brad Burdsall",dealer:"Sunset Blinds Co.",addr:"22 Oak Run, Venice",scope:"9 windows · faux wood",day:0,start:9,dur:5,installer:"mk",status:"scheduled"},
   {id:"a2",type:"Measure",cust:"Fournier Residence",dealer:"Coastal Window Co.",addr:"61 Bay St, Sarasota",scope:"Whole home measure",day:1,start:9,dur:2,installer:"mk",status:"otw"},
@@ -2055,15 +2087,18 @@ async function stockInit(){
   /* Fresh read, not the cached copy. delivered_at is selected here for the
      first time — the app has always written it and never read it back. */
   const {data,error}=await sb.from('line_items')
-    .select('id,description,qty,delivered,delivered_by,delivered_at')
+    .select('id,description,qty,delivered,delivered_by,delivered_at,service_id')
     .eq('job_id',jobId)
     .order('delivered',{ascending:true})
     .order('description',{ascending:true});
   if(error){console.error('stockInit',error);
     box.innerHTML='<p style="font-size:12.5px;color:#e08a86">Could not load the stock list.</p>';return;}
-  const rows=data||[];
+  /* Service lines are not stock, so they never appear here. This reads the
+     same isStockLine predicate the queue and Receiving use, so the popup can
+     never disagree with the badge on the card. */
+  const rows=(data||[]).filter(function(r){return isStockLine({serviceId:r.service_id});});
   if(!rows.length){
-    box.innerHTML='<p style="'+dim+'">No line items on this job, so there is no stock to check.</p>';return;}
+    box.innerHTML='<p style="'+dim+'">Nothing to check in on this job \u2014 every line is a service, not stock.</p>';return;}
 
   const awaiting=rows.filter(function(r){return !r.delivered;});
   const received=rows.filter(function(r){return !!r.delivered;});
@@ -5581,7 +5616,7 @@ function buildRates(){const g=$('genericView');const q=rateSearch.trim().toLower
   RATE_CATS.forEach(cat=>{const items=list.filter(s=>s.category===cat);if(!items.length)return;
     body+=`<div class="rate-cat">${cat}<span class="rate-count">${items.length}</span></div>`;
     items.forEach(s=>{body+=`<div class="rate-row${s.active===false?' off':''}" onclick="editService('${s.id}')">
-      <div class="rate-main"><div class="rate-name">${s.name}${s.active===false?' <span class="rate-retired">retired</span>':''}</div>${s.notes?`<div class="rate-notes">${s.notes}</div>`:''}</div>
+      <div class="rate-main"><div class="rate-name">${s.name}${s.item_type==='service'?' <span class="rtype svc">Service</span>':' <span class="rtype">Product</span>'}${s.active===false?' <span class="rate-retired">retired</span>':''}</div>${s.notes?`<div class="rate-notes">${s.notes}</div>`:''}</div>
       <div class="rate-unit">${s.unit||''}</div>
       <div class="rate-price">${money(s.price)}${s.min_charge?`<span class="rate-min">min $${Number(s.min_charge).toFixed(2)}</span>`:''}</div>
     </div>`});});
@@ -5599,13 +5634,14 @@ function editService(id){if(!IS_ADMIN)return;const s=id?SERVICES.find(x=>x.id===
   $('svcPrice').value=s&&s.price!=null?s.price:'';
   $('svcMin').value=s&&s.min_charge!=null?s.min_charge:'';
   $('svcNotes').value=s?(s.notes||''):'';
+  $('svcType').value=(s&&s.item_type==='service')?'service':'product';
   $('svcActive').checked=s?s.active!==false:true;
   $('svcDelete').style.display=s?'inline-flex':'none';
   editingSvc=id||null;$('svcBg').classList.add('open');}
 let editingSvc=null;
 async function saveService(){if(!IS_ADMIN)return;const name=$('svcName').value.trim();if(!name){toast('Enter a name',true);return;}
   const unit=$('svcUnit').value;const priceRaw=$('svcPrice').value.trim();
-  const rec={name,category:$('svcCat').value,unit,price:unit==='Quote Only'||priceRaw===''?null:Number(priceRaw),min_charge:$('svcMin').value.trim()===''?null:Number($('svcMin').value),notes:$('svcNotes').value.trim()||null,active:$('svcActive').checked};
+  const rec={name,category:$('svcCat').value,unit,item_type:$('svcType').value,price:unit==='Quote Only'||priceRaw===''?null:Number(priceRaw),min_charge:$('svcMin').value.trim()===''?null:Number($('svcMin').value),notes:$('svcNotes').value.trim()||null,active:$('svcActive').checked};
   if(editingSvc){const {error}=await sb.from('services').update(rec).eq('id',editingSvc);if(error){toast('Save failed',true);console.error(error);return;}Object.assign(SERVICES.find(s=>s.id===editingSvc),rec);toast('Rate updated');}
   else{const {data,error}=await sb.from('services').insert(rec).select().single();if(error){toast('Save failed',true);console.error(error);return;}SERVICES.push(data);toast(`<b>${name}</b> added`);}
   $('svcBg').classList.remove('open');buildRates();}
@@ -5756,13 +5792,16 @@ function recvFind(jobId){
 }
 
 function recvFullyReceived(j){
-  return !!(j.lineItems&&j.lineItems.length&&j.lineItems.every(function(li){return li.delivered;}));
+  return !!(j.lineItems&&j.lineItems.length&&stockLines(j.lineItems).every(function(li){return li.delivered;}));
 }
 
 function recvCard(j,showSchedule){
-  const done=j.lineItems.filter(function(li){return li.delivered;}).length,tot=j.lineItems.length;
+  /* Counts and rows both come off the stock subset, so "3 of 5" cannot count
+     a service line it never shows. */
+  const stock=stockLines(j.lineItems);
+  const done=stock.filter(function(li){return li.delivered;}).length,tot=stock.length;
   const nNotes=(RECV_NOTE_N&&RECV_NOTE_N[j.id])||0;
-  const lines=j.lineItems.map(function(li){
+  const lines=stock.map(function(li){
     return '<div class="lrow '+(li.delivered?'on':'')+'">'
       +'<button class="lck" onclick="toggleLine(\''+j.id+'\',\''+li.id+'\')">'
       +(li.delivered?'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M5 12l5 5L20 6"/></svg>':'')
@@ -5970,7 +6009,7 @@ async function applyLineToggle(jobId,lineId,nowDel){
     .eq('id',lineId);
   if(error){toast('Update failed',true);console.error(error);return;}
   li.delivered=nowDel;li.by=by||'';
-  const allDel=j.lineItems.every(function(l){return l.delivered;});
+  const allDel=stockLines(j.lineItems).every(function(l){return l.delivered;});
   buildReceiving();renderQueue();
   if(page==='toschedule')buildGeneric('toschedule');
   /* A scheduled job's stock lives on an appointment, so the calendar's
