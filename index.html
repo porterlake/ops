@@ -462,6 +462,25 @@
      loud - the exception is what the eye needs to find on a 94-row sheet. */
   /* .ritype, NOT .rtype - Receiving already owns .rtype for its Scheduled and
      job-type chips, and v90 silently overrode it from further down the sheet. */
+  /* Misc block. Set apart from the stock lines on purpose - it must never be
+     mistaken for something that bills. */
+  .miscbox{border-top:1px dashed var(--border);margin-top:10px;padding-top:10px}
+  .mischd{font-size:10.5px;letter-spacing:1.1px;text-transform:uppercase;color:var(--muted);margin-bottom:8px;display:flex;gap:8px;align-items:baseline;flex-wrap:wrap}
+  .mischd span{font-size:10px;letter-spacing:0;text-transform:none;color:var(--faint)}
+  .miscempty{font-size:12px;color:var(--muted);padding:2px 0 8px}
+  .miscrow{display:flex;align-items:center;gap:9px;padding:7px 0;border-bottom:1px solid var(--border-soft)}
+  .miscrow.on .ln{color:var(--muted);text-decoration:line-through}
+  .miscform{display:flex;gap:6px;align-items:center;flex-wrap:wrap;padding:7px 0}
+  .miscform input{min-width:0;background:var(--card);border:1px solid var(--border);color:var(--ink);font:inherit;font-size:12.5px;padding:6px 9px;border-radius:7px;outline:none}
+  .miscform input[type=text]{flex:1 1 190px}
+  .miscform input[type=number]{width:112px;flex:0 0 auto}
+  .miscform input:focus{border-color:#b49e6f}
+  .miscbtn{font:inherit;font-size:11.5px;font-weight:700;padding:5px 10px;border-radius:7px;cursor:pointer;background:none;border:1px solid var(--border);color:var(--muted);flex-shrink:0}
+  .miscbtn:hover{border-color:#b49e6f;color:var(--ink)}
+  .miscbtn.go{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+  .miscbtn.del:hover{border-color:#a3211d;color:#a3211d}
+  .miscadd{margin-top:8px;font:inherit;font-size:11.5px;font-weight:700;padding:6px 11px;border-radius:7px;cursor:pointer;background:none;border:1px dashed var(--border);color:var(--muted)}
+  .miscadd:hover{border-color:#b49e6f;color:var(--ink)}
   .lqty{font-size:11px;color:var(--muted);margin-top:2px}
   .lqty b{color:#a3211d;font-weight:700}
   .ladd{display:flex;gap:5px;align-items:center;flex-shrink:0}
@@ -2144,7 +2163,11 @@ async function stockInit(){
       ?'Warehouse check-in happens on the Receiving page — this view is read-only.'
       :'Everything on this job has been checked in.')
     +'</p>';
+  /* Read-only here. Check-in happens on the Receiving page, exactly as the
+     catalogue stock list above already tells the installer. */
+  h+=miscRows(jobId,true);
   box.innerHTML=h;
+  if(MISC_BY_JOB===null){MISC_BY_JOB={};miscLoad();}
 }
 
 /* ===== Dealer quick-actions popup (v45) ================================
@@ -5742,6 +5765,99 @@ function recvOpenJob(jobId){
    buildReceiving sets it to {} before firing the fetch so the re-render that
    fetch triggers on completion cannot start a second one. Reset on nav to
    Receiving so a fresh visit picks up notes added from a drawer meanwhile. */
+/* ===== MISC receiving items (v94) =====================================
+   Ad-hoc things that arrive with a shipment but are not catalogue stock - a
+   box of motor accessories with a roller order. They live in their own table,
+   misc_receiving, and NOTHING that builds a document or a total ever queries
+   it. That isolation is structural, not a filter someone has to remember:
+   jobPricing() reads item.lineItems and has no path to this data at all, so a
+   misc entry cannot reach a quote, an invoice, a PDF, a dealer revenue tile or
+   a margin figure even by mistake.
+
+   Deliberately NOT part of job readiness either. An outstanding misc box does
+   not hold a job out of Ready to Schedule - it is a warehouse note, and the
+   moment it gates status it starts behaving like stock. */
+let MISC_BY_JOB=null,miscEditId=null;
+async function miscLoad(){
+  /* One query for the whole page rather than one per card, same shape as
+     recvLoadNoteCounts. RLS already scopes the table to this tenant. */
+  const {data,error}=await sb.from('misc_receiving')
+    .select('id,job_id,description,qty,received,received_by,created_at')
+    .order('created_at');
+  if(error){console.error('miscLoad',error);MISC_BY_JOB={};return;}
+  const m={};(data||[]).forEach(function(r){(m[r.job_id]=m[r.job_id]||[]).push(r);});
+  MISC_BY_JOB=m;
+  if(page==='inventory')buildReceiving();
+  if($('stockBody'))stockInit();}
+function miscFor(jobId){return (MISC_BY_JOB&&MISC_BY_JOB[jobId])||[];}
+function miscFind(id){const m=MISC_BY_JOB||{};
+  for(const k in m){const r=m[k].find(function(x){return x.id===id;});if(r)return r;}
+  return null;}
+function miscRerender(){if(page==='inventory')buildReceiving();if($('stockBody'))stockInit();}
+function miscEdit(id){miscEditId=id;miscRerender();}
+function miscForm(jobId,r){const key=r?r.id:('new:'+jobId);
+  return '<div class="miscform">'
+    +'<input type="text" id="miscd-'+key+'" maxlength="200" placeholder="What arrived? e.g. box of motor accessories" value="'+(r?esc(r.description):'')+'">'
+    +'<input type="number" min="1" step="1" id="miscq-'+key+'" placeholder="Qty (optional)" value="'+((r&&r.qty)?r.qty:'')+'">'
+    +'<button class="miscbtn go" onclick="miscSave(\''+jobId+'\',\''+(r?r.id:'')+'\')">Save</button>'
+    +'<button class="miscbtn" onclick="miscEdit(null)">Cancel</button></div>';}
+function miscRows(jobId,readOnly){
+  const rows=miscFor(jobId);
+  if(readOnly&&!rows.length)return '';
+  const tick='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M5 12l5 5L20 6"/></svg>';
+  let h='<div class="miscbox"><div class="mischd">Misc items<span>warehouse log \u00b7 never on a quote, invoice or PDF</span></div>';
+  if(!rows.length)h+='<div class="miscempty">Nothing logged for this job.</div>';
+  h+=rows.map(function(r){
+    if(!readOnly&&miscEditId===r.id)return miscForm(jobId,r);
+    return '<div class="miscrow'+(r.received?' on':'')+'">'
+      +(readOnly
+        ?'<span class="lbadge '+(r.received?'in">Received':'out">Pending')+'</span>'
+        :'<button class="lck" onclick="miscToggle(\''+r.id+'\')">'+(r.received?tick:'')+'</button>')
+      +'<div class="ld"><div class="ln">'+esc(r.description)+'</div>'
+      +(r.received&&r.received_by?'<div class="lby">'+esc(r.received_by)+'</div>':'')+'</div>'
+      +(r.qty?'<div class="lq">&times;'+esc(String(r.qty))+'</div>':'')
+      +(readOnly?''
+        :'<button class="miscbtn" onclick="miscEdit(\''+r.id+'\')">Edit</button>'
+         +'<button class="miscbtn del" onclick="miscRemove(\''+r.id+'\')">&times;</button>')
+      +'</div>';}).join('');
+  if(!readOnly)h+=(miscEditId==='new:'+jobId)
+    ?miscForm(jobId,null)
+    :'<button class="miscadd" onclick="miscEdit(\'new:'+jobId+'\')">+ MISC product</button>';
+  return h+'</div>';}
+async function miscSave(jobId,id){
+  const key=id||('new:'+jobId);
+  const d=$('miscd-'+key),q=$('miscq-'+key);
+  const desc=((d&&d.value)||'').trim();
+  if(!desc){toast('Describe the item first',true);if(d)d.focus();return;}
+  /* Blank qty stays NULL rather than becoming a misleading zero - the column
+     allows null or a positive integer and nothing in between. */
+  const n=Math.round(+((q&&q.value))||0);
+  const rec={description:desc,qty:n>0?n:null};
+  let error;
+  if(id){const r=await sb.from('misc_receiving').update(rec).eq('id',id);error=r.error;}
+  else{const r=await sb.from('misc_receiving').insert(Object.assign({job_id:jobId},rec));error=r.error;}
+  if(error){toast('Save failed',true);console.error('miscSave',error);return;}
+  miscEditId=null;await miscLoad();toast(id?'Misc item updated':'Misc item added');}
+async function miscToggle(id){
+  const r=miscFind(id);if(!r)return;
+  const now=!r.received;
+  const {error}=await sb.from('misc_receiving')
+    .update({received:now,received_by:now?recvWho()+' \u00b7 '+shortDate():null,
+             received_at:now?new Date().toISOString():null}).eq('id',id);
+  if(error){toast('Update failed',true);console.error('miscToggle',error);return;}
+  await miscLoad();toast(now?'Misc item received':'Misc item un-marked');}
+async function miscRemove(id){
+  const r=miscFind(id);if(!r)return;
+  const ok=await ejcOpen({title:'Remove this misc item?',sub:'Warehouse log only',
+    body:'<p style="font-size:13px;line-height:1.6;color:var(--sand-ink);margin:0"><b>'
+      +esc(r.description)+'</b> will be deleted from this job\u2019s receiving log. '
+      +'It is not on any document or total, so nothing else changes.</p>',
+    ok:'Remove',danger:true});
+  if(!ok)return;
+  const {error}=await sb.from('misc_receiving').delete().eq('id',id);
+  if(error){toast('Could not remove',true);console.error('miscRemove',error);return;}
+  if(miscEditId===id)miscEditId=null;
+  await miscLoad();toast('Misc item removed');}
 let RECV_NOTE_N=null;
 async function recvLoadNoteCounts(){
   /* One query for the whole page instead of one per card. RLS already scopes
@@ -5847,6 +5963,7 @@ function recvCard(j,showSchedule){
       +'<div class="rsub">'+esc(j.dealer)+' &middot; '+esc(j.addr)+'</div></div>'
       +'<div class="rprog">'+done+'/'+tot+' fully received</div></div>'
       +'<div class="lines">'+lines+'</div>'
+      +miscRows(j.id,false)
       +'<div class="ract">'
         /* Neutral against the LIGHT page: .btn.ghost is dark-palette only
            (--sand-ink on translucent white) and would be near-invisible here,
@@ -5872,6 +5989,7 @@ function buildReceiving(){const g=$('genericView');
   /* Set to {} BEFORE the fetch starts, so the re-render recvLoadNoteCounts
      triggers on completion does not see null and fire a second one. */
   if(RECV_NOTE_N===null){RECV_NOTE_N={};recvLoadNoteCounts();}
+  if(MISC_BY_JOB===null){MISC_BY_JOB={};miscLoad();}
   /* Focus mode short-circuits everything below: one job, drawn from the FULL
      pool so it is reachable whether it is awaiting, received, scheduled, or
      invisible to this user's normal filter. */
