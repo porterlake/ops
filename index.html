@@ -683,6 +683,22 @@ body.role-installer [data-admin]{display:none!important}
 .dl-actions{display:flex;gap:8px;justify-content:flex-end}
 .dl-seg{margin-left:10px;vertical-align:middle}
 .dl-seg button{font-size:11px;padding:3px 9px}
+/* The dealer page renders inside #genericView, which is the LIGHT stage, but
+   .pedit and .seg/.seg.ghost are DARK-palette components: sand-dim text on a
+   rgba(255,255,255,.05) ground is all but invisible on white. That is the
+   light-vs-dark landmine in CLAUDE.md, and the same one the Receiving filter
+   already documents. These override to the sand pill the rest of the app uses
+   - var(--accent) ground, var(--accent-ink) near-black text, exactly what .btn
+   is built from. Font size and padding are deliberately left alone: this is a
+   visibility fix, not a resize. */
+.dl-h .pedit{background:var(--accent);border-color:var(--accent);color:var(--accent-ink);font-weight:700}
+.dl-h .pedit:hover{background:#b49e6f;border-color:#b49e6f}
+.seg.dl-seg{background:transparent;border:none;padding:0;display:inline-flex;gap:6px}
+.seg.dl-seg button{background:var(--accent);color:var(--accent-ink);border:none;font-weight:700}
+.seg.dl-seg button:hover{background:#e0d2b4}
+/* Beats .seg.ghost button.on (0,3,1) - without the extra class the active pill
+   would keep the dark-stage rule and lose its black text. */
+.seg.ghost.dl-seg button.on{background:#b49e6f;color:var(--accent-ink)}
 .dl-types{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:9px}
 .dl-type{background:var(--card);border:1px solid var(--border);border-radius:11px;padding:10px 12px}
 .dl-type b{display:block;font-size:13px;color:var(--ink)}
