@@ -255,6 +255,10 @@
   .fileadd button{font:inherit;font-size:12px;font-weight:700;padding:7px 12px;border-radius:8px;cursor:pointer;background:var(--side-3);border:1px solid var(--side-border);color:var(--sand-ink)}
   .fileadd button:hover{border-color:var(--accent-line)}
   .fileempty{font-size:12px;color:var(--sand-dim);padding:4px 0 2px}
+  /* Job number chip. Inherits the row's colour so it reads correctly on both
+     the dark queue and the light stage, and adds no box of its own - it sits
+     inside lines that already exist, so no card grows by a pixel. */
+  .jno{font-weight:800;font-size:.92em;opacity:.72;letter-spacing:.3px}
   .filegrid{display:grid;grid-template-columns:repeat(4,1fr);gap:7px;margin-bottom:9px}
   /* Gallery arrows (v81). Positioned against the viewer modal, which is the
      only .modal given position:relative - scoped so no other popup gains a
@@ -1475,13 +1479,13 @@ function defaultMins(type){return type==='Install'?180:60}
 function hmToMins(h,m){return (+h)*60+(+m)}
 function fillDur(hSel,mSel,mins){hSel.innerHTML='';for(let h=0;h<=8;h++)hSel.appendChild(new Option(h,h));mSel.innerHTML='';[0,15,30,45].forEach(m=>mSel.appendChild(new Option(String(m).padStart(2,'0'),m)));const M=Math.max(0,mins||0);hSel.value=Math.min(8,Math.floor(M/60));mSel.value=[0,15,30,45].reduce((p,c)=>Math.abs(c-M%60)<Math.abs(p-M%60)?c:p,0);}
 function mapJob(j){return {id:j.id,type:j.type,customerId:j.customer_id,dealerId:j.dealer_id,estMins:j.estimated_minutes||120,
-  completedAt:j.completed_at||null,closedAt:j.closed_at||null,
+  completedAt:j.completed_at||null,closedAt:j.closed_at||null,jobNo:j.job_number||null,
   cust:j.customers?j.customers.name:'—',dealer:j.dealers?j.dealers.name:'—',
   addr:j.site_address||'—',phone:j.customers?(j.customers.phone||''):'',scope:j.scope||'—',
   awaitingProduct:j.awaiting_product,override:j.override_schedule||false,
   lineItems:(j.line_items||[]).map(li=>({id:li.id,desc:li.description,qty:li.qty,delivered:li.delivered,by:li.delivered_by||'',serviceId:li.service_id||null,unitPrice:li.unit_price,minCharge:li.min_charge,isCustom:!!li.is_custom})),dealerDiscount:j.dealers?(+j.dealers.discount_pct||0):0};}
 async function loadJobs(){try{const {data,error}=await sb.from('jobs')
-    .select('id,customer_id,dealer_id,type,site_address,scope,estimated_minutes,awaiting_product,override_schedule,completed_at,closed_at,customers(name,phone),dealers(name,discount_pct),line_items(id,description,qty,delivered,delivered_by,service_id,unit_price,min_charge,is_custom)')
+    .select('id,customer_id,dealer_id,type,site_address,scope,estimated_minutes,awaiting_product,override_schedule,completed_at,closed_at,job_number,customers(name,phone),dealers(name,discount_pct),line_items(id,description,qty,delivered,delivered_by,service_id,unit_price,min_charge,is_custom)')
     .order('created_at',{ascending:true});
   if(error){console.error(error);toast('Could not load jobs',true);return;}
   const scheduled=new Set(appts.map(a=>a.jobId));
@@ -1540,10 +1544,10 @@ function mapAppt(r){const j=r.jobs||{};const d=new Date(r.start_time);return {id
   type:j.type||'Install',cust:j.customers?j.customers.name:'—',dealer:j.dealers?j.dealers.name:'—',addr:j.site_address||'—',
   phone:j.customers?(j.customers.phone||''):'',scope:j.scope||'—',customerId:j.customer_id,dealerId:j.dealer_id,estMins:j.estimated_minutes||120,
   awaitingProduct:j.awaiting_product,override:j.override_schedule||false,
-  completedAt:j.completed_at||null,closedAt:j.closed_at||null,
+  completedAt:j.completed_at||null,closedAt:j.closed_at||null,jobNo:j.job_number||null,
   lineItems:(j.line_items||[]).map(li=>({id:li.id,desc:li.description,qty:li.qty,delivered:li.delivered,by:li.delivered_by||'',serviceId:li.service_id||null,unitPrice:li.unit_price,minCharge:li.min_charge,isCustom:!!li.is_custom})),dealerDiscount:j.dealers?(+j.dealers.discount_pct||0):0,files:[]};}
 async function loadAppointments(){try{const {data,error}=await sb.from('appointments')
-    .select('id,job_id,installer_id,status,start_time,duration_minutes,notes,jobs(type,site_address,scope,estimated_minutes,awaiting_product,override_schedule,completed_at,closed_at,customer_id,dealer_id,customers(name,phone),dealers(name,discount_pct),line_items(id,description,qty,delivered,delivered_by,service_id,unit_price,min_charge,is_custom))')
+    .select('id,job_id,installer_id,status,start_time,duration_minutes,notes,jobs(type,site_address,scope,estimated_minutes,awaiting_product,override_schedule,completed_at,closed_at,job_number,customer_id,dealer_id,customers(name,phone),dealers(name,discount_pct),line_items(id,description,qty,delivered,delivered_by,service_id,unit_price,min_charge,is_custom))')
     .order('start_time',{ascending:true});
   if(error){console.error(error);toast('Could not load appointments',true);return;}
   appts=(data||[]).map(mapAppt);markConflicts();render();}catch(e){console.error(e)}}
@@ -1565,7 +1569,7 @@ function apptCard(a){const s=STATUS[a.status],sc=statusColor(a.status),st=status
   const instLabel=unassigned?`<span style="color:#9a791a;font-weight:800">⚠ Unassigned</span>`:inst.name.split(' ')[0];
   el.innerHTML=`<div class="pill">${a.type}</div>
     <div class="at">${a.cust}</div>
-    <div class="ai"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="3.5"/><path d="M5 20a7 7 0 0 1 14 0"/></svg>${instLabel} · ${fmt(a.start)}–${fmt(a.start+a.dur)}</div>
+    <div class="ai"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="3.5"/><path d="M5 20a7 7 0 0 1 14 0"/></svg>${a.jobNo?`<span class="jno">#${a.jobNo}</span> · `:''}${instLabel} · ${fmt(a.start)}–${fmt(a.start+a.dur)}</div>
     <div class="srow" style="color:${st}"><i style="background:${sc}"></i>${s.short}</div>
     ${a.status==='issue'?'<span class="bang">!</span>':''}${a._conflict?'<span class="cflag">Conflict</span>':''}${partialAwaiting(a)?'<span class="awtag" style="position:absolute;bottom:7px;right:9px;margin:0">⏳ product</span>':''}`;
   el.draggable=true;
@@ -1624,7 +1628,7 @@ function renderQueue(){const list=$('queueList');list.innerHTML='';
        sand-on-sand style and is now static CSS in the LIGHT QUEUE RAIL block. */
     const sc=statusColor(j.status||'rts');
     const aw=partialAwaiting(j)?`<span class="awtag light">⏳ awaiting product</span>`:'';
-    el.innerHTML=`<span class="jspine" style="background:${sc}"></span><span class="tag">${j.type}</span><span class="rts" style="color:${sc}">RTS</span>${aw}
+    el.innerHTML=`<span class="jspine" style="background:${sc}"></span><span class="tag">${j.type}</span>${j.jobNo?`<span class="jno">#${j.jobNo}</span>`:''}<span class="rts" style="color:${sc}">RTS</span>${aw}
       <div class="cust">${j.cust}</div><div class="meta">${j.scope}<br>${j.addr}</div><div class="dealer">${j.dealer}</div>`;
     el.addEventListener('dragstart',e=>{e.dataTransfer.setData('id',j.id);el.classList.add('dragging');document.body.classList.add('dragging')});
     el.addEventListener('dragend',()=>{el.classList.remove('dragging');document.body.classList.remove('dragging')});
@@ -1642,7 +1646,7 @@ async function dropJob(key,hour,e){const id=e.dataTransfer.getData('id');const j
 function openDrawer(id){let a=appts.find(x=>x.id===id),mode='appt';if(!a){a=queue.find(x=>x.id===id);mode='queue';}if(!a)return;
   selectedId=id;drawerMode=mode;const tt=$('drTypeTag'),t=TYPES[a.type];
   tt.textContent=a.type;tt.style.background=hexA(t.c,.2);tt.style.color=t.c;
-  $('drName').textContent=a.cust;$('drSub').textContent=`${a.type} · ${a.dealer}`;$('drDealer').textContent=a.dealer;
+  $('drName').textContent=a.cust;$('drSub').textContent=`${a.jobNo?'#'+a.jobNo+' · ':''}${a.type} · ${a.dealer}`;$('drDealer').textContent=a.dealer;
   {const ad=drMapAddr(a.addr);
     $('drAddr').innerHTML=ad?drMapLink(ad):'\u2014';}
   {const ph=a.phone||'';$('drPhone').innerHTML=ph?`<a class="tel" href="tel:${telDigits(ph)}">${ph}</a>`:'—';}
@@ -2662,6 +2666,7 @@ function msBuildPdf(rows){
   /* Context rows are pushed only when the value is real. A missing address or an
      unassigned installer drops its whole row rather than printing a blank label. */
   const ctx=[],push=(l,v)=>{if(v&&String(v).trim()&&String(v).trim()!=='—')ctx.push([l,String(v).trim()]);};
+  push('Job #',item.jobNo?('#'+item.jobNo):null);
   push('Customer',item.cust);
   push('Dealer',item.dealer);
   push('Date measured',item.dateKey?msFmtDate(item.dateKey):null);
@@ -2970,6 +2975,7 @@ function asrBuildPdf(rows){
   doc.setFont('helvetica','bold');doc.setFontSize(15);doc.setTextColor(INK[0],INK[1],INK[2]);
   doc.text('ADDITIONAL SERVICES REPORT',M,61);
   const ctx=[],push=function(l,v){if(v&&String(v).trim()&&String(v).trim()!=='\u2014')ctx.push([l,String(v).trim()]);};
+  push('Job #',item.jobNo?('#'+item.jobNo):null);
   push('Customer',item.cust);
   push('Dealer',item.dealer);
   push('Date reported',item.dateKey?msFmtDate(item.dateKey):msFmtDate(new Date()));
@@ -3381,6 +3387,7 @@ function crBuildPdf(r){
   doc.setFont('helvetica','bold');doc.setFontSize(15);doc.setTextColor(INK[0],INK[1],INK[2]);
   doc.text('COMPLETION REPORT',M,61);
   const ctx=[],push=function(l,v){if(v&&String(v).trim()&&String(v).trim()!=='\u2014')ctx.push([l,String(v).trim()]);};
+  push('Job #',item.jobNo?('#'+item.jobNo):null);
   push('Customer',item.cust);
   push('Dealer',item.dealer);
   push('Date completed',item.dateKey?msFmtDate(item.dateKey):msFmtDate(new Date()));
@@ -4804,6 +4811,7 @@ function biBuildPdf(docType,snap,ctxInfo,number){
   const ctx=[],push=function(l,v){if(v&&String(v).trim()&&String(v).trim()!=='\u2014')ctx.push([l,String(v).trim()]);};
   push(BI_TYPES[docType].label+' number',String(number));
   push('Date',msFmtDate(new Date()));
+  push('Job #',ctxInfo.jobNo?('#'+ctxInfo.jobNo):null);
   push('Customer',ctxInfo.customer);
   push('Dealer',ctxInfo.dealer);
   push('Job address',ctxInfo.address);
@@ -4871,7 +4879,7 @@ async function biGenerate(docType){
     if(ne)throw ne;
     if(num==null){toast('The database refused to issue a number \u2014 admin access is required.',true);return;}
     number=num;
-    const built=biBuildPdf(docType,snap,{customer:a.cust,dealer:a.dealer,address:a.addr},number);
+    const built=biBuildPdf(docType,snap,{customer:a.cust,dealer:a.dealer,address:a.addr,jobNo:a.jobNo},number);
     if(btn)btn.textContent='Saving\u2026';
     const {data:row,error:ie}=await sb.from('billing_documents').insert({
       job_id:jobId,doc_type:docType,number:number,
@@ -5277,7 +5285,16 @@ $('njSave').onclick=async()=>{if(!IS_ADMIN)return;let dId=njDealerId,dealer;
   }
   if(awaiting&&!formLines.length)formLines=[{desc:'Product on order',qty:1,serviceId:null,unitPrice:null,minCharge:null,isCustom:false}];
   const estMins=Math.max(15,hmToMins($('njDurH').value,$('njDurM').value)||defaultMins(type));
-  const {data:job,error:je}=await sb.from('jobs').insert({customer_id:custId,dealer_id:dId,type,site_address:addr||null,scope:scope||null,estimated_minutes:estMins,awaiting_product:awaiting,override_schedule:false}).select('id').single();
+  /* next_job_number() does the increment and the read in ONE statement, so two
+     people creating a job at the same moment cannot be handed the same number.
+     PostgREST cannot express next_number = next_number + 1 from the client, so
+     a read-then-write here would be a race the unique constraint would turn
+     into a failed save. */
+  let jobNo=null;
+  try{const {data:nn,error:ne}=await sb.rpc('next_job_number');
+    if(ne)console.error('next_job_number',ne);else jobNo=nn;}
+  catch(err){console.error('next_job_number',err);}
+  const {data:job,error:je}=await sb.from('jobs').insert({customer_id:custId,dealer_id:dId,type,site_address:addr||null,scope:scope||null,estimated_minutes:estMins,awaiting_product:awaiting,override_schedule:false,job_number:jobNo}).select('id,job_number').single();
   if(je){toast('Could not save job',true);console.error(je);return;}
   let lineItems=[];
   if(formLines.length){const {data:liData,error:le}=await sb.from('line_items').insert(formLines.map(l=>({job_id:job.id,description:l.desc,qty:l.qty,delivered:false,service_id:l.serviceId,unit_price:l.unitPrice,min_charge:l.minCharge,is_custom:l.isCustom}))).select();
@@ -5507,7 +5524,13 @@ function buildCustomers(){const g=$('genericView');
   renderCustomerHits();renderCustomerJobs();}
 function renderCustomerHits(){const el=$('cuHits');if(!el)return;
   const q=custSearch.trim().toLowerCase();
-  const list=CUSTOMERS.filter(c=>!q||(c.name||'').toLowerCase().includes(q));
+  /* A bare number, with or without a leading #, matches the JOB rather than
+     the customer - so the customer who owns that job is what comes back. */
+  const num=q.replace(/^#/,'');
+  const byNum=/^[0-9]+$/.test(num)
+    ? new Set([...appts,...queue].filter(x=>String(x.jobNo||'')===num).map(x=>x.customerId))
+    : null;
+  const list=CUSTOMERS.filter(c=>!q||(c.name||'').toLowerCase().includes(q)||(byNum&&byNum.has(c.id)));
   if(!list.length){el.innerHTML='<div class="dl-empty">'+(CUSTOMERS.length?'No customers match that search.':'No customers on file yet.')+'</div>';
     renderCustomerJobs();return;}
   el.innerHTML=list.map(c=>'<div class="c'+(custSel===c.id?' on':'')+'" data-cid="'+esc(c.id)+'"><b>'+esc(c.name)+'</b>'
@@ -5523,14 +5546,15 @@ function renderCustomerJobs(){const el=$('cuJobs');if(!el)return;
   if(!c){el.innerHTML='';return;}
   const jobs=customerJobs(custSel).sort((a,b)=>(b.dateKey||'').localeCompare(a.dateKey||''));
   const rows=jobs.length?jobs.map(x=>'<tr class="dl-jr'+(isClosed(x)?' closed':'')+'" data-jid="'+x.id+'">'
+      +'<td class="nm">'+(x.jobNo?'#'+esc(String(x.jobNo)):'\u2014')+'</td>'
       +'<td>'+(x.dateKey||'\u2014')+'</td>'
-      +'<td class="nm">'+esc(x.dealer||'\u2014')+'</td>'
+      +'<td>'+esc(x.dealer||'\u2014')+'</td>'
       +'<td>'+esc(x.type)+'</td>'
       +'<td class="r">'+(x.status?(STATUS[x.status]?STATUS[x.status].label:x.status):'Unscheduled')+'</td>'
       +'<td class="r" data-admin>'+fmtMoney(jobPricing(x).total)+'</td></tr>').join('')
-    :'<tr><td colspan="5" style="text-align:center;color:var(--muted);padding:22px">No jobs on record for this customer.</td></tr>';
+    :'<tr><td colspan="6" style="text-align:center;color:var(--muted);padding:22px">No jobs on record for this customer.</td></tr>';
   el.innerHTML='<div class="dl-sec">Job history \u00b7 '+esc(c.name)+'</div>'
-    +'<table class="rep-table"><thead><tr><th>Date</th><th>Dealer</th><th>Type</th><th class="r">Status</th><th class="r" data-admin>Value</th></tr></thead><tbody>'+rows+'</tbody></table>';
+    +'<table class="rep-table"><thead><tr><th>Job #</th><th>Date</th><th>Dealer</th><th>Type</th><th class="r">Status</th><th class="r" data-admin>Value</th></tr></thead><tbody>'+rows+'</tbody></table>';
   el.querySelector('tbody').addEventListener('click',e=>{const tr=e.target.closest('.dl-jr');if(tr)openDrawer(tr.dataset.jid);});}
 const RATE_CATS=['Services','Horizontals','Verticals','Drapery','Shutters','Hurricane','Lutron','Repairs','Misc Fees'];
 const RATE_UNITS=['Per Blind','Per Linear Ft','Per Sq Ft','Per Opening','Per Unit','Per Installation','Flat','Hourly','Per Pallet','Per Month','Per Mile','Per Day','Quote Only'];
