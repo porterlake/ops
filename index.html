@@ -464,6 +464,11 @@
      job-type chips, and v90 silently overrode it from further down the sheet. */
   /* Misc block. Set apart from the stock lines on purpose - it must never be
      mistaken for something that bills. */
+  .evline{display:flex;flex-wrap:wrap;gap:5px;margin-top:4px}
+  .ev{font-size:10.5px;color:var(--muted);background:var(--page);border:1px solid var(--border-soft);border-radius:5px;padding:2px 7px;white-space:nowrap}
+  .boxtot{margin-left:8px;font-size:11px;font-weight:800;color:#7a6c45;background:rgba(216,198,160,.28);border-radius:5px;padding:2px 8px;white-space:nowrap}
+  .miscbox-in{width:72px;min-width:0;flex-shrink:0;background:var(--card);border:1px solid var(--border);color:var(--ink);font:inherit;font-size:12px;padding:5px 7px;border-radius:7px;outline:none}
+  .miscbox-in:focus{border-color:#b49e6f}
   .miscbox{border-top:1px dashed var(--border);margin-top:10px;padding-top:10px}
   .mischd{font-size:10.5px;letter-spacing:1.1px;text-transform:uppercase;color:var(--muted);margin-bottom:8px;display:flex;gap:8px;align-items:baseline;flex-wrap:wrap}
   .mischd span{font-size:10px;letter-spacing:0;text-transform:none;color:var(--faint)}
@@ -2145,6 +2150,7 @@ async function stockInit(){
   const head='<div style="font-size:13px;font-weight:700;color:'
     +(awaiting.length?'#caa017':'#7c9a3f')+';margin-bottom:12px">'
     +received.length+' of '+rows.length+' fully received'
+    +(recvBoxes(jobId)?' &middot; '+recvBoxes(jobId)+(recvBoxes(jobId)===1?' box':' boxes')+' in total':'')
     +(awaiting.length?' &middot; '+awaiting.length+' still awaiting':' &middot; all stock in')
     +'</div>';
   const lbl='font-size:10.5px;letter-spacing:1.2px;text-transform:uppercase;color:var(--sand-dim);margin:14px 0 7px';
@@ -2168,6 +2174,7 @@ async function stockInit(){
   h+=miscRows(jobId,true);
   box.innerHTML=h;
   if(MISC_BY_JOB===null){MISC_BY_JOB={};miscLoad();}
+  if(RECV_EV===null){RECV_EV={};recvEvLoad();}
 }
 
 /* ===== Dealer quick-actions popup (v45) ================================
@@ -5777,6 +5784,59 @@ function recvOpenJob(jobId){
    Deliberately NOT part of job readiness either. An outstanding misc box does
    not hold a job out of Ready to Schedule - it is a warehouse note, and the
    moment it gates status it starts behaving like stock. */
+/* ===== Receipt events (v97) ===========================================
+   Until now a receipt overwrote a single running number, so each individual
+   delivery left no trace: Tuesday's four shades were unrecoverable the moment
+   Wednesday's two arrived. receiving_events records one row per delivery -
+   how many arrived, how many boxes, and when - which is what makes both the
+   box total and the dated timeline possible.
+
+   line_items.qty_received stays the running total and keeps driving readiness.
+   The events are additive, so nothing the v92 partial-receiving logic depends
+   on was rewritten for a record-keeping feature.
+
+   The timestamp column is received_at, not created_at - it is the date the
+   delivery arrived rather than the date a row was written. */
+let RECV_EV=null;
+async function recvEvLoad(){
+  const {data,error}=await sb.from('receiving_events')
+    .select('id,job_id,line_item_id,misc_id,qty,boxes,received_at,received_by')
+    .order('received_at');
+  if(error){console.error('recvEvLoad',error);RECV_EV={};
+    toast('Could not load receipts: '+(error.message||'unknown error'),true);
+    recvEvRerender();return;}
+  const m={};(data||[]).forEach(function(r){(m[r.job_id]=m[r.job_id]||[]).push(r);});
+  RECV_EV=m;recvEvRerender();}
+function recvEvRerender(){if(page==='inventory')buildReceiving();if($('stockBody'))stockInit();}
+function recvEvFor(jobId){return (RECV_EV&&RECV_EV[jobId])||[];}
+/* The whole point: every box on the order, catalogue lines and MISC alike,
+   from one table so the two can never disagree. */
+function recvBoxes(jobId){return recvEvFor(jobId).reduce(function(n,r){return n+(+r.boxes||0);},0);}
+function recvEvLine(jobId,lineId){return recvEvFor(jobId).filter(function(r){return r.line_item_id===lineId;});}
+function recvEvDate(r){const d=new Date(r.received_at);return isNaN(d)?'':msFmtDate(d);}
+function recvEvTimeline(jobId,lineId){
+  const evs=recvEvLine(jobId,lineId);if(!evs.length)return '';
+  return '<div class="evline">'+evs.map(function(r){
+    return '<span class="ev">'+(r.qty?r.qty+' received':'')
+      +(r.qty&&r.boxes?' &middot; ':'')
+      +(r.boxes?r.boxes+(r.boxes===1?' box':' boxes'):'')
+      +' &middot; '+esc(recvEvDate(r))+'</span>';}).join('')+'</div>';}
+async function recvEvAdd(jobId,rec){
+  const {data,error}=await sb.from('receiving_events')
+    .insert(Object.assign({job_id:jobId,received_by:recvWho()},rec))
+    .select('id');
+  if(error){console.error('recvEvAdd',error);
+    toast('Receipt logged, but the delivery record failed: '+(error.message||''),true);return false;}
+  if(!data||!data.length){console.error('recvEvAdd: no row returned');return false;}
+  return true;}
+/* A correction removes that line's delivery records with it, so the box total
+   always describes what is physically on the shelf rather than what once was. */
+async function recvEvClearLine(lineId){
+  const {error}=await sb.from('receiving_events').delete().eq('line_item_id',lineId);
+  if(error)console.error('recvEvClearLine',error);}
+async function recvEvClearMisc(miscId){
+  const {error}=await sb.from('receiving_events').delete().eq('misc_id',miscId);
+  if(error)console.error('recvEvClearMisc',error);}
 let MISC_BY_JOB=null,miscEditId=null;
 async function miscLoad(){
   /* One query for the whole page rather than one per card, same shape as
@@ -5822,8 +5882,11 @@ function miscRows(jobId,readOnly){
         ?'<span class="lbadge '+(r.received?'in">Received':'out">Pending')+'</span>'
         :'<button class="lck" onclick="miscToggle(\''+r.id+'\')">'+(r.received?tick:'')+'</button>')
       +'<div class="ld"><div class="ln">'+esc(r.description)+'</div>'
-      +(r.received&&r.received_by?'<div class="lby">'+esc(r.received_by)+'</div>':'')+'</div>'
+      +(r.received&&r.received_by?'<div class="lby">'+esc(r.received_by)+'</div>':'')
+      +miscEvTimeline(r.id)+'</div>'
       +(r.qty?'<div class="lq">&times;'+esc(String(r.qty))+'</div>':'')
+      +(readOnly||r.received?''
+        :'<input class="miscbox-in" type="number" min="0" step="1" placeholder="boxes" id="mbox-'+r.id+'">')
       +(readOnly?''
         :'<button class="miscbtn" onclick="miscEdit(\''+r.id+'\')">Edit</button>'
          +'<button class="miscbtn del" onclick="miscRemove(\''+r.id+'\')">&times;</button>')
@@ -5832,6 +5895,13 @@ function miscRows(jobId,readOnly){
     ?miscForm(jobId,null)
     :'<button class="miscadd" onclick="miscEdit(\'new:'+jobId+'\')">+ MISC product</button>';
   return h+'</div>';}
+function miscEvTimeline(miscId){
+  const evs=[];const m=RECV_EV||{};
+  for(const k in m)m[k].forEach(function(r){if(r.misc_id===miscId)evs.push(r);});
+  if(!evs.length)return '';
+  return '<div class="evline">'+evs.map(function(r){
+    return '<span class="ev">'+(r.boxes?r.boxes+(r.boxes===1?' box':' boxes')+' &middot; ':'')
+      +esc(recvEvDate(r))+'</span>';}).join('')+'</div>';}
 async function miscSave(jobId,id){
   const key=id||('new:'+jobId);
   const d=$('miscd-'+key),q=$('miscq-'+key);
@@ -5865,6 +5935,12 @@ async function miscToggle(id){
   if(error){console.error('miscToggle',error);
     toast('Update failed: '+(error.message||'unknown error'),true);return;}
   if(!data||!data.length){toast('Nothing was updated',true);return;}
+  /* A misc receipt is a delivery too, so its boxes roll into the same job
+     total as the catalogue lines rather than being counted separately. */
+  if(now){const bx=$('mbox-'+id);
+    await recvEvAdd(r.job_id,{misc_id:id,qty:0,boxes:Math.max(0,Math.round(+((bx&&bx.value))||0))});}
+  else await recvEvClearMisc(id);
+  await recvEvLoad();
   await miscLoad();toast(now?'Misc item received':'Misc item un-marked');}
 async function miscRemove(id){
   const r=miscFind(id);if(!r)return;
@@ -5967,9 +6043,11 @@ function recvCard(j,showSchedule){
       +'<div class="ld"><div class="ln">'+esc(li.desc)+'</div>'
       +'<div class="lqty">'+liRecv(li)+' of '+liTarget(li)+' received'
         +(liLeft(li)?' &middot; <b>'+liLeft(li)+' remaining</b>':'')+'</div>'
-      +(liFull(li)&&li.by?'<div class="lby">'+esc(li.by)+'</div>':'')+'</div>'
+      +(liFull(li)&&li.by?'<div class="lby">'+esc(li.by)+'</div>':'')
+      +recvEvTimeline(j.id,li.id)+'</div>'
       +(liFull(li)?''
         :'<div class="ladd"><input type="number" min="1" step="1" placeholder="+qty" id="add-'+j.id+'-'+li.id+'">'
+          +'<input type="number" min="0" step="1" placeholder="boxes" id="box-'+j.id+'-'+li.id+'">'
           +'<button onclick="recvAddFrom(\''+j.id+'\',\''+li.id+'\')">Add</button></div>')
       +'<div class="lstat">'+(liFull(li)
           ?'<span class="lbadge in">Received</span>'
@@ -5982,7 +6060,9 @@ function recvCard(j,showSchedule){
   return '<div class="rcard'+(recvFocus===j.id?' rfocus':'')+'" id="rcard-'+j.id+'"><div class="rhead"><div>'
       +'<div class="rcust">'+esc(j.cust)+' <span class="rtype">'+esc(j.type)+'</span>'+tag+'</div>'
       +'<div class="rsub">'+esc(j.dealer)+' &middot; '+esc(j.addr)+'</div></div>'
-      +'<div class="rprog">'+done+'/'+tot+' fully received</div></div>'
+      +'<div class="rprog">'+done+'/'+tot+' fully received'
+        +(recvBoxes(j.id)?'<span class="boxtot">'+recvBoxes(j.id)+(recvBoxes(j.id)===1?' box':' boxes')+'</span>':'')
+        +'</div></div>'
       +'<div class="lines">'+lines+'</div>'
       +miscRows(j.id,false)
       +'<div class="ract">'
@@ -6011,6 +6091,7 @@ function buildReceiving(){const g=$('genericView');
      triggers on completion does not see null and fire a second one. */
   if(RECV_NOTE_N===null){RECV_NOTE_N={};recvLoadNoteCounts();}
   if(MISC_BY_JOB===null){MISC_BY_JOB={};miscLoad();}
+  if(RECV_EV===null){RECV_EV={};recvEvLoad();}
   /* Focus mode short-circuits everything below: one job, drawn from the FULL
      pool so it is reachable whether it is awaiting, received, scheduled, or
      invisible to this user's normal filter. */
@@ -6172,11 +6253,13 @@ $('unrecvGo').onclick=function(){const t=_unrecv;
    already been received would fail in the pricing editor, nowhere near
    Receiving. */
 async function recvAddFrom(jobId,lineId){
-  const el=$('add-'+jobId+'-'+lineId);if(!el)return;
+  const el=$('add-'+jobId+'-'+lineId),bx=$('box-'+jobId+'-'+lineId);
+  if(!el)return;
   const n=Math.round(+el.value||0);
+  const boxes=Math.max(0,Math.round(+((bx&&bx.value))||0));
   if(!n){toast('Enter how many arrived',true);el.focus();return;}
-  await recvAdd(jobId,lineId,n);}
-async function recvAdd(jobId,lineId,n){
+  await recvAdd(jobId,lineId,n,boxes);}
+async function recvAdd(jobId,lineId,n,boxes){
   const j=recvFind(jobId);if(!j)return;
   const li=j.lineItems.find(function(l){return l.id===lineId;});if(!li)return;
   const {data:fresh,error:re}=await sb.from('line_items').select('qty,qty_received').eq('id',lineId).single();
@@ -6195,6 +6278,10 @@ async function recvAdd(jobId,lineId,n){
     .eq('id',lineId);
   if(error){toast('Update failed',true);console.error(error);return;}
   li.qtyRecv=next;li.delivered=full;li.by=by||'';
+  /* The event records what ACTUALLY landed, not what was typed - if the entry
+     was capped at the ordered quantity, the delivery record says so too. */
+  await recvEvAdd(j.id,{line_item_id:lineId,qty:next-have,boxes:Math.max(0,Math.round(+boxes||0))});
+  await recvEvLoad();
   const allFull=stockLines(j.lineItems).every(liFull);
   buildReceiving();renderQueue();
   if(page==='toschedule')buildGeneric('toschedule');
@@ -6219,6 +6306,9 @@ async function applyLineToggle(jobId,lineId,nowDel){
     .update({delivered:nowDel,qty_received:nowDel?liTarget(li):0,delivered_by:by,delivered_at:nowDel?new Date().toISOString():null})
     .eq('id',lineId);
   if(error){toast('Update failed',true);console.error(error);return;}
+  if(!nowDel)await recvEvClearLine(lineId);
+  else await recvEvAdd(j.id,{line_item_id:lineId,qty:liTarget(li),boxes:0});
+  await recvEvLoad();
   li.delivered=nowDel;li.qtyRecv=nowDel?liTarget(li):0;li.by=by||'';
   const allDel=stockLines(j.lineItems).every(liFull);
   buildReceiving();renderQueue();
