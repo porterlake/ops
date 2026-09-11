@@ -884,6 +884,62 @@ body.role-installer [data-admin]{display:none!important}
     .fld select option:checked,.durrow select option:checked{background:var(--accent);color:var(--accent-ink)}
     .fld select option::checkmark,.durrow select option::checkmark{display:none}
   }
+
+  /* ---- v80 dropdown sweep ---------------------------------------------
+     The block above reached only .fld and .durrow. A full sweep of every
+     <select> in the file found 17 more still rendering as default Windows
+     controls. They split by PALETTE, not by location: a sand chevron is
+     near-invisible on the light stage, which is the same light-vs-dark
+     landmine v79 just fixed on the dealer buttons.
+
+     The element selectors matter. .dl-input, .rate-search and .rep-sel are
+     each used on <input> elements too - the dealer search box, the rate
+     search box and the report date pickers - and a chevron painted onto a
+     text field would be a new bug, not a fix. Hence select.dl-input rather
+     than .dl-input.
+
+     Colour and affordance only: appearance, chevron, hover border. No rule here
+     sets any geometry or custom property, so the row-height invariant check
+     stays a clean count. */
+  .topfilter,.fileadd select{
+    -webkit-appearance:none;-moz-appearance:none;appearance:none;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23a99c7e' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+    background-repeat:no-repeat;background-position:right 10px center;background-size:12px;
+    padding-right:30px;cursor:pointer}
+  .topfilter:hover,.fileadd select:hover{border-color:var(--accent-line)}
+  .topfilter option,.fileadd select option{background:var(--side-2);color:var(--sand-ink)}
+
+  select.dl-input,select.rep-sel,select.rate-search{
+    -webkit-appearance:none;-moz-appearance:none;appearance:none;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238c877d' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+    background-repeat:no-repeat;background-position:right 10px center;background-size:12px;
+    padding-right:30px;cursor:pointer}
+  select.dl-input:hover,select.rep-sel:hover,select.rate-search:hover{border-color:#b49e6f}
+  select.dl-input option,select.rep-sel option,select.rate-search option{background:var(--card);color:var(--ink)}
+
+  @supports (appearance:base-select){
+    .topfilter,.fileadd select,select.dl-input,select.rep-sel,select.rate-search{
+      appearance:base-select;background-image:none;padding-right:11px}
+    .topfilter::picker-icon,.fileadd select::picker-icon{color:var(--sand-dim);transition:transform .16s}
+    select.dl-input::picker-icon,select.rep-sel::picker-icon,select.rate-search::picker-icon{color:var(--muted);transition:transform .16s}
+    .topfilter:open::picker-icon,.fileadd select:open::picker-icon,
+    select.dl-input:open::picker-icon,select.rep-sel:open::picker-icon,select.rate-search:open::picker-icon{transform:rotate(180deg)}
+    .topfilter::picker(select),.fileadd select::picker(select){
+      appearance:base-select;background:var(--side-2);border:1px solid var(--side-border);
+      border-radius:10px;box-shadow:0 14px 34px rgba(0,0,0,.55);padding:5px;margin-top:4px}
+    select.dl-input::picker(select),select.rep-sel::picker(select),select.rate-search::picker(select){
+      appearance:base-select;background:var(--card);border:1px solid var(--border);
+      border-radius:10px;box-shadow:0 14px 34px rgba(30,28,24,.18);padding:5px;margin-top:4px}
+    .topfilter option,.fileadd select option,
+    select.dl-input option,select.rep-sel option,select.rate-search option{
+      border-radius:7px;padding:8px 10px}
+    .topfilter option:hover,.fileadd select option:hover{background:var(--accent-soft)}
+    .topfilter option:checked,.fileadd select option:checked{background:var(--accent);color:var(--accent-ink)}
+    select.dl-input option:hover,select.rep-sel option:hover,select.rate-search option:hover{background:rgba(216,198,160,.22)}
+    select.dl-input option:checked,select.rep-sel option:checked,select.rate-search option:checked{background:#b49e6f;color:var(--accent-ink)}
+    .topfilter option::checkmark,.fileadd select option::checkmark,
+    select.dl-input option::checkmark,select.rep-sel option::checkmark,select.rate-search option::checkmark{display:none}
+  }
 }
 
 /* ============================================================================
