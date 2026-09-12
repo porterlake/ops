@@ -1291,6 +1291,7 @@ body.role-installer [data-admin]{display:none!important}
     <div class="nav-item active" data-page="scheduler"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>Scheduler</div>
     <div class="nav-item" data-page="toschedule"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7h18M3 12h18M3 17h12"/></svg>To Schedule <span class="badge" id="navCount">0</span></div>
     <div class="nav-item" data-page="inventory"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.7l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.7l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><path d="M3.3 7L12 12l8.7-5M12 22V12"/></svg>Receiving <span class="badge" id="navRecv">0</span></div>
+    <div class="nav-item" data-page="quickquote"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M9 13h6M9 17h4"/></svg>Quick Quote</div>
     <div class="nav-item" data-admin data-page="installers"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 21v-1a6 6 0 0 1 6-6h4a6 6 0 0 1 6 6v1"/></svg>Users</div>
     <div class="nav-label">Accounts</div>
     <div class="nav-item" data-page="dealers"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 21h18M5 21V7l8-4v18M19 21V11l-6-4"/></svg>Dealers</div>
@@ -1380,6 +1381,16 @@ body.role-installer [data-admin]{display:none!important}
     <div class="modal-h"><div><h3>Edit job</h3><div class="ms" id="ejSub">&mdash;</div></div><button class="x" id="ejClose">&times;</button></div>
     <div class="modal-b" id="ejBody"></div>
     <div class="modal-f"><button class="btn ghost" id="ejCancel">Close</button><button class="btn" id="ejSave">Save changes</button></div>
+  </div></div>
+
+  <div class="modal-bg" id="cqjBg"><div class="modal">
+    <div class="modal-h"><div><h3>Attach to a job</h3><div class="ms">Adds the PDF to that job&rsquo;s documents</div></div><button class="x" id="cqjClose">&times;</button></div>
+    <div class="modal-b">
+      <div class="fld"><label>Versions to attach</label><div id="cqjVersions"></div></div>
+      <div class="fld"><label>Find the job</label><input id="cqjSearch" placeholder="Customer name or job number" autocomplete="off"></div>
+      <div id="cqjJobs"></div>
+    </div>
+    <div class="modal-f"><button class="btn ghost" id="cqjCancel">Cancel</button><button class="btn" id="cqjGo">Attach</button></div>
   </div></div>
 
   <div class="modal-bg" id="ejcBg"><div class="modal">
@@ -2068,7 +2079,10 @@ function openDrawer(id){let a=appts.find(x=>x.id===id),mode='appt';if(!a){a=queu
 function currentJobId(){if(!selectedId)return null;if(drawerMode==='queue')return selectedId;const a=appts.find(x=>x.id===selectedId);return a?a.jobId:null;}
 async function uploadFile(jobId,file,kind){const safe=file.name.replace(/[^\w.\-]/g,'_');const path=`${jobId}/${Date.now()}_${safe}`;
   const {error:ue}=await sb.storage.from('job-files').upload(path,file);if(ue)throw ue;
-  const {error:ie}=await sb.from('files').insert({job_id:jobId,kind,name:file.name,storage_path:path,uploaded_by:'M. Lake'});if(ie)throw ie;}
+  /* v103: the inserted id is now RETURNED so a caller that needs to link the
+     file to its own record can. Every existing caller ignores the return, so
+     behaviour is unchanged for them. */
+  const {data:fr,error:ie}=await sb.from('files').insert({job_id:jobId,kind,name:file.name,storage_path:path,uploaded_by:'M. Lake'}).select('id').single();if(ie)throw ie;return fr?fr.id:null;}
 /* Signed URLs, not getPublicUrl (v39). The job-files bucket is being taken
    private, and a signed URL is the only read that survives that. This is the
    ONE place the app turns a storage path into a URL — thumbnails, the PDF
@@ -4581,7 +4595,10 @@ const SEND_DOC_TYPES=[
   {key:'additional_services_report', label:'Additional Services Report', re:/^Additional Services Report\b/i},
   {key:'completion_report',          label:'Completion Report',          re:/^Completion Report\b/i},
   {key:'invoice',                    label:'Invoice',                    re:/^Invoice\b/i},
-  {key:'quote',                      label:'Quote',                      re:/^Quote\b/i}
+  {key:'quote',                      label:'Quote',                      re:/^Quote\b/i},
+  /* v103. Anchored at ^, so "Custom Quote 5001 v2.pdf" matches THIS and
+     never the billing quote pattern above it. They cannot cross-match. */
+  {key:'custom_quote',               label:'Custom Quote',               re:/^Custom Quote\b/i}
 ];
 function sendDocTypeOf(f){const nm=(f&&f.name)||'';
   for(let i=0;i<SEND_DOC_TYPES.length;i++)if(SEND_DOC_TYPES[i].re.test(nm))return SEND_DOC_TYPES[i];
@@ -6025,11 +6042,494 @@ $('njSave').onclick=async()=>{if(!IS_ADMIN)return;
   toast(awaiting?`<b>${custName}</b> created — sent to Receiving`:`<b>${custName}</b> created — ready to schedule`);
   if(page==='toschedule')buildGeneric('toschedule');if(page==='inventory')buildReceiving();};
 
+
+/* ===================================================================
+   QUICK QUOTE (v103) — one-off quotes at custom pricing
+
+   Deliberately NOT tied to anything the rest of the app is tied to: no
+   dealer record, no customer record, no job, no rates catalogue. That is
+   the whole point of the tab — a price for someone who is not set up yet.
+
+   Four tables, migrated 2026-09-12:
+     custom_quotes        the quote, and where the NUMBER lives
+     custom_quote_lines   the working line items, freely editable
+     custom_quote_docs    one frozen row per PDF generation
+     custom_quote_counter the number series, reachable only through
+                          next_custom_quote_number()
+
+   THE NUMBERING CONTRACT. The number belongs to the QUOTE, not to a
+   generation. 5001 stays 5001 for life; generating three times gives
+   5001 v1, v2, v3. History therefore shows 5001 once.
+
+   The row is NOT created when New Quote is clicked — only on the first
+   save, once a customer name exists. Clicking New and walking away
+   costs nothing, because no row and no number were ever allocated.
+   Gaps are still acceptable and duplicates are still not: a quote that
+   IS named and then abandoned keeps its number, and the series honestly
+   shows the gap.
+
+   MARGIN SAFETY comes free here and is worth stating so it stays true:
+   there is no job and no appointment anywhere in scope, so unlike the
+   billing PDF there is no object to walk to an installer pay rate.
+   Verify check 18 asserts no cost/margin/pay column exists on any of
+   the three tables. Keep it that way. =============================== */
+
+const CQ_CONTROLS=['Standard','Cordless','Motorized','N/A'];
+const CQCOLS='id,sort_order,quantity,product,mount_type,width_whole,width_frac,height_whole,height_frac,control_type,price';
+let CQ_QUOTE=null;   /* {id,number,customer_name} — null until first save */
+let CQ_LINES=[];     /* working rows, mirrored from the DOM on every save */
+let CQ_DOCS=[];      /* generated versions of the open quote */
+let CQ_LIST=[];      /* the history list */
+let CQ_BUSY=false;
+
+function cqNum(v){const n=Number(v);return isFinite(n)?n:0;}
+function cqPrice(v){const t=String(v==null?'':v).trim();if(t==='')return null;
+  const n=Number(t);return (isFinite(n)&&n>=0)?Math.round(n*100)/100:null;}
+function cqQty(v){const n=parseInt(v,10);return (isNaN(n)||n<1)?1:Math.min(50,n);}
+/* Sum of the PRICE column, exactly as the brief specifies — not qty x price.
+   A line's price is what that line costs as written. */
+function cqTotal(lines){return (lines||[]).reduce((s,l)=>s+cqNum(l.price),0);}
+function cqQtyOpts(sel){let o='';for(let i=1;i<=50;i++)o+='<option'+(i===cqQty(sel)?' selected':'')+'>'+i+'</option>';return o;}
+function cqSelOpts(list,sel){return '<option value=""></option>'+list.map(x=>'<option'+(x===sel?' selected':'')+'>'+msEsc(x)+'</option>').join('');}
+
+/* One card per line, on the SAME .mscard shell the measure sheet and the
+   additional services report use. That is what makes this work on a phone
+   with no new CSS: seven fields stack as labelled rows inside a card with a
+   one-line collapsed summary, instead of a seven-column grid nothing could
+   read. Width and Height are msDimField verbatim, so they are the same
+   whole-plus-eighths pair as the measure sheet and never show a decimal. */
+function cqCardHTML(r,i){return '<div class="mscard" data-i="'+i+'">'
+  +'<div class="mssum"><span class="msidx">'+(i+1)+'</span>'
+  +'<div class="mssumtxt"><div class="mstitle"></div><div class="mssub"></div></div>'
+  +'<span class="msflag"></span><span class="mscar">&#8250;</span></div>'
+  +'<div class="msbody">'
+  +'<div class="msf"><label>Qty</label><select class="dl-input cq-q">'+cqQtyOpts(r.quantity)+'</select></div>'
+  +'<div class="msf"><label>Product / service</label><input class="dl-input cq-p" value="'+msEsc(r.product)+'" placeholder="e.g. 2&quot; wood blind"></div>'
+  +'<div class="msf"><label>Mount</label><select class="dl-input cq-m">'+cqSelOpts(MSMOUNTS,r.mount_type)+'</select></div>'
+  +msDimField('Width (in)','cq-ww','cq-wf',r.width_whole,r.width_frac)
+  +msDimField('Height (in)','cq-hw','cq-hf',r.height_whole,r.height_frac)
+  +'<div class="msf"><label>Control type</label><select class="dl-input cq-c">'+cqSelOpts(CQ_CONTROLS,r.control_type)+'</select></div>'
+  +'<div class="msf"><label>Price</label><input class="dl-input cq-pr" type="number" inputmode="decimal" min="0" step="0.01" value="'+(r.price==null?'':r.price)+'" placeholder="0.00"></div>'
+  +'<div class="msrow"><button type="button" class="msbtn cq-del">Remove line</button></div>'
+  +'</div></div>';}
+
+/* The DOM is the live copy while the page is open; CQ_LINES is refreshed
+   from it before anything is written or rendered. Reading back rather than
+   tracking every keystroke is the same choice the measure sheet makes, and
+   it means a half-typed field can never be lost to a re-render. */
+function cqReadCards(){const box=$('cqList');if(!box)return CQ_LINES;
+  CQ_LINES=[...box.querySelectorAll('.mscard')].map((c,i)=>{const g=s=>c.querySelector(s);
+    return {sort_order:i,
+      quantity:cqQty(g('.cq-q').value),
+      product:g('.cq-p').value.trim()||null,
+      mount_type:g('.cq-m').value||null,
+      width_whole:msInt(g('.cq-ww').value),
+      width_frac:msFracValue(g('.cq-wf').value),
+      height_whole:msInt(g('.cq-hw').value),
+      height_frac:msFracValue(g('.cq-hf').value),
+      control_type:g('.cq-c').value||null,
+      price:cqPrice(g('.cq-pr').value)};});
+  return CQ_LINES;}
+
+function cqSyncCard(card){const g=s=>card.querySelector(s);
+  const prod=g('.cq-p').value.trim();
+  const w=msDimText(g('.cq-ww').value,msFracValue(g('.cq-wf').value));
+  const h=msDimText(g('.cq-hw').value,msFracValue(g('.cq-hf').value));
+  const dims=[w,h].filter(Boolean).join(' × ');
+  const bits=[dims,(g('.cq-m').value||'').split(' ')[0],g('.cq-c').value].filter(Boolean);
+  card.querySelector('.mstitle').textContent=prod||'Untitled line';
+  card.querySelector('.mssub').textContent=bits.join(' · ');
+  const p=cqPrice(g('.cq-pr').value);
+  card.querySelector('.msflag').textContent=p==null?'':fmtMoney(p);}
+
+function cqSyncTotals(){const t=cqTotal(cqReadCards());
+  const el=$('cqTotal');if(el)el.textContent=fmtMoney(t);
+  const c=$('cqCount');if(c)c.textContent=CQ_LINES.length+(CQ_LINES.length===1?' line':' lines');}
+
+function cqRenderLines(){const box=$('cqList');if(!box)return;
+  box.innerHTML=CQ_LINES.map(cqCardHTML).join('')||'<div class="dl-empty">No lines yet. Add one below.</div>';
+  box.querySelectorAll('.mscard').forEach(c=>cqSyncCard(c));
+  cqSyncTotals();}
+
+function cqRenderVersions(){const box=$('cqVersions');if(!box)return;
+  if(!CQ_QUOTE){box.innerHTML='<div class="dl-empty">Save the quote, then generate a PDF.</div>';return;}
+  box.innerHTML=CQ_DOCS.length
+    ? CQ_DOCS.map(d=>'<div class="grow"><span class="gt" style="background:rgba(216,198,160,.28);color:#7a6c45">v'+d.version+'</span>'
+        +'<div style="flex:1"><div class="gname">'+msEsc(d.pdf_filename||('Custom Quote '+CQ_QUOTE.number+' v'+d.version))+'</div>'
+        +'<div class="gmeta">'+noteWhen(d.issued_at)+(d.job_id?' · attached to a job':'')+'</div></div>'
+        +'<div class="gmeta">'+fmtMoney(d.total)+'</div>'
+        +'<button type="button" class="msbtn cq-redl" data-d="'+msEsc(d.id)+'">Download</button></div>').join('')
+    : '<div class="dl-empty">No PDFs generated yet.</div>';}
+
+function cqRenderHistory(){const box=$('cqHistory');if(!box)return;
+  box.innerHTML=CQ_LIST.length
+    ? CQ_LIST.map(q=>'<div class="grow" style="cursor:pointer" data-q="'+msEsc(q.id)+'">'
+        +'<span class="gt" style="background:rgba(216,198,160,.28);color:#7a6c45">#'+q.number+'</span>'
+        +'<div style="flex:1"><div class="gname">'+msEsc(q.customer_name)+'</div>'
+        +'<div class="gmeta">'+noteWhen(q.updated_at)+'</div></div>'
+        +'<div class="gmeta">'+fmtMoney(q.total)+'</div></div>').join('')
+    : '<div class="dl-empty">No quotes yet.</div>';}
+
+async function cqLoadList(){
+  const {data,error}=await sb.from('custom_quotes')
+    .select('id,number,customer_name,updated_at,custom_quote_lines(price)')
+    .order('updated_at',{ascending:false});
+  if(error){console.error('cqLoadList',error);toast('Could not load quote history',true);return;}
+  CQ_LIST=(data||[]).map(q=>({id:q.id,number:q.number,customer_name:q.customer_name,
+    updated_at:q.updated_at,total:cqTotal(q.custom_quote_lines||[])}));
+  cqRenderHistory();}
+
+async function cqLoadDocs(){
+  if(!CQ_QUOTE){CQ_DOCS=[];cqRenderVersions();return;}
+  const {data,error}=await sb.from('custom_quote_docs')
+    .select('id,version,total,issued_at,pdf_filename,job_id,lines_snapshot,customer_name')
+    .eq('quote_id',CQ_QUOTE.id).order('version',{ascending:false});
+  if(error){console.error('cqLoadDocs',error);CQ_DOCS=[];}
+  else CQ_DOCS=data||[];
+  cqRenderVersions();}
+
+function cqNewDraft(){CQ_QUOTE=null;CQ_LINES=[{sort_order:0,quantity:1,width_frac:0,height_frac:0}];CQ_DOCS=[];
+  const n=$('cqName');if(n)n.value='';
+  $('cqNumber').textContent='not yet numbered';
+  cqRenderLines();cqRenderVersions();cqSyncButtons();}
+
+async function cqOpen(id){
+  const {data,error}=await sb.from('custom_quotes')
+    .select('id,number,customer_name,custom_quote_lines('+CQCOLS+')')
+    .eq('id',id).maybeSingle();
+  if(error||!data){console.error('cqOpen',error);toast('Could not open that quote',true);return;}
+  CQ_QUOTE={id:data.id,number:data.number,customer_name:data.customer_name};
+  CQ_LINES=(data.custom_quote_lines||[]).slice().sort((a,b)=>(a.sort_order||0)-(b.sort_order||0));
+  if(!CQ_LINES.length)CQ_LINES=[{sort_order:0,quantity:1,width_frac:0,height_frac:0}];
+  $('cqName').value=data.customer_name||'';
+  $('cqNumber').textContent='Custom Quote '+data.number;
+  cqRenderLines();cqSyncButtons();
+  await cqLoadDocs();
+  window.scrollTo({top:0,behavior:'smooth'});}
+
+function cqSyncButtons(){
+  const has=!!CQ_QUOTE;
+  ['cqGen','cqAttach','cqDelete'].forEach(id=>{const b=$(id);if(b)b.disabled=CQ_BUSY||!has;});
+  const s=$('cqSave');if(s)s.disabled=CQ_BUSY;}
+
+/* ---- save -------------------------------------------------------------
+   First save allocates the number. A NULL back from
+   next_custom_quote_number() means this tenant has no counter row, and it
+   arrives with NO error attached — which is exactly how the same shape of
+   bug sailed through on next_job_number and produced numberless jobs.
+   Treat NULL as a hard stop and write nothing. custom_quotes.number is
+   also NOT NULL at the database, so even if this check were removed the
+   insert would fail rather than persist a numberless quote. */
+async function cqSave(){
+  if(CQ_BUSY)return false;
+  const name=($('cqName').value||'').trim();
+  if(!name){toast('Enter a customer name first',true);$('cqName').focus();return false;}
+  cqReadCards();
+  CQ_BUSY=true;cqSyncButtons();
+  try{
+    if(!CQ_QUOTE){
+      let num=null;
+      const {data:nn,error:ne}=await sb.rpc('next_custom_quote_number');
+      if(ne){console.error('next_custom_quote_number failed',ne);}
+      else if(nn==null){console.error('next_custom_quote_number returned NULL - does this tenant have a custom_quote_counter row?');}
+      else num=nn;
+      if(num==null){toast('Could not get a quote number — nothing was saved. See the console.',true);return false;}
+      const {data,error}=await sb.from('custom_quotes').insert({number:num,customer_name:name}).select('id,number,customer_name').single();
+      if(error){console.error('cqSave insert',error);toast('Could not save the quote',true);return false;}
+      CQ_QUOTE={id:data.id,number:data.number,customer_name:data.customer_name};
+      $('cqNumber').textContent='Custom Quote '+data.number;
+    }else{
+      const {error}=await sb.from('custom_quotes').update({customer_name:name,updated_at:new Date().toISOString()}).eq('id',CQ_QUOTE.id);
+      if(error){console.error('cqSave update',error);toast('Could not save the quote',true);return false;}
+      CQ_QUOTE.customer_name=name;
+    }
+    /* Lines are replaced wholesale rather than diffed. They carry no foreign
+       keys pointing at them and nothing outside this page reads them, so a
+       delete-then-insert is honest and cannot leave a half-merged list. The
+       frozen snapshots on custom_quote_docs are untouched by this — that is
+       the entire reason generations are snapshotted. */
+    const del=await sb.from('custom_quote_lines').delete().eq('quote_id',CQ_QUOTE.id);
+    if(del.error){console.error('cqSave clear lines',del.error);toast('Could not save the line items',true);return false;}
+    const rows=CQ_LINES.filter(l=>l.product||l.price!=null||l.width_whole!=null||l.height_whole!=null)
+      .map((l,i)=>Object.assign({},l,{sort_order:i,quote_id:CQ_QUOTE.id}));
+    if(rows.length){const ins=await sb.from('custom_quote_lines').insert(rows);
+      if(ins.error){console.error('cqSave insert lines',ins.error);toast('Could not save the line items',true);return false;}}
+    toast('<b>Custom Quote '+CQ_QUOTE.number+'</b> saved');
+    await cqLoadList();
+    return true;
+  }finally{CQ_BUSY=false;cqSyncButtons();}}
+
+/* ---- the frozen snapshot ---------------------------------------------
+   Client-facing fields only. No ids, no sort_order, no internals — what is
+   not written cannot leak, and a snapshot is what a PDF is rebuilt from
+   months later. */
+function cqSnapshot(lines){return (lines||[]).map((l,i)=>({n:i+1,
+  qty:cqQty(l.quantity),
+  product:l.product||null,
+  mount:l.mount_type||null,
+  width:msDimText(l.width_whole,l.width_frac),
+  height:msDimText(l.height_whole,l.height_frac),
+  control:l.control_type||null,
+  price:l.price==null?null:Number(l.price)}));}
+
+function cqFilename(number,version){return 'Custom Quote '+number+' v'+version+'.pdf';}
+
+/* ---- the PDF ----------------------------------------------------------
+   Takes the frozen snapshot plus a FLAT ctxInfo, never a job, an
+   appointment or a quote object. Same discipline as biBuildPdf and for the
+   same reason: nothing it holds can be walked to an installer pay rate.
+   Reuses pdfLetterhead and pdfContext so this document cannot drift away
+   from the measure sheet and the services report. */
+function cqBuildPdf(snap,ctxInfo){
+  const {jsPDF}=window.jspdf;
+  const doc=new jsPDF({unit:'mm',format:'letter',orientation:'portrait'});
+  const PW=doc.internal.pageSize.getWidth(),PH=doc.internal.pageSize.getHeight(),M=14;
+  const SAND=[216,198,160],INK=[39,36,31],MUT=[140,135,125],LINE=[229,227,219],ALT=[250,250,247];
+  const drawHeader=pdfLetterhead(doc,PW,M);
+  drawHeader();
+  doc.setFont('helvetica','bold');doc.setFontSize(15);doc.setTextColor(INK[0],INK[1],INK[2]);
+  doc.text('CUSTOM QUOTE',M,61);
+  const ctx=[],push=(l,v)=>{if(v&&String(v).trim()&&String(v).trim()!=='—')ctx.push([l,String(v).trim()]);};
+  push('Quote #',String(ctxInfo.number)+' v'+ctxInfo.version);
+  push('Customer',ctxInfo.customerName);
+  push('Prepared by',ctxInfo.producedBy);
+  push('Date',ctxInfo.issuedAt);
+  const startY=pdfContext(doc,PW,M,ctx);
+  const body=snap.map(r=>[r.n,r.qty,r.product||'—',r.mount||'—',
+    r.width||'—',r.height||'—',r.control||'—',
+    r.price==null?'—':fmtMoney(r.price)]);
+  /* Fixed widths sum to 132mm of the 188mm content width, leaving 56mm for
+     the auto Product column. autoTable reports a SHORTFALL from the content
+     width as "could not fit page", so under-filling is what makes it
+     complain — never over-filling. */
+  doc.autoTable({startY:startY,
+    head:[['#','Qty','Product / service','Mount','Width','Height','Control','Price']],
+    body:body,theme:'grid',
+    styles:{font:'helvetica',fontSize:9,cellPadding:2.2,textColor:INK,lineColor:LINE,lineWidth:0.15,overflow:'linebreak',valign:'top'},
+    headStyles:{fillColor:SAND,textColor:INK,fontStyle:'bold',fontSize:8.5},
+    alternateRowStyles:{fillColor:ALT},
+    columnStyles:{0:{cellWidth:8,halign:'right'},1:{cellWidth:14,halign:'right'},
+      2:{cellWidth:'auto'},3:{cellWidth:22},4:{cellWidth:20,halign:'right'},
+      5:{cellWidth:20,halign:'right'},6:{cellWidth:24},7:{cellWidth:24,halign:'right'}},
+    margin:{left:M,right:M,top:57},
+    didDrawPage:drawHeader});
+  const endY=(doc.lastAutoTable?doc.lastAutoTable.finalY:startY)+9;
+  const total=snap.reduce((s,r)=>s+cqNum(r.price),0);
+  doc.setFont('helvetica','bold');doc.setFontSize(12);doc.setTextColor(INK[0],INK[1],INK[2]);
+  doc.text('Total: '+fmtMoney(total),PW-M,endY,{align:'right'});
+  const pages=doc.internal.getNumberOfPages();
+  for(let p=1;p<=pages;p++){doc.setPage(p);
+    doc.setDrawColor(SAND[0],SAND[1],SAND[2]);doc.setLineWidth(0.5);doc.line(M,PH-18,PW-M,PH-18);
+    doc.setFont('helvetica','normal');doc.setFontSize(8.5);doc.setTextColor(MUT[0],MUT[1],MUT[2]);
+    doc.text('Quotation from Porter Lake Shading Systems',M,PH-13);
+    doc.text('Generated '+ctxInfo.issuedAt,M,PH-8.8);
+    doc.text('Page '+p+' of '+pages,PW-M,PH-8.8,{align:'right'});}
+  return doc;}
+
+function cqWho(){const e=PROFILE&&PROFILE.email;return e?noteWho(e):'Porter Lake Shading Systems';}
+function cqStamp(d){const dt=d?new Date(d):new Date();
+  return dt.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})+' '
+    +dt.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'});}
+
+/* ---- generate ---------------------------------------------------------
+   Version is allocated app-side as max+1, so two tabs generating in the
+   same instant both compute the same number and one loses on
+   custom_quote_docs_version_uq with a 23505. That is handled by re-reading
+   and retrying, exactly as completion_reports does — never by guessing a
+   gap or by pre-claiming a number client-side. */
+async function cqGenerate(){
+  if(CQ_BUSY)return;
+  if(!await cqSave())return;
+  CQ_BUSY=true;cqSyncButtons();
+  try{
+    const ok=await msEnsurePdfLib();
+    if(!ok){toast('Could not load the PDF library — check your connection',true);return;}
+    const snap=cqSnapshot(CQ_LINES);
+    const total=cqTotal(CQ_LINES);
+    let row=null;
+    for(let attempt=0;attempt<4&&!row;attempt++){
+      const {data:cur,error:re}=await sb.from('custom_quote_docs')
+        .select('version').eq('quote_id',CQ_QUOTE.id).order('version',{ascending:false}).limit(1);
+      if(re){console.error('cqGenerate read',re);toast('Could not read the version history',true);return;}
+      const next=((cur&&cur[0]&&cur[0].version)||0)+1;
+      const ins=await sb.from('custom_quote_docs').insert({
+        quote_id:CQ_QUOTE.id,version:next,customer_name:CQ_QUOTE.customer_name,
+        lines_snapshot:snap,total:total,
+        pdf_filename:cqFilename(CQ_QUOTE.number,next)}).select('id,version,total,issued_at,pdf_filename,job_id,lines_snapshot,customer_name').single();
+      if(!ins.error){row=ins.data;break;}
+      if(ins.error.code==='23505'){console.warn('version race, retrying');continue;}
+      console.error('cqGenerate insert',ins.error);toast('Could not record this version',true);return;}
+    if(!row){toast('Could not allocate a version — try again',true);return;}
+    const doc=cqBuildPdf(row.lines_snapshot,{number:CQ_QUOTE.number,version:row.version,
+      customerName:row.customer_name,producedBy:cqWho(),issuedAt:cqStamp(row.issued_at)});
+    doc.save(row.pdf_filename);
+    await cqLoadDocs();
+    toast('<b>'+msEsc(row.pdf_filename)+'</b> generated');
+  }finally{CQ_BUSY=false;cqSyncButtons();}}
+
+/* Re-download an earlier version. Rebuilt from ITS OWN frozen snapshot, so
+   what comes out is what that version said — not what the form says now. */
+async function cqRedownload(docId){
+  const d=CQ_DOCS.find(x=>x.id===docId);if(!d||!CQ_QUOTE)return;
+  const ok=await msEnsurePdfLib();
+  if(!ok){toast('Could not load the PDF library',true);return;}
+  const doc=cqBuildPdf(d.lines_snapshot,{number:CQ_QUOTE.number,version:d.version,
+    customerName:d.customer_name,producedBy:cqWho(),issuedAt:cqStamp(d.issued_at)});
+  doc.save(d.pdf_filename||cqFilename(CQ_QUOTE.number,d.version));}
+
+async function cqDelete(){
+  if(!CQ_QUOTE)return;
+  const ok=await ejcOpen({title:'Delete this quote?',sub:'Custom Quote '+CQ_QUOTE.number,danger:true,
+    ok:'Yes, delete it',cancel:'Keep it',
+    body:'<p style="font-size:13px;line-height:1.6;color:var(--sand-ink)">This permanently deletes <b>Custom Quote '+CQ_QUOTE.number+'</b>, its line items and <b>every PDF version</b> generated from it. PDFs already attached to a job stay on that job. This cannot be undone.</p>'});
+  if(!ok)return;
+  const {error}=await sb.from('custom_quotes').delete().eq('id',CQ_QUOTE.id);
+  if(error){console.error('cqDelete',error);toast('Could not delete that quote',true);return;}
+  toast('<b>Custom Quote '+CQ_QUOTE.number+'</b> deleted');
+  cqNewDraft();await cqLoadList();}
+
+/* ---- attach to job ----------------------------------------------------
+   The PDF is rebuilt from the frozen snapshot and pushed through the
+   EXISTING attachment pipeline — uploadFile, unmodified in behaviour — so
+   it lands in the job's Documents list and in the Send to Dealer picker on
+   exactly the same footing as a measure sheet.
+   The storage policies resolve the FIRST PATH SEGMENT to a job, which is
+   why a Custom Quote cannot be stored anywhere until it is attached to
+   one. That is not a limitation to work around; it is the tenant proof. */
+let CQ_ATTACH_SEL=new Set();
+function cqAttachJobs(q){const s=String(q||'').trim().toLowerCase();
+  const seen=new Set(),out=[];
+  [].concat(appts,queue).forEach(j=>{const id=j.jobId||j.id;if(!id||seen.has(id))return;
+    if(isTask(j))return;
+    const nm=String(j.cust||''),no=String(j.jobNo||'');
+    if(s&&nm.toLowerCase().indexOf(s)<0&&no.indexOf(s)<0)return;
+    seen.add(id);out.push({id:id,cust:nm||'—',jobNo:j.jobNo||null,type:j.type,dealer:j.dealer||'—'});});
+  return out.slice(0,40);}
+
+function cqAttachRender(){
+  const list=$('cqjJobs');if(!list)return;
+  const rows=cqAttachJobs($('cqjSearch').value);
+  list.innerHTML=rows.length?rows.map(j=>'<label class="sdrow chkrow" data-job="'+msEsc(j.id)+'">'
+    +'<input type="radio" name="cqjjob">'
+    +'<span class="nm">'+msEsc(j.cust)+(j.jobNo?' &middot; #'+j.jobNo:'')+'</span>'
+    +'<span class="wh">'+msEsc(j.type)+'</span></label>').join('')
+    :'<div class="dl-empty">No matching job.</div>';
+  const vers=$('cqjVersions');
+  vers.innerHTML=CQ_DOCS.length?CQ_DOCS.map(d=>'<label class="sdrow chkrow" data-doc="'+msEsc(d.id)+'">'
+    +'<input type="checkbox"'+(CQ_ATTACH_SEL.has(d.id)?' checked':'')+'>'
+    +'<span class="nm">v'+d.version+' &middot; '+msEsc(d.pdf_filename||'')+'</span>'
+    +'<span class="wh">'+fmtMoney(d.total)+'</span></label>').join('')
+    :'<div class="dl-empty">Generate a PDF first.</div>';}
+
+function cqAttachOpen(){
+  if(!CQ_QUOTE)return;
+  if(!CQ_DOCS.length){toast('Generate a PDF before attaching',true);return;}
+  CQ_ATTACH_SEL=new Set([CQ_DOCS[0].id]);
+  $('cqjSearch').value='';
+  cqAttachRender();
+  $('cqjBg').classList.add('open');}
+
+async function cqAttachGo(){
+  const jobEl=$('cqjJobs').querySelector('.sdrow input:checked');
+  if(!jobEl){toast('Pick a job',true);return;}
+  const jobId=jobEl.closest('.sdrow').dataset.job;
+  const picked=CQ_DOCS.filter(d=>CQ_ATTACH_SEL.has(d.id));
+  if(!picked.length){toast('Pick at least one version',true);return;}
+  const ok=await msEnsurePdfLib();
+  if(!ok){toast('Could not load the PDF library',true);return;}
+  const btn=$('cqjGo');btn.disabled=true;btn.textContent='Attaching…';
+  let done=0;
+  try{
+    for(const d of picked){
+      const doc=cqBuildPdf(d.lines_snapshot,{number:CQ_QUOTE.number,version:d.version,
+        customerName:d.customer_name,producedBy:cqWho(),issuedAt:cqStamp(d.issued_at)});
+      const name=d.pdf_filename||cqFilename(CQ_QUOTE.number,d.version);
+      const file=new File([doc.output('blob')],name,{type:'application/pdf'});
+      /* Each attach is a NEW file, never an overwrite — uploadFile builds a
+         timestamped path. Attaching v1 and v2 to the same job therefore
+         leaves BOTH in the drawer, which is the point. */
+      const fileId=await uploadFile(jobId,file,'pdf');
+      const upd=await sb.from('custom_quote_docs').update({job_id:jobId,file_id:fileId||null,pdf_filename:name}).eq('id',d.id);
+      if(upd.error)console.error('cqAttach link',upd.error);
+      done++;}
+  }catch(err){console.error('cqAttachGo',err);
+    toast(done?('Attached '+done+' of '+picked.length+' — see the console'):'Could not attach',true);}
+  btn.disabled=false;btn.textContent='Attach';
+  $('cqjBg').classList.remove('open');
+  if(done)toast('<b>'+done+'</b> PDF'+(done>1?'s':'')+' attached to the job');
+  await cqLoadDocs();
+  if(selectedId)refreshFiles();}
+
+$('cqjClose').onclick=$('cqjCancel').onclick=()=>$('cqjBg').classList.remove('open');
+$('cqjGo').onclick=cqAttachGo;
+$('cqjSearch').addEventListener('input',cqAttachRender);
+$('cqjBg').addEventListener('click',e=>{if(e.target.id==='cqjBg')$('cqjBg').classList.remove('open')});
+
+/* ---- the page --------------------------------------------------------- */
+function buildQuickQuote(){const g=$('genericView');
+  g.innerHTML='<div class="gp-head">Quick Quote</div>'
+    +'<div class="gp-sub">One-off quotes at custom pricing. Not tied to a dealer, a customer record or the rate sheet.</div>'
+    +'<div class="mslight">'
+    +'<div class="msf"><label>Customer name</label><input class="dl-input" id="cqName" placeholder="Who is this quote for?"></div>'
+    +'<div class="mshead"><h4>Line items</h4><span class="mscount" id="cqCount">0 lines</span></div>'
+    +'<div id="cqList"></div>'
+    +'<button type="button" class="msadd" id="cqAdd">+ Add line</button>'
+    +'<div class="grow" style="margin-top:14px"><div style="flex:1"><div class="gname">Total</div>'
+    +'<div class="gmeta" id="cqNumber">not yet numbered</div></div>'
+    +'<div class="gname" style="font-size:18px" id="cqTotal">'+fmtMoney(0)+'</div></div>'
+    +'<div class="dl-actions" style="margin-top:14px;display:flex;gap:8px;flex-wrap:wrap">'
+    +'<button type="button" class="msbtn pri" id="cqSave">Save</button>'
+    +'<button type="button" class="msbtn" id="cqGen">Generate PDF</button>'
+    +'<button type="button" class="msbtn" id="cqAttach">Attach to Job</button>'
+    +'<button type="button" class="msbtn" id="cqNew">New Quote</button>'
+    +'<span style="flex:1"></span>'
+    +'<button type="button" class="msbtn dgr" id="cqDelete">Delete quote</button></div>'
+    +'<div class="mshead" style="margin-top:22px"><h4>PDF versions</h4></div>'
+    +'<div id="cqVersions"></div>'
+    +'<div class="mshead" style="margin-top:22px"><h4>Quote history</h4></div>'
+    +'<div id="cqHistory"></div>'
+    +'</div>';
+  $('cqAdd').onclick=()=>{cqReadCards();CQ_LINES.push({sort_order:CQ_LINES.length,quantity:1,width_frac:0,height_frac:0});cqRenderLines();};
+  $('cqSave').onclick=()=>{cqSave();};
+  $('cqGen').onclick=cqGenerate;
+  $('cqAttach').onclick=cqAttachOpen;
+  $('cqDelete').onclick=cqDelete;
+  $('cqNew').onclick=cqNewDraft;
+  if(CQ_QUOTE){$('cqName').value=CQ_QUOTE.customer_name||'';$('cqNumber').textContent='Custom Quote '+CQ_QUOTE.number;}
+  else if(!CQ_LINES.length)CQ_LINES=[{sort_order:0,quantity:1,width_frac:0,height_frac:0}];
+  cqRenderLines();cqRenderVersions();cqSyncButtons();
+  cqLoadList();
+  if(CQ_QUOTE)cqLoadDocs();}
+
+/* Delegated, because the card list and both pickers are rebuilt often
+   enough that per-node wiring would have to be redone every time. */
+document.addEventListener('click',function(e){
+  const card=e.target.closest('#cqList .mscard');
+  if(card){
+    if(e.target.closest('.cq-del')){cqReadCards();CQ_LINES.splice(+card.dataset.i,1);cqRenderLines();return;}
+    if(e.target.closest('.mssum')){card.classList.toggle('open');return;}}
+  const dl=e.target.closest('#cqVersions .cq-redl');
+  if(dl){cqRedownload(dl.dataset.d);return;}
+  const hist=e.target.closest('#cqHistory .grow[data-q]');
+  if(hist){cqOpen(hist.dataset.q);return;}
+  const jr=e.target.closest('#cqjVersions .sdrow[data-doc]');
+  if(jr){const id=jr.dataset.doc;
+    setTimeout(()=>{const cb=jr.querySelector('input');if(cb&&cb.checked)CQ_ATTACH_SEL.add(id);else CQ_ATTACH_SEL.delete(id);},0);}
+});
+document.addEventListener('input',function(e){
+  if(!e.target.closest('#cqList'))return;
+  const card=e.target.closest('.mscard');if(card)cqSyncCard(card);
+  cqSyncTotals();});
+document.addEventListener('change',function(e){
+  if(!e.target.closest('#cqList'))return;
+  const card=e.target.closest('.mscard');if(card)cqSyncCard(card);
+  cqSyncTotals();});
+
 function navTo(p){if(!IS_ADMIN&&ADMIN_PAGES.has(p))p='scheduler';
   page=p;document.querySelectorAll('.nav-item').forEach(n=>n.classList.toggle('active',n.dataset.page===p));
   const sched=p==='scheduler';$('schedView').style.display=sched?'flex':'none';$('genericView').style.display=sched?'none':'block';
   $('viewSeg').style.display=sched?'flex':'none';$('dayNav').style.display=sched?'flex':'none';$('rangeLbl').style.display=sched?'inline':'none';$('instFilter').style.display=sched?'block':'none';
-  const titles={scheduler:'Scheduler',toschedule:'To Schedule',installers:'Users',dealers:'Dealers',customers:'Customers',inventory:'Receiving',rates:'Service Rates',reports:'Reports'};
+  const titles={scheduler:'Scheduler',toschedule:'To Schedule',quickquote:'Quick Quote',installers:'Users',dealers:'Dealers',customers:'Customers',inventory:'Receiving',rates:'Service Rates',reports:'Reports'};
   $('ptitle').childNodes[0].nodeValue=titles[p]+' ';
   if(sched)render();else buildGeneric(p);}
 function miniCal(){const m=monthAnchor(0),offset=(m.getDay()+6)%7,dim=daysInMonth(m);let cells='';
@@ -6044,6 +6544,7 @@ function buildGeneric(p){const g=$('genericView');
   if(p==='dealers'){buildDealers();return}
   if(p==='customers'){buildCustomers();return}
   if(p==='inventory'){RECV_NOTE_N=null;buildReceiving();return}
+  if(p==='quickquote'){buildQuickQuote();return}
   if(p==='rates'){buildRates();return}
   if(p==='reports'){buildReports();return}}
 
