@@ -498,6 +498,38 @@
      scrolling list reflows. */
   .fld input[type=checkbox]{width:auto;padding:0;border:0;background:none;border-radius:0}
   .chkrow{display:flex;align-items:center;gap:10px;cursor:pointer}
+  /* ===== v101 THE RULE THAT ACTUALLY WINS =====
+     v100 fixed the wrong half. The padding leak from .fld input was real and
+     is still fixed above, but it was never what you could see. This is:
+
+         .fld label{display:block;font-size:10.5px;letter-spacing:1.2px;
+           text-transform:uppercase;color:var(--sand-dim);margin-bottom:7px}
+
+     .fld label is 0,1,1. .chkrow is 0,1,0. So display:block wins and the row
+     is never a flex container -- which makes gap:10px, align-items:center and
+     flex:none on the input all inert. The box and the text end up as inline
+     siblings on a text baseline with no whitespace between them in the
+     markup, so they render touching and off-centre.
+     Source order is NOT the mechanism and moving .chkrow later fixes nothing:
+     .fld label sits at line 244, hundreds of lines ABOVE .chkrow, and still
+     wins, because specificity is resolved before order.
+     It is also why only two of the five checkboxes were ever wrong. Both are
+     label elements INSIDE a .fld. The Active toggle and the two sign-off rows
+     are siblings of .fld, so nothing outranked their display:flex.
+
+     0,2,1 beats 0,1,1, so this restores the layout and undoes the four
+     typographic properties .fld label imposes on a row that is not a caption.
+     margin-bottom is deliberately NOT reset: .sdrow relies on that 7px to
+     space consecutive document rows, and zeroing it here would outrank
+     .sdrow's own margin-bottom (0,1,0) and collapse the list. */
+  .fld label.chkrow{display:flex;align-items:center;gap:10px;
+    font-size:inherit;letter-spacing:normal;text-transform:none;color:inherit}
+  /* font-size:inherit above is 0,2,1 and therefore also outranks each site's
+     own font-size at 0,1,0 -- without these two the rows would take the
+     container's 16px rather than their own size. Restored at equal
+     specificity, placed after, so the later rule wins the tie. */
+  .fld label.tchk{font-size:13.5px;color:var(--sand-ink)}
+  .fld label.sdrow{font-size:13px;color:var(--sand-ink)}
   .chkrow input[type=checkbox]{flex:none;width:17px;height:17px;margin:0;padding:0;
     border:0;background:none;border-radius:0;cursor:pointer;accent-color:var(--sand)}
   /* v98: the Task drawer's Done control. A single checkbox, deliberately not a
