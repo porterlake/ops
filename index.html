@@ -17,6 +17,11 @@
     --sand:#d8c6a0; --sand-dim:#a99c7e; --sand-ink:#ece9e1;
     /* slate / smoke stage */
     --stage:#2C2C2C; --stage-2:#2f2f2f; --stage-card:#3b3b3b; --stage-line:rgba(255,255,255,.17); --stage-ink:#e6e6e6; --stage-mut:#b2b2b2;
+    /* TASK tiles (v98). Deliberately OUTSIDE the sand family: a Task is not a
+       dealer job and must not borrow the accent that means "selected" or the
+       sand that means "our work". Slate reads as internal/admin. --task-ink is
+       4.9:1 on --task-bg and on the light stage. */
+    --task-ink:#3f5c73; --task-line:#b9cbd9; --task-bg:#eaf1f6;
     --row-h:54px; --time-col:62px;
   }
   *{box-sizing:border-box;margin:0;padding:0}
@@ -441,6 +446,13 @@
   .assign-banner:hover{background:rgba(238,165,4,.24)}
   .assign-banner svg{width:16px;height:16px;flex-shrink:0}
   .appt.unassigned{border-style:dashed}
+  /* v98: the Task drawer's Done control. A single checkbox, deliberately not a
+     dropdown -- a Task is either done or it is not, and it has no status
+     ladder. Sized for a thumb in the field. */
+  .tchk{display:flex;align-items:center;gap:10px;cursor:pointer;font-size:13.5px;font-weight:600;color:var(--sand-ink);
+    background:var(--side-2);border:1px solid var(--side-border);border-radius:9px;padding:11px 13px}
+  .tchk input{width:18px;height:18px;accent-color:#6f8f2a;cursor:pointer;flex:none}
+  .tchk:hover{border-color:var(--sand-dim)}
   .durrow{display:flex;align-items:center;gap:8px}
   .durrow select{width:auto;min-width:70px;background:var(--side-3);border:1px solid var(--side-border);color:var(--sand-ink);font:inherit;font-size:13.5px;padding:9px 11px;border-radius:8px;outline:none}
   .durrow select:focus{border-color:var(--accent)}
@@ -856,6 +868,20 @@ body.role-installer [data-admin]{display:none!important}
    mask. Held NEUTRAL per the v27 brief -- the red .cflag "Conflict" pill and the red
    "!" .bang badge both still render, so the warning loses no signal. */
 .cal-wrap .appt.conflict{border-color:var(--stage-line)}
+/* ===== TASK TILE (v98). A Task is NOT a dealer job and must never be mistaken
+   for one at a glance, so it drops the white card entirely: a tinted slate
+   ground, a dashed-free solid slate border and a 3px left spine. The pill
+   carries the task_type label, which is the only thing that differs between
+   the five subtypes. COLOR ONLY -- no geometry here, nothing touches --row-h
+   or ROW (golden rule 6); top/height stay inline in apptCard as before. */
+.cal-wrap .appt.task{background:var(--task-bg);border-color:var(--task-line);
+  box-shadow:inset 3px 0 0 var(--task-ink),0 1px 2px rgba(0,0,0,.05)}
+.cal-wrap .appt.task:hover{border-color:var(--task-ink);box-shadow:inset 3px 0 0 var(--task-ink),0 2px 5px rgba(0,0,0,.07)}
+.cal-wrap .appt.task.sel{border-color:var(--task-ink);box-shadow:inset 3px 0 0 var(--task-ink),0 0 0 2px var(--task-bg)}
+.cal-wrap .appt.task .pill{background:var(--task-ink);color:#fff;letter-spacing:.5px}
+.cal-wrap .appt.task .at{color:var(--task-ink);font-weight:600;font-size:12px}
+.cal-wrap .appt.task .srow{color:var(--task-ink)}
+.cal-wrap .mchip.task{background:var(--task-bg);border-color:var(--task-line);color:var(--task-ink);font-weight:600}
 /* Today + hover + drag target */
 .cal-wrap .dh:hover{background:rgba(0,0,0,.03)}
 .cal-wrap .dh.today{background:var(--accent-soft)}
@@ -1223,12 +1249,16 @@ body.role-installer [data-admin]{display:none!important}
     <div class="dr-body">
       <div class="issue-banner" id="issueBanner"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9v4M12 17h.01"/></svg>Issue reported — resolution required before close.<button onclick="logResolution()">Log resolution</button></div>
       <div class="wo" id="woBlock"></div>
-      <div class="fld"><label>Appointment type</label><div class="chips" id="drTypeView"><span class="chip on" id="drTypeBadge" style="cursor:default"></span><button type="button" class="chip" id="drTypeEdit" style="background:none;color:var(--sand-dim);font:inherit;font-size:12px;font-weight:600">Edit</button></div><div class="chips" id="drType" style="display:none"><div class="chip" data-t="Measure">Measure</div><div class="chip" data-t="Install">Install</div><div class="chip" data-t="Return Trip">Return Trip</div></div></div>
-      <div class="fld"><label>Status</label><select id="drStatus"></select></div>
+      <div class="fld" id="drTypeFld"><label>Appointment type</label><div class="chips" id="drTypeView"><span class="chip on" id="drTypeBadge" style="cursor:default"></span><button type="button" class="chip" id="drTypeEdit" style="background:none;color:var(--sand-dim);font:inherit;font-size:12px;font-weight:600">Edit</button></div><div class="chips" id="drType" style="display:none"><div class="chip" data-t="Measure">Measure</div><div class="chip" data-t="Install">Install</div><div class="chip" data-t="Return Trip">Return Trip</div></div></div>
+      <div class="fld" id="drTaskTypeFld" style="display:none"><label>Task type</label><select id="drTaskType"></select></div>
+      <div class="fld" id="drTaskDoneFld" style="display:none"><label>Status</label><label class="tchk"><input type="checkbox" id="drTaskDone"><span>Done</span></label></div>
+      <div class="fld" id="drStatusFld"><label>Status</label><select id="drStatus"></select></div>
       <div class="fld"><label>Installer</label><select id="drInstaller"></select></div>
-      <div class="fld"><label>Dealer (account)</label><div class="val" id="drDealer" style="cursor:pointer;text-decoration:underline;text-decoration-style:dotted;text-underline-offset:3px">—</div></div>
-      <div class="fld"><label>Site address (homeowner)</label><div class="val dim" id="drAddr">—</div></div>
-      <div class="fld"><label>Contact</label><div class="val dim" id="drPhone">—</div></div>
+      <div class="fld" id="drTaskDealerFld" style="display:none"><label>Dealer (optional)</label><div class="combo" id="drTaskDealerCombo"><input id="drTaskDealerInput" placeholder="Search dealers…" autocomplete="off"><div class="combo-list" id="drTaskDealerList"></div></div></div>
+      <div class="fld" id="drTaskDescFld" style="display:none"><label>Description</label><textarea id="drTaskDesc" rows="7" placeholder="What needs doing…"></textarea></div>
+      <div class="fld" id="drDealerFld"><label>Dealer (account)</label><div class="val" id="drDealer" style="cursor:pointer;text-decoration:underline;text-decoration-style:dotted;text-underline-offset:3px">—</div></div>
+      <div class="fld" id="drAddrFld"><label>Site address (homeowner)</label><div class="val dim" id="drAddr">—</div></div>
+      <div class="fld" id="drPhoneFld"><label>Contact</label><div class="val dim" id="drPhone">—</div></div>
       <div class="fld" id="drProductFld" style="display:none"><label>Product status</label><div class="val dim" id="drProduct" style="cursor:pointer;text-decoration:underline;text-decoration-style:dotted;text-underline-offset:3px">&mdash;</div></div>
       <div class="fld" id="drPricingFld" data-admin style="display:none"><label>Pricing</label>
         <div id="drPricing"></div>
@@ -1241,10 +1271,10 @@ body.role-installer [data-admin]{display:none!important}
       </div>
       <div class="fld" id="drMarginFld" data-admin style="display:none"><label>Margin</label><div id="drMargin"></div></div>
       <div class="fld" id="drBillingFld" data-admin style="display:none"><label>Quotes &amp; invoices</label><div id="drBilling"></div></div>
-      <div class="fld"><label>Scope</label><input id="drScope" type="text"></div>
+      <div class="fld" id="drScopeFld"><label>Scope</label><input id="drScope" type="text"></div>
       <div class="fld"><label>Duration</label><div class="durrow"><select id="drDurH"></select><span class="durx">hr</span><select id="drDurM"></select><span class="durx">min</span></div></div>
       <div class="fld"><label>Notes</label><textarea id="drNoteNew" placeholder="Add an internal note…"></textarea><div style="display:flex;justify-content:flex-end;margin-top:8px"><button class="btn" id="drNoteAdd">Add Note</button></div><div id="drNoteFeed" style="margin-top:10px"></div></div>
-      <div class="fld"><label>Documents &amp; photos</label><div id="drFiles"></div></div>
+      <div class="fld" id="drFilesFld"><label>Documents &amp; photos</label><div id="drFiles"></div></div>
     </div>
     <div class="dr-foot"><button class="btn del" id="drLeftBtn">Unschedule</button><button class="btn" onclick="saveDrawer()">Save changes</button></div>
   </div>
@@ -1292,18 +1322,22 @@ body.role-installer [data-admin]{display:none!important}
   <div class="modal-bg" id="njBg"><div class="modal">
     <div class="modal-h"><div class="mi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg></div><div><h3>New job</h3><div class="ms">Pick a dealer & customer — details auto-fill</div></div><button class="x" id="njClose">×</button></div>
     <div class="modal-b">
-      <div class="fld"><label>Type</label><div class="chips" id="njType"><div class="chip on" data-t="Measure">Measure</div><div class="chip" data-t="Install">Install</div><div class="chip" data-t="Return Trip">Return Trip</div></div></div>
-      <div class="fld"><label>Dealer (account)</label><div class="combo" id="njDealerCombo"><input id="njDealerInput" placeholder="Search dealers…" autocomplete="off"><div class="combo-list" id="njDealerList"></div></div></div>
+      <div class="fld"><label>Type</label><div class="chips" id="njType"><div class="chip on" data-t="Measure">Measure</div><div class="chip" data-t="Install">Install</div><div class="chip" data-t="Return Trip">Return Trip</div><div class="chip" data-t="Task">Task</div></div></div>
+      <div class="fld" id="njTaskTypeFld" style="display:none"><label>Task type</label><select id="njTaskType"></select></div>
+      <div class="fld" id="njDealerFld"><label>Dealer (account)</label><div class="combo" id="njDealerCombo"><input id="njDealerInput" placeholder="Search dealers…" autocomplete="off"><div class="combo-list" id="njDealerList"></div></div></div>
       <div class="fld" id="njNewDealerWrap" style="display:none"><label>New dealer name</label><input id="njDealerName" placeholder="Dealer / account name"></div>
       <div id="njDiscWrap"><span class="dlbl">Dealer discount</span><input id="njDisc" type="number" min="0" max="100" step="0.5" placeholder="0"><span class="dlbl">% off subtotal</span></div>
-      <div class="fld"><label>Customer</label><select id="njCustomer"></select></div>
+      <div class="fld" id="njTaskDescFld" style="display:none"><label>Description</label><textarea id="njTaskDesc" rows="7" placeholder="What needs doing…"></textarea></div>
+      <div class="fld" id="njWhenFld" style="display:none"><label>When</label><div class="durrow"><input id="njTaskDate" type="date"><select id="njTaskStart"></select></div></div>
+      <div class="fld" id="njInstFld" style="display:none"><label>Assigned to</label><select id="njInstaller"></select></div>
+      <div class="fld" id="njCustFld"><label>Customer</label><select id="njCustomer"></select></div>
       <div class="fld" id="njNewCustWrap" style="display:none"><label>New customer name</label><input id="njCustName" placeholder="Full name"></div>
       <div class="njhist" id="njHist" style="display:none"></div>
-      <div class="fld"><label>Site address</label><input id="njAddr" placeholder="Street, City ZIP"></div>
-      <div class="fld"><label>Contact</label><input id="njPhone" placeholder="(xxx) xxx-xxxx"></div>
-      <div class="fld"><label>Scope</label><input id="njScope" placeholder="e.g. 6 windows · roller shades"></div>
+      <div class="fld" id="njAddrFld"><label>Site address</label><input id="njAddr" placeholder="Street, City ZIP"></div>
+      <div class="fld" id="njPhoneFld"><label>Contact</label><input id="njPhone" placeholder="(xxx) xxx-xxxx"></div>
+      <div class="fld" id="njScopeFld"><label>Scope</label><input id="njScope" placeholder="e.g. 6 windows · roller shades"></div>
       <div class="fld"><label>Estimated duration</label><div class="durrow"><select id="njDurH"></select><span class="durx">hr</span><select id="njDurM"></select><span class="durx">min</span></div></div>
-      <div class="fld"><label>Awaiting product?</label><div class="chips" id="njProd"><div class="chip on" data-p="no">No · ready to schedule</div><div class="chip" data-p="yes">Yes · product on order</div></div></div>
+      <div class="fld" id="njProdFld"><label>Awaiting product?</label><div class="chips" id="njProd"><div class="chip on" data-p="no">No · ready to schedule</div><div class="chip" data-p="yes">Yes · product on order</div></div></div>
       <div id="njLinesWrap"><label class="lilabel">Line items &amp; pricing</label><div id="njLines"></div><button class="liadd" id="njAddLine">+ Add line item</button>
         <datalist id="njSvcList"></datalist>
         <div id="njTotals"></div>
@@ -1437,7 +1471,22 @@ const UNASSIGNED={id:'un',name:'Unassigned',color:'#9aa1ab'};
    (active). Without it this returns UNASSIGNED and every past appointment,
    measure sheet and completion report reads "Unassigned". */
 function instById(id){return (id&&id!=='un'&&(INSTALLERS.find(i=>i.id===id)||ALL_INSTALLERS.find(i=>i.id===id)))||UNASSIGNED}
-const TYPES={"Measure":{c:"#d8c6a0"},"Install":{c:"#d8c6a0"},"Return Trip":{c:"#d8c6a0"}};
+/* v98: Task is the fourth job type. The string literal is Title-Case 'Task' in
+   EVERY layer -- this map, the data-t chip attributes, jobs.type in the
+   database and jobs_task_shape_chk's hardcoded comparison. Nothing normalises
+   case anywhere between the chip and the insert, so a lowercase variant here
+   would be rejected by the constraint at runtime, not at build time. */
+const TYPES={"Measure":{c:"#d8c6a0"},"Install":{c:"#d8c6a0"},"Return Trip":{c:"#d8c6a0"},"Task":{c:"#9fb3c8"}};
+/* The five task_type labels, in dropdown order. This list and
+   jobs_task_type_chk must agree exactly; the CHECK is the backstop. */
+const TASK_TYPES=["Task","Dealer Apt","Work Errand","Office/Deep Work","Out of Office"];
+/* ONE predicate, used everywhere a Task must be told apart from a dealer job.
+   Reads jobs.type, never task_type -- a Dealer Apt is still a Task. */
+function isTask(x){return !!x&&x.type==='Task';}
+/* The tile label and the drawer headline. A Task has no customer, so every
+   place that would print a bare em-dash prints the task_type instead. */
+function taskLabel(x){return (x&&x.taskType)||'Task';}
+function jobTitle(x){return isTask(x)?taskLabel(x):((x&&x.cust)||'—');}
 const STATUS_ORDER=["rts","hold","scheduled","otw","progress","done","issue","closed"];
 const STATUS={rts:{label:"Ready to Schedule",short:"RTS",color:"#9aa1ab"},hold:{label:"On Hold",short:"On Hold",color:"#b08a63"},scheduled:{label:"Scheduled",short:"Scheduled",color:"#5D84A5"},otw:{label:"On the Way",short:"On the Way",color:"#EEA504"},progress:{label:"In Progress",short:"In Progress",color:"#F7F1E1"},done:{label:"Completed",short:"Completed",color:"#606C38"},issue:{label:"Issue Reported",short:"Issue",color:"#7B1010"},closed:{label:"Closed",short:"Closed",color:"#4a4f45"}};
 /* Light-stage status colors (v25). The STATUS map above is tuned for the dark
@@ -1519,18 +1568,24 @@ function shortDate(){return new Date().toLocaleDateString('en-US',{month:'short'
 function defaultMins(type){return type==='Install'?180:60}
 function hmToMins(h,m){return (+h)*60+(+m)}
 function fillDur(hSel,mSel,mins){hSel.innerHTML='';for(let h=0;h<=8;h++)hSel.appendChild(new Option(h,h));mSel.innerHTML='';[0,15,30,45].forEach(m=>mSel.appendChild(new Option(String(m).padStart(2,'0'),m)));const M=Math.max(0,mins||0);hSel.value=Math.min(8,Math.floor(M/60));mSel.value=[0,15,30,45].reduce((p,c)=>Math.abs(c-M%60)<Math.abs(p-M%60)?c:p,0);}
-function mapJob(j){return {id:j.id,type:j.type,customerId:j.customer_id,dealerId:j.dealer_id,estMins:j.estimated_minutes||120,
+function mapJob(j){return {id:j.id,type:j.type,taskType:j.task_type||null,taskDone:!!j.task_done,customerId:j.customer_id,dealerId:j.dealer_id,estMins:j.estimated_minutes||120,
   completedAt:j.completed_at||null,closedAt:j.closed_at||null,jobNo:j.job_number||null,
   cust:j.customers?j.customers.name:'—',dealer:j.dealers?j.dealers.name:'—',
   addr:j.site_address||'—',phone:j.customers?(j.customers.phone||''):'',scope:j.scope||'—',
   awaitingProduct:j.awaiting_product,override:j.override_schedule||false,
   lineItems:(j.line_items||[]).map(li=>({id:li.id,desc:li.description,qty:li.qty,delivered:li.delivered,qtyRecv:li.qty_received||0,by:li.delivered_by||'',serviceId:li.service_id||null,unitPrice:li.unit_price,minCharge:li.min_charge,isCustom:!!li.is_custom})),dealerDiscount:j.dealers?(+j.dealers.discount_pct||0):0};}
 async function loadJobs(){try{const {data,error}=await sb.from('jobs')
-    .select('id,customer_id,dealer_id,type,site_address,scope,estimated_minutes,awaiting_product,override_schedule,completed_at,closed_at,job_number,customers(name,phone),dealers(name,discount_pct),line_items(id,description,qty,delivered,delivered_by,qty_received,service_id,unit_price,min_charge,is_custom)')
+    .select('id,customer_id,dealer_id,type,task_type,task_done,site_address,scope,estimated_minutes,awaiting_product,override_schedule,completed_at,closed_at,job_number,customers(name,phone),dealers(name,discount_pct),line_items(id,description,qty,delivered,delivered_by,qty_received,service_id,unit_price,min_charge,is_custom)')
     .order('created_at',{ascending:true});
   if(error){console.error(error);toast('Could not load jobs',true);return;}
   const scheduled=new Set(appts.map(a=>a.jobId));
-  queue=(data||[]).map(mapJob).filter(j=>!scheduled.has(j.id));renderQueue();
+  /* v98: a Task is booked straight onto the calendar and never enters the To
+     Schedule rail -- it has no customer, no line items and nothing to await.
+     The isTask filter is belt and braces: a Task always has an appointment, so
+     the scheduled set already excludes it. It matters if an appointment is
+     ever deleted out from under one, which would otherwise strand the Task in
+     a queue whose every column is blank. */
+  queue=(data||[]).map(mapJob).filter(j=>!scheduled.has(j.id)&&!isTask(j));renderQueue();
   if(page==='toschedule')buildGeneric('toschedule');if(page==='inventory')buildReceiving();
 }catch(e){console.error(e);toast('Could not reach database',true);}}
 /* A line counts as STOCK when its catalogue rate is a product. Anything that
@@ -1616,13 +1671,13 @@ function composeISO(key,hour){const [y,mo,da]=key.split('-').map(Number);const h
 function gotoDate(d){const base=new Date(BASE_MON);base.setHours(0,0,0,0);const t=new Date(d);t.setHours(0,0,0,0);const diff=Math.round((t-base)/86400000);weekOffset=Math.floor(diff/7);selectedDay=((diff%7)+7)%7;navTo('scheduler');setView('day');}
 function mapAppt(r){const j=r.jobs||{};const d=new Date(r.start_time);return {id:r.id,jobId:r.job_id,installer:r.installer_id||'un',status:r.status||'scheduled',
   dateKey:dateKey(d),start:d.getHours()+d.getMinutes()/60,dur:(r.duration_minutes||120)/60,notes:r.notes||'',
-  type:j.type||'Install',cust:j.customers?j.customers.name:'—',dealer:j.dealers?j.dealers.name:'—',addr:j.site_address||'—',
+  type:j.type||'Install',taskType:j.task_type||null,taskDone:!!j.task_done,cust:j.customers?j.customers.name:'—',dealer:j.dealers?j.dealers.name:'—',addr:j.site_address||'—',
   phone:j.customers?(j.customers.phone||''):'',scope:j.scope||'—',customerId:j.customer_id,dealerId:j.dealer_id,estMins:j.estimated_minutes||120,
   awaitingProduct:j.awaiting_product,override:j.override_schedule||false,
   completedAt:j.completed_at||null,closedAt:j.closed_at||null,jobNo:j.job_number||null,
   lineItems:(j.line_items||[]).map(li=>({id:li.id,desc:li.description,qty:li.qty,delivered:li.delivered,qtyRecv:li.qty_received||0,by:li.delivered_by||'',serviceId:li.service_id||null,unitPrice:li.unit_price,minCharge:li.min_charge,isCustom:!!li.is_custom})),dealerDiscount:j.dealers?(+j.dealers.discount_pct||0):0,files:[]};}
 async function loadAppointments(){try{const {data,error}=await sb.from('appointments')
-    .select('id,job_id,installer_id,status,start_time,duration_minutes,notes,jobs(type,site_address,scope,estimated_minutes,awaiting_product,override_schedule,completed_at,closed_at,job_number,customer_id,dealer_id,customers(name,phone),dealers(name,discount_pct),line_items(id,description,qty,delivered,delivered_by,qty_received,service_id,unit_price,min_charge,is_custom))')
+    .select('id,job_id,installer_id,status,start_time,duration_minutes,notes,jobs(type,task_type,task_done,site_address,scope,estimated_minutes,awaiting_product,override_schedule,completed_at,closed_at,job_number,customer_id,dealer_id,customers(name,phone),dealers(name,discount_pct),line_items(id,description,qty,delivered,delivered_by,qty_received,service_id,unit_price,min_charge,is_custom))')
     .order('start_time',{ascending:true});
   if(error){console.error(error);toast('Could not load appointments',true);return;}
   appts=(data||[]).map(mapAppt);markConflicts();render();}catch(e){console.error(e)}}
@@ -1634,7 +1689,8 @@ const isBaseWeek=()=>weekOffset===0, isBaseMonth=()=>monthOffset===0;
 function markConflicts(){appts.forEach(a=>a._conflict=false);for(let i=0;i<appts.length;i++)for(let j=i+1;j<appts.length;j++){const A=appts[i],B=appts[j];if(A.installer!=="un"&&A.installer===B.installer&&A.dateKey===B.dateKey&&A.start<B.start+B.dur&&B.start<A.start+A.dur){A._conflict=true;B._conflict=true}}}
 
 function apptCard(a){const s=STATUS[a.status],sc=statusColor(a.status),st=statusText(a.status),inst=instById(a.installer);const unassigned=(a.installer==='un'||!a.installer);
-  const el=document.createElement('div');el.className='appt'+(a.id===selectedId?' sel':'')+(a._conflict?' conflict':'')+(unassigned?' unassigned':'')+(isClosed(a)?' closed':'');
+  const task=isTask(a);
+  const el=document.createElement('div');el.className='appt'+(task?' task':'')+(a.id===selectedId?' sel':'')+(a._conflict?' conflict':'')+(unassigned?' unassigned':'')+((task?a.taskDone:isClosed(a))?' closed':'');
   el.style.top=(a.start-START_HOUR)*ROW+2+'px';el.style.height=(a.dur*ROW-6)+'px';
   /* v27: background, border-color and box-shadow are NO LONGER written inline. The
      status-tinted gradient, the 90%-opacity status outline and the status glow are all
@@ -1642,7 +1698,18 @@ function apptCard(a){const s=STATUS[a.status],sc=statusColor(a.status),st=status
      the NEUTRAL APPOINTMENT CARD block in CSS. top/height stay inline because they are
      geometry derived from ROW and must never move into CSS (golden rule 6). */
   const instLabel=unassigned?`<span style="color:#9a791a;font-weight:800">⚠ Unassigned</span>`:inst.name.split(' ')[0];
-  el.innerHTML=`<div class="pill">${a.type}</div>
+  /* A Task's pill carries the task_type -- the ONLY thing that differs between
+     the five subtypes -- and its title line is the description, because there
+     is no customer to name. Never a bare em-dash. Its status row is the Done
+     flag, read from jobs.task_done; appointments.status is untouched for a
+     Task and is not shown. */
+  el.innerHTML=task
+    ?`<div class="pill">${esc(taskLabel(a))}</div>
+    <div class="at">${esc(a.scope&&a.scope!=='—'?a.scope:taskLabel(a))}</div>
+    <div class="ai"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="3.5"/><path d="M5 20a7 7 0 0 1 14 0"/></svg>${instLabel} · ${fmt(a.start)}–${fmt(a.start+a.dur)}</div>
+    <div class="srow"><i style="background:${a.taskDone?'#4d7010':'var(--task-line)'}"></i>${a.taskDone?'Done':'To do'}</div>
+    ${a._conflict?'<span class="cflag">Conflict</span>':''}`
+    :`<div class="pill">${a.type}</div>
     <div class="at">${a.cust}</div>
     <div class="ai"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="3.5"/><path d="M5 20a7 7 0 0 1 14 0"/></svg>${a.jobNo?`<span class="jno">#${a.jobNo}</span> · `:''}${instLabel} · ${fmt(a.start)}–${fmt(a.start+a.dur)}</div>
     <div class="srow" style="color:${st}"><i style="background:${sc}"></i>${s.short}</div>
@@ -1656,7 +1723,7 @@ async function moveAppt(id,key,hour){const a=appts.find(x=>x.id===id);if(!a)retu
   markConflicts();render();
   const {error}=await sb.from('appointments').update({start_time:composeISO(a.dateKey,a.start)}).eq('id',id);
   if(error){toast('Move not saved',true);console.error(error);return;}
-  toast(a._conflict?`Moved — <b>heads up:</b> installer double-booked`:`<b>${a.cust}</b> moved`,a._conflict);}
+  toast(a._conflict?`Moved — <b>heads up:</b> installer double-booked`:`<b>${esc(jobTitle(a))}</b> moved`,a._conflict);}
 function timeCol(){const t=document.createElement('div');t.className='time-col';for(let h=START_HOUR;h<=END_HOUR;h++){const c=document.createElement('div');c.className='time-cell';const am=h<12,hr=h%12===0?12:h%12;c.textContent=`${hr}${am?'am':'pm'}`;t.appendChild(c)}return t}
 function dayCol(key){const col=document.createElement('div');col.className='day-col';col.dataset.key=key;
   for(let h=START_HOUR;h<=END_HOUR;h++){const slot=document.createElement('div');slot.className='slot';col.appendChild(slot)}
@@ -1681,7 +1748,14 @@ function buildMonth(){const cal=$('cal');cal.style.minWidth='880px';const m=mont
     c.onclick=e=>{if(e.target===c||e.target.classList.contains('md'))gotoDate(cd)};
     c.addEventListener('dragover',e=>{e.preventDefault();c.classList.add('drop')});c.addEventListener('dragleave',()=>c.classList.remove('drop'));
     c.addEventListener('drop',e=>{e.preventDefault();c.classList.remove('drop');const mv=e.dataTransfer.getData('appt');if(mv){const ap=appts.find(x=>x.id===mv);moveAppt(mv,key,ap?ap.start:9)}else dropJob(key,9,e)});
-    visibleAppts().filter(a=>a.dateKey===key).forEach(a=>{const s=STATUS[a.status];const chip=document.createElement('div');chip.className='mchip';chip.innerHTML=`<span class="mspine" style="background:${statusColor(a.status)}"></span>${a.cust}${a.status==='issue'?'<span class="mbang">!</span>':''}`;chip.onclick=ev=>{ev.stopPropagation();openDrawer(a.id)};c.appendChild(chip)});
+    visibleAppts().filter(a=>a.dateKey===key).forEach(a=>{const tk=isTask(a);const chip=document.createElement('div');chip.className='mchip'+(tk?' task':'');
+      /* v98: a Task chip is labelled by task_type, not by a customer it does
+         not have, and its spine reads the Done flag rather than a status it
+         does not use. */
+      chip.innerHTML=tk
+        ?`<span class="mspine" style="background:${a.taskDone?'#4d7010':'var(--task-ink)'}"></span>${esc(taskLabel(a))}`
+        :`<span class="mspine" style="background:${statusColor(a.status)}"></span>${a.cust}${a.status==='issue'?'<span class="mbang">!</span>':''}`;
+      chip.onclick=ev=>{ev.stopPropagation();openDrawer(a.id)};c.appendChild(chip)});
     grid.appendChild(c)}
   for(let i=offset+dim;i%7!==0;i++)grid.appendChild(Object.assign(document.createElement('div'),{className:'mcell out'}));cal.appendChild(grid);}
 function render(){sizeCalendar();markConflicts();const cal=$('cal');cal.innerHTML='';cal.style.minWidth='';
@@ -1719,9 +1793,20 @@ async function dropJob(key,hour,e){const id=e.dataTransfer.getData('id');const j
   toast(`<b>${j.cust}</b> booked — assign an installer`,true);}
 
 function openDrawer(id){let a=appts.find(x=>x.id===id),mode='appt';if(!a){a=queue.find(x=>x.id===id);mode='queue';}if(!a)return;
-  selectedId=id;drawerMode=mode;const tt=$('drTypeTag'),t=TYPES[a.type];
-  tt.textContent=a.type;tt.style.background=hexA(t.c,.2);tt.style.color=t.c;
-  $('drName').textContent=a.cust;$('drSub').textContent=`${a.jobNo?'#'+a.jobNo+' · ':''}${a.type} · ${a.dealer}`;$('drDealer').textContent=a.dealer;
+  selectedId=id;drawerMode=mode;const tt=$('drTypeTag');
+  /* v98: TYPES now carries a Task entry, but the fallback stays -- this line
+     threw on any unmapped type and a hard throw here means the drawer never
+     opens at all. */
+  const t=TYPES[a.type]||{c:'#9aa1ab'};
+  const task=isTask(a);
+  tt.textContent=task?taskLabel(a):a.type;tt.style.background=hexA(t.c,.2);tt.style.color=t.c;
+  /* A Task has no customer and no job number. Its headline is the task_type
+     and its sub-line says when, not who -- never a bare em-dash. */
+  $('drName').textContent=task?taskLabel(a):a.cust;
+  $('drSub').textContent=task
+    ?`Task${a.dealer&&a.dealer!=='—'?' · '+a.dealer:''}`
+    :`${a.jobNo?'#'+a.jobNo+' · ':''}${a.type} · ${a.dealer}`;
+  $('drDealer').textContent=a.dealer;
   {const ad=drMapAddr(a.addr);
     $('drAddr').innerHTML=ad?drMapLink(ad):'\u2014';}
   {const ph=a.phone||'';$('drPhone').innerHTML=ph?`<a class="tel" href="tel:${telDigits(ph)}">${ph}</a>`:'—';}
@@ -1734,6 +1819,40 @@ function openDrawer(id){let a=appts.find(x=>x.id===id),mode='appt';if(!a){a=queu
   document.querySelectorAll('#drType .chip').forEach(c=>{const on=c.dataset.t===a.type;c.classList.toggle('on',on);c.style.background=on?TYPES[a.type].c:''});
   drTypeShow(a.type);
   renderWO(a.type);
+  /* ===== v98 TASK DRAWER MODE =====
+     One switch, read top to bottom, rather than a Task branch sprinkled
+     through the function. Everything job-document-shaped is hidden; what the
+     brief calls the carryovers (scheduling, assignee, notes, Edit Job) is
+     left exactly as it is for a dealer job.
+     The appointment-type chips are hidden too, and that is load-bearing, not
+     tidiness: switching a Task to Measure would leave task_type set on a row
+     whose type is no longer 'Task', which jobs_task_shape_chk rejects
+     outright. The drawer must not offer a control whose only outcome is a
+     failed save. */
+  {const jobFlds=['drStatusFld','drTypeFld','drDealerFld','drAddrFld','drPhoneFld','drProductFld','drPricingFld','drMarginFld','drBillingFld','drScopeFld','drFilesFld'];
+   /* drTaskDealerFld is listed here so a dealer job opened straight after a
+      Dealer Apt cannot inherit its visible dealer combo. In the task branch
+      drTaskSyncDealer runs afterwards and has the final say. */
+   const taskFlds=['drTaskTypeFld','drTaskDoneFld','drTaskDescFld','drTaskDealerFld'];
+   if(task){
+     jobFlds.forEach(f=>{if($(f))$(f).style.display='none';});
+     taskFlds.forEach(f=>{if($(f))$(f).style.display='block';});
+     /* The dealer picker is the ONLY thing Dealer Apt adds over the other
+        four subtypes. It reuses the same .combo markup and the same DEALERS
+        array the New Job flow uses. */
+     drTaskFillTypes(a.taskType);
+     drTaskSetDealer(a.dealerId||null,(a.dealer&&a.dealer!=='—')?a.dealer:'');
+     drTaskSyncDealer();
+     $('drTaskDesc').value=(a.scope&&a.scope!=='—')?a.scope:'';
+     $('drTaskDone').checked=!!a.taskDone;
+   }else{
+     taskFlds.forEach(f=>{if($(f))$(f).style.display='none';});
+     ['drStatusFld','drTypeFld','drDealerFld','drAddrFld','drPhoneFld','drScopeFld','drFilesFld'].forEach(f=>{if($(f))$(f).style.display='block';});
+     /* drProductFld, drPricingFld, drMarginFld and drBillingFld are NOT
+        restored here -- each is owned by its own renderer above (the line-item
+        count, renderDrPricing, drRenderMargin, biRender), and forcing them
+        visible would override a deliberate hide. */
+   }}
   /* Closing is an office action - payment received - so only an admin is offered
    it. An already-closed job keeps the option even for a non-admin: drop it and
    ss.value finds no match, the browser falls back to option zero, and the next
@@ -1758,9 +1877,12 @@ function openDrawer(id){let a=appts.find(x=>x.id===id),mode='appt';if(!a){a=queu
      one before, and Remove deletes a job outright. The button loses .del
      because opening an editor is not itself destructive. */
   const lb=$('drLeftBtn');lb.textContent='Edit Job';lb.classList.remove('del');lb.onclick=ejOpen;
-  drRenderMargin(a);
-  biRender(a);
-  refreshFiles();
+  /* These three run AFTER the task switch above and each writes its own
+     field's display, so a Task has to skip them rather than be hidden by it
+     and then un-hidden here. Margin and billing are also the two places a pay
+     rate could reach a screen, and a Task has no money on it at all. */
+  if(task){$('drMarginFld').style.display='none';$('drBillingFld').style.display='none';}
+  else{drRenderMargin(a);biRender(a);refreshFiles();}
   $('drawer').classList.add('open');render();}
 function currentJobId(){if(!selectedId)return null;if(drawerMode==='queue')return selectedId;const a=appts.find(x=>x.id===selectedId);return a?a.jobId:null;}
 async function uploadFile(jobId,file,kind){const safe=file.name.replace(/[^\w.\-]/g,'_');const path=`${jobId}/${Date.now()}_${safe}`;
@@ -1895,8 +2017,73 @@ document.addEventListener('keydown',e=>{
 $('viewClose').onclick=()=>$('viewBg').classList.remove('open');
 $('viewBg').addEventListener('click',e=>{if(e.target.id==='viewBg')$('viewBg').classList.remove('open')});
 function closeDrawer(){selectedId=null;$('drawer').classList.remove('open');render()}
-function renderWO(type){const set=WO[type],box=$('woBlock');box.innerHTML=`<div class="wo-h"><i style="background:${set.color}"></i>${type} work order</div><div class="wo-actions">${set.actions.map(a=>`<button class="wo-btn" data-ic="${a.ic}" data-label="${a.label}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">${ICONS[a.ic]}</svg>${a.label}<span class="arr">›</span></button>`).join('')}</div>`;box.querySelectorAll('.wo-btn').forEach(b=>b.onclick=()=>openModal(b.dataset.ic,b.dataset.label));}
+/* v98: WO has no 'Task' key and must not get one -- a Task has no measure
+   sheet, no reports, no receiving and nothing to send to a dealer. An
+   unmapped type renders NO work-order block at all rather than throwing on
+   set.actions, which is what an un-guarded WO[type] did. */
+function renderWO(type){const set=WO[type],box=$('woBlock');
+  if(!set){box.innerHTML='';box.style.display='none';return;}
+  box.style.display='';box.innerHTML=`<div class="wo-h"><i style="background:${set.color}"></i>${type} work order</div><div class="wo-actions">${set.actions.map(a=>`<button class="wo-btn" data-ic="${a.ic}" data-label="${a.label}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">${ICONS[a.ic]}</svg>${a.label}<span class="arr">›</span></button>`).join('')}</div>`;box.querySelectorAll('.wo-btn').forEach(b=>b.onclick=()=>openModal(b.dataset.ic,b.dataset.label));}
+/* ===== v98 TASK DRAWER HELPERS =====
+   drTaskDealerId is the drawer's half of the same saved-dealer picker the New
+   Job modal uses (renderDealerList / selectDealer). It reads the SAME DEALERS
+   array, so a dealer added anywhere is searchable here with no extra load.
+   It deliberately offers no "+ New dealer" row: a Dealer Apt is an
+   appointment with an account that already exists, and creating an account
+   from a calendar block is how duplicate dealers get made. */
+let drTaskDealerId=null;
+function drTaskFillTypes(sel){const s=$('drTaskType');s.innerHTML='';
+  TASK_TYPES.forEach(t=>{const o=document.createElement('option');o.value=t;o.textContent=t;s.appendChild(o);});
+  s.value=TASK_TYPES.indexOf(sel)>=0?sel:TASK_TYPES[0];}
+function drTaskSetDealer(id,name){drTaskDealerId=id||null;$('drTaskDealerInput').value=name||'';}
+/* The dealer row exists for Dealer Apt and nothing else. Hiding it does NOT
+   clear what is typed -- same promise crSync() makes on the completion report
+   -- so flipping the subtype back and forth cannot destroy a selection. What
+   protects the database is drTaskDealerValue(), which returns null unless
+   Dealer Apt is the live choice. */
+function drTaskSyncDealer(){const on=$('drTaskType').value==='Dealer Apt';
+  $('drTaskDealerFld').style.display=on?'block':'none';
+  if(!on)$('drTaskDealerList').classList.remove('open');}
+function drTaskDealerValue(){return $('drTaskType').value==='Dealer Apt'?drTaskDealerId:null;}
+function drTaskRenderList(filter){const list=$('drTaskDealerList');const q=String(filter||'').trim().toLowerCase();
+  const matches=DEALERS.filter(d=>d.name.toLowerCase().includes(q)).sort((a,b)=>a.name.localeCompare(b.name));
+  list.innerHTML=matches.length
+    ?matches.map(d=>`<div class="combo-item" data-id="${esc(d.id)}">${esc(d.name)}</div>`).join('')
+    :'<div class="combo-empty">No matching dealer</div>';
+  list.querySelectorAll('.combo-item').forEach(it=>it.onclick=()=>{
+    drTaskSetDealer(it.dataset.id,it.textContent);list.classList.remove('open');});}
+$('drTaskType').addEventListener('change',drTaskSyncDealer);
+$('drTaskDealerInput').addEventListener('focus',e=>{drTaskRenderList(e.target.value);$('drTaskDealerList').classList.add('open')});
+$('drTaskDealerInput').addEventListener('input',e=>{drTaskDealerId=null;drTaskRenderList(e.target.value);$('drTaskDealerList').classList.add('open')});
+document.addEventListener('click',e=>{if(!$('drTaskDealerCombo').contains(e.target))$('drTaskDealerList').classList.remove('open')});
+
+/* ===== v98 TASK SAVE =====
+   Split from the job path rather than threaded through it, because the two
+   write different columns to different tables. In particular this path NEVER
+   sends appointments.status: a Task's done-ness lives in jobs.task_done and
+   the two must not become rival sources of the same fact. It also never
+   touches completed_at / closed_at, which are revenue-recognition stamps. */
+async function saveTaskDrawer(a){
+  const tt=$('drTaskType').value;
+  if(TASK_TYPES.indexOf(tt)<0){toast('Pick a task type',true);return;}
+  const inst=$('drInstaller').value;
+  if(!inst||inst==='un'){toast('A task needs someone assigned',true);return;}
+  const desc=$('drTaskDesc').value.trim();
+  const dealerId=drTaskDealerValue();
+  const done=$('drTaskDone').checked;
+  const mins=Math.max(15,hmToMins($('drDurH').value,$('drDurM').value)||60);
+  const {error:je}=await sb.from('jobs').update({task_type:tt,task_done:done,scope:desc||null,dealer_id:dealerId,estimated_minutes:mins}).eq('id',a.jobId);
+  if(je){console.error(je);toast('Could not save this task',true);return;}
+  const {error:ae}=await sb.from('appointments').update({installer_id:inst,duration_minutes:mins}).eq('id',a.id);
+  if(ae){console.error(ae);toast('Saved, but the time or assignee did not stick',true);}
+  a.taskType=tt;a.taskDone=done;a.scope=desc||'—';a.installer=inst;a.dur=mins/60;a.estMins=mins;
+  a.dealerId=dealerId;
+  const d=dealerId?DEALERS.find(x=>x.id===dealerId):null;
+  a.dealer=d?d.name:'—';a.dealerDiscount=d?(+d.discount||0):0;
+  markConflicts();render();toast('Saved');closeDrawer();}
+
 async function saveDrawer(){const inQ=drawerMode==='queue';const a=(inQ?queue:appts).find(x=>x.id===selectedId);if(!a)return;
+  if(isTask(a))return saveTaskDrawer(a);
   a.scope=$('drScope').value;a.type=document.querySelector('#drType .chip.on').dataset.t;
   /* Belt and braces with the option filter above: a non-admin cannot land a
      'closed' write even by editing the DOM. */
@@ -1929,6 +2116,17 @@ async function removeQueueJob(){const j=queue.find(x=>x.id===selectedId);
     else toast('Could not remove job',true);
     return;}
   queue=queue.filter(x=>x.id!==selectedId);renderQueue();if(page==='toschedule')buildGeneric('toschedule');if(page==='inventory')buildReceiving();toast(`<b>${j?j.cust:'Job'}</b> removed`);closeDrawer();}
+/* v98: appointment first, then the job. job_notes cascades on job_id; nothing
+   else points at a Task, because a Task never has line items, files, billing
+   documents or reports. Deleting the appointment first also means a failure
+   part-way leaves a job with no visit rather than a visit with no job. */
+async function deleteTask(a){
+  if(a.id&&a.id!==a.jobId){const {error}=await sb.from('appointments').delete().eq('id',a.id);
+    if(error){console.error(error);toast('Could not delete this task',true);return;}}
+  if(a.jobId){const {error}=await sb.from('jobs').delete().eq('id',a.jobId);
+    if(error){console.error(error);toast('The visit went, but the task itself did <b>not</b> delete',true);return;}}
+  appts=appts.filter(x=>x.id!==a.id);queue=queue.filter(x=>x.id!==a.jobId);
+  renderQueue();render();toast(`<b>${esc(taskLabel(a))}</b> deleted`);closeDrawer();}
 async function unschedule(){const a=appts.find(x=>x.id===selectedId);if(!a)return;
   const {error}=await sb.from('appointments').delete().eq('id',a.id);
   if(error){console.error(error);
@@ -2306,6 +2504,23 @@ function ejClose(){$('ejBg').classList.remove('open');}
 function ejOpen(){
   const a=currentItem();if(!a){toast('No job open',true);return;}
   EJ_MODE=drawerMode;
+  /* v98: a Task's whole editable surface -- subtype, description, dealer,
+     when, who, done -- is in the drawer itself, so this popup has exactly one
+     job left for it: deletion. Every other block here (site address, customer
+     contact, dealer reassignment, rates, quote, invoice) is about a dealer job
+     and would either write nothing or write nonsense.
+     Deleting is one action, not two. A Task removed from the calendar has
+     nowhere to go -- it is filtered out of the To Schedule rail, so
+     "unschedule" would make it vanish rather than return it. */
+  if(isTask(a)){
+    $('ejSub').textContent=taskLabel(a);
+    $('ejBody').innerHTML='<p style="'+EJ_DIM+';margin-bottom:14px">Task type, description, dealer, timing and who it is assigned to are all edited in the drawer behind this popup.</p>'
+      +'<div style="border-top:1px solid var(--side-border);margin-top:6px;padding-top:14px">'
+      +'<div style="font-size:10.5px;letter-spacing:1.2px;text-transform:uppercase;color:var(--sand-dim);margin-bottom:9px">This task</div>'
+      +'<button type="button" class="btn del" id="ejDanger" style="width:100%">Delete this task</button>'
+      +'<div style="'+EJ_DIM+';margin-top:8px">Removes it from the calendar permanently. Its notes go with it. Nothing else on the schedule is affected.</div></div>';
+    $('ejDanger').onclick=ejDanger;
+    $('ejBg').classList.add('open');return;}
   EJ_ORIG={addr:(a.addr&&a.addr!=='\u2014')?a.addr:'',phone:a.phone||'',dealerId:a.dealerId||''};
   $('ejSub').textContent=(a.cust||'Job')+' \u00b7 '+(a.type||'');
   const opts=DEALERS.map(function(d){
@@ -2354,6 +2569,12 @@ function ejOpen(){
 
 async function ejDanger(){
   const a=currentItem();if(!a)return;
+  if(isTask(a)){
+    const ok=await ejcOpen({title:'Delete this task?',sub:taskLabel(a),danger:true,
+      ok:'Yes, delete it',cancel:'Keep it',
+      body:'<p style="font-size:13px;line-height:1.6;color:var(--sand-ink)">This permanently deletes <b>'+esc(taskLabel(a))+'</b> and its notes. It cannot be undone.</p>'});
+    if(!ok)return;
+    ejClose();await deleteTask(a);return;}
   const sub=(a.cust||'Job')+' \u00b7 '+(a.type||'');
   const who=esc(a.cust||'this job');
   if(EJ_MODE==='appt'){
@@ -4590,7 +4811,7 @@ function pjPanelHtml(t,files){
       +'</div>';}
   return h;}
 
-function openModal(ic,label){currentModalIc=ic;modalPdf=null;const a=currentItem()||{};$('modalIcon').innerHTML=`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">${ICONS[ic]||ICONS.doc}</svg>`;$('modalTitle').textContent=label;$('modalSub').textContent=`${a.cust||''} · ${a.type||''}`;$('modalBody').innerHTML=modalBodyFor(ic);
+function openModal(ic,label){currentModalIc=ic;modalPdf=null;const a=currentItem()||{};$('modalIcon').innerHTML=`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">${ICONS[ic]||ICONS.doc}</svg>`;$('modalTitle').textContent=label;$('modalSub').textContent=isTask(a)?taskLabel(a):`${a.cust||''} · ${a.type||''}`;$('modalBody').innerHTML=modalBodyFor(ic);
   /* The additional services report is the same light working surface as the
      measure sheet, so it takes the same class and inherits every .mslight
      rule rather than growing a second stylesheet. */
@@ -4698,7 +4919,45 @@ $('modalSave').onclick=async()=>{
   toast('Saved to work order');closeModal();};
 $('modalBg').addEventListener('click',e=>{if(e.target.id==='modalBg')closeModal()});
 
-$('njType').addEventListener('click',e=>{const c=e.target.closest('.chip');if(!c)return;document.querySelectorAll('#njType .chip').forEach(x=>{x.classList.remove('on');x.style.background=''});c.classList.add('on');c.style.background=TYPES[c.dataset.t].c;fillDur($('njDurH'),$('njDurM'),defaultMins(c.dataset.t))});
+$('njType').addEventListener('click',e=>{const c=e.target.closest('.chip');if(!c)return;document.querySelectorAll('#njType .chip').forEach(x=>{x.classList.remove('on');x.style.background=''});c.classList.add('on');c.style.background=TYPES[c.dataset.t].c;fillDur($('njDurH'),$('njDurM'),defaultMins(c.dataset.t));njSyncTaskMode()});
+/* ===== v98 NEW-TASK MODE =====
+   The New Job modal keeps ONE set of controls and hides what a Task has no
+   answer for, rather than growing a second modal. A Task needs four things:
+   what kind, what it says, when, and who -- no dealer, no customer, no rates,
+   no line items and no job number.
+   njIsTask reads the live chip rather than a stored flag so there is one
+   source of truth for which mode the modal is in. */
+function njIsTask(){const c=document.querySelector('#njType .chip.on');return !!c&&c.dataset.t==='Task';}
+function njSyncTaskMode(){const t=njIsTask(),show=x=>t?'none':'',showT=x=>t?'block':'none';
+  ['njCustFld','njAddrFld','njPhoneFld','njScopeFld','njProdFld'].forEach(f=>{if($(f))$(f).style.display=show();});
+  ['njTaskTypeFld','njTaskDescFld','njWhenFld','njInstFld'].forEach(f=>{if($(f))$(f).style.display=showT();});
+  $('njLinesWrap').style.display=t?'none':'';
+  $('njNewCustWrap').style.display='none';$('njHist').style.display='none';
+  if(t){$('njNewDealerWrap').style.display='none';$('njDiscWrap').style.display='none';}
+  /* The dealer row is the one control shared with the job path: it is the
+     same saved-dealer combo, shown for Dealer Apt and hidden for the other
+     four subtypes. Hiding does not clear the selection; njSave decides what
+     is actually written. */
+  njSyncTaskDealer();
+  $('njSave').textContent=t?'Create task':'Create job';
+  $('njBg').querySelector('.modal-h .ms').textContent=t
+    ?'A task is internal work — no dealer or customer needed'
+    :'Pick a dealer & customer — details auto-fill';}
+function njSyncTaskDealer(){if(!njIsTask()){$('njDealerFld').style.display='';return;}
+  $('njDealerFld').style.display=$('njTaskType').value==='Dealer Apt'?'block':'none';
+  if($('njTaskType').value!=='Dealer Apt')$('njDealerList').classList.remove('open');}
+function njFillTaskTypes(){const s=$('njTaskType');s.innerHTML='';
+  TASK_TYPES.forEach(t=>{const o=document.createElement('option');o.value=t;o.textContent=t;s.appendChild(o);});
+  s.value=TASK_TYPES[0];}
+/* Start times span the same window the calendar draws, in half hours, so a
+   task cannot be created at an hour the grid has no row for. */
+function njFillStart(){const s=$('njTaskStart');s.innerHTML='';
+  for(let h=START_HOUR;h<=END_HOUR;h+=0.5){const o=document.createElement('option');o.value=h;o.textContent=fmt(h);s.appendChild(o);}
+  s.value=9;}
+function njFillTaskInstallers(){const s=$('njInstaller');s.innerHTML='';
+  const o=document.createElement('option');o.value='';o.textContent='Select someone…';o.disabled=true;o.selected=true;s.appendChild(o);
+  INSTALLERS.filter(i=>i.id!=='un'&&i.status!=='inactive').forEach(i=>{const x=document.createElement('option');x.value=i.id;x.textContent=i.name;s.appendChild(x);});}
+$('njTaskType').addEventListener('change',njSyncTaskDealer);
 $('njProd').addEventListener('click',e=>{const c=e.target.closest('.chip');if(!c)return;document.querySelectorAll('#njProd .chip').forEach(x=>{x.classList.remove('on');x.style.background=''});c.classList.add('on');c.style.background='var(--sand)';});
 // ---- Phase B: catalog-driven priced line items ----
 function fmtMoney(v){return '$'+Number(v||0).toFixed(2);}
@@ -5208,7 +5467,20 @@ $('drDurM').addEventListener('change',()=>drRenderMargin(currentItem()));
 /* Same fallback as instById, for the same reason: without it an archived
    installer's past jobs lose their pay rate, cost drops to 0 and every
    historical margin silently becomes full revenue. */
-function apptFinance(a){const P=jobPricing(a);const rev=P.total;const inst=INSTALLERS.find(i=>i.id===a.installer)||ALL_INSTALLERS.find(i=>i.id===a.installer);
+/* v98 -- THE TASK COST GATE. A Task carries no line items, so its revenue is
+   zero, but cost for an hourly or salary installer is rate x DURATION and
+   never looks at revenue at all. Left ungated, a 3-hour Out of Office block
+   would book three hours of real cost against zero revenue and drag every
+   margin percentage down -- while 1099 subs (rev x rate%) stayed at zero, so
+   the corruption would look random rather than systematic.
+   The gate is INSIDE this function on purpose: every money figure in the app
+   flows through here, so nothing downstream has to remember to filter. Do not
+   move it to the call sites. The installer is still resolved so a Task groups
+   under the right person in Reports instead of inventing an "Unassigned" row,
+   but every money field returns zero. */
+function apptFinance(a){const inst=INSTALLERS.find(i=>i.id===a.installer)||ALL_INSTALLERS.find(i=>i.id===a.installer);
+  if(isTask(a))return {rev:0,cost:0,margin:0,inst,assigned:!!inst};
+  const P=jobPricing(a);const rev=P.total;
   let cost=null;if(inst){const rate=+inst.payRate||0;cost=inst.payType==='sub_1099'?rev*rate/100:rate*(a.dur||((a.estMins||120)/60));}
   const c=cost==null?0:cost;return {rev,cost:c,margin:rev-c,inst,assigned:!!inst};}
 let reportPeriod='month',reportGroup='dealer',reportStatus='all',reportInst='all',reportDealer='all';
@@ -5318,13 +5590,21 @@ function renderDealerList(filter=''){const list=$('njDealerList');const q=filter
   const matches=DEALERS.filter(d=>d.name.toLowerCase().includes(q)).sort((a,b)=>a.name.localeCompare(b.name));
   let h=matches.map(d=>`<div class="combo-item" data-id="${d.id}">${d.name}</div>`).join('');
   if(!matches.length)h=`<div class="combo-empty">No matching dealer</div>`;
-  h+=`<div class="combo-item new" data-id="new">+ New dealer${filter.trim()?` "${filter.trim()}"`:''}</div>`;
+  /* v98: no "+ New dealer" row in Task mode. A Dealer Apt is an appointment
+     with an account that already exists; letting one be created from a
+     calendar block is how duplicate dealer records get made. */
+  if(!njIsTask())h+=`<div class="combo-item new" data-id="new">+ New dealer${filter.trim()?` "${filter.trim()}"`:''}</div>`;
   list.innerHTML=h;
   list.querySelectorAll('.combo-item').forEach(it=>it.onclick=()=>selectDealer(it.dataset.id,it.dataset.id==='new'?filter.trim():it.textContent));}
 function selectDealer(id,name){njDealerId=id;
   if(id==='new'){$('njDealerInput').value=name||'';$('njNewDealerWrap').style.display='block';$('njDealerName').value=name||'';}
   else{$('njDealerInput').value=name;$('njNewDealerWrap').style.display='none';}
-  $('njDealerList').classList.remove('open');njFillCustomers();
+  $('njDealerList').classList.remove('open');
+  /* v98: in Task mode the pick is just a link to an account. Loading that
+     dealer's customers and showing its discount would be work for a form that
+     has neither a customer field nor a price on it. */
+  if(njIsTask())return;
+  njFillCustomers();
   if(id==='new')njShowDiscount(0);else{const d=DEALERS.find(x=>x.id===id);njShowDiscount(d?d.discount:0);}}
 $('njDealerInput').addEventListener('focus',()=>{renderDealerList($('njDealerInput').value);$('njDealerList').classList.add('open')});
 $('njDealerInput').addEventListener('input',e=>{njDealerId=null;renderDealerList(e.target.value);$('njDealerList').classList.add('open')});
@@ -5341,10 +5621,55 @@ $('newJobBtn').onclick=()=>{
   $('njDiscWrap').style.display='none';$('njDisc').value='';njSetDiscount(0);
   fillSvcList();addLineRow();
   fillDur($('njDurH'),$('njDurM'),defaultMins('Measure'));
+  /* v98: the task controls are rebuilt on every open so a stale description,
+     date or assignee from the last one cannot be saved onto the next. The
+     date defaults to the day the scheduler is currently looking at. */
+  njFillTaskTypes();njFillStart();njFillTaskInstallers();
+  $('njTaskDesc').value='';
+  $('njTaskDate').value=dateKey(weekDays(weekOffset)[Math.max(0,Math.min(6,selectedDay))].date);
+  njSyncTaskMode();
   njFillCustomers();$('njBg').classList.add('open');};
 $('njClose').onclick=$('njCancel').onclick=()=>$('njBg').classList.remove('open');
 $('njBg').addEventListener('click',e=>{if(e.target.id==='njBg')$('njBg').classList.remove('open')});
-$('njSave').onclick=async()=>{if(!IS_ADMIN)return;let dId=njDealerId,dealer;
+/* ===== v98 CREATE TASK =====
+   Runs BEFORE the dealer guard below, which is the whole point: a Task has no
+   dealer to be guarded on. It writes the job and its appointment in one go and
+   pushes straight onto the calendar -- a Task never sits in the To Schedule
+   rail, because there is nothing about it left to schedule.
+   next_job_number() is deliberately NOT called. Job numbers are the dealer-
+   facing series that appears on quotes and invoices; burning one on an errand
+   would put a permanent gap in it. jobs.job_number stays NULL, which its
+   UNIQUE (tenant_id, job_number) allows for any number of rows. */
+async function njSaveTask(){
+  const tt=$('njTaskType').value;
+  if(TASK_TYPES.indexOf(tt)<0){toast('Pick a task type',true);return;}
+  const inst=$('njInstaller').value;
+  if(!inst){toast('Assign this task to someone',true);return;}
+  const desc=$('njTaskDesc').value.trim();
+  if(!desc){toast('Add a short description',true);return;}
+  const key=$('njTaskDate').value;
+  if(!key){toast('Pick a date',true);return;}
+  const start=+$('njTaskStart').value;
+  const mins=Math.max(15,hmToMins($('njDurH').value,$('njDurM').value)||60);
+  const dId=(tt==='Dealer Apt'&&njDealerId&&njDealerId!=='new')?njDealerId:null;
+  const {data:job,error:je}=await sb.from('jobs').insert({type:'Task',task_type:tt,task_done:false,customer_id:null,dealer_id:dId,scope:desc,site_address:null,estimated_minutes:mins,awaiting_product:false,override_schedule:false}).select('id').single();
+  if(je){console.error(je);toast('Could not save this task',true);return;}
+  const {data:appt,error:ae}=await sb.from('appointments').insert({job_id:job.id,installer_id:inst,status:'scheduled',start_time:composeISO(key,start),duration_minutes:mins}).select('id').single();
+  /* The job exists but has no visit. Say so plainly rather than leaving an
+     invisible row behind -- a Task is filtered out of the queue, so without
+     an appointment it would be on no screen at all. */
+  if(ae){console.error(ae);toast('Task saved but could <b>not</b> be put on the calendar — see the console',true);$('njBg').classList.remove('open');return;}
+  const d=dId?DEALERS.find(x=>x.id===dId):null;
+  appts.push({id:appt.id,jobId:job.id,type:'Task',taskType:tt,taskDone:false,installer:inst,status:'scheduled',
+    dateKey:key,start,dur:mins/60,estMins:mins,notes:'',
+    cust:'—',dealer:d?d.name:'—',dealerId:dId,customerId:null,addr:'—',phone:'',scope:desc,
+    jobNo:null,awaitingProduct:false,override:false,lineItems:[],dealerDiscount:d?(+d.discount||0):0,files:[]});
+  markConflicts();render();$('njBg').classList.remove('open');
+  toast(`<b>${esc(tt)}</b> added to the calendar`);}
+
+$('njSave').onclick=async()=>{if(!IS_ADMIN)return;
+  if(njIsTask())return njSaveTask();
+  let dId=njDealerId,dealer;
   if(!dId){toast('Search and pick a dealer',true);return;}
   if(dId==='new'){dealer=$('njDealerName').value.trim();if(!dealer){toast('Enter the new dealer name',true);return;}
     const {data,error}=await sb.from('dealers').insert({name:dealer,discount_pct:njDiscount}).select().single();
@@ -5479,6 +5804,13 @@ async function dlSaveInfo(){if(!IS_ADMIN||!dealerSel)return;
   appts.concat(queue).forEach(j=>{if(j.dealerId===dealerSel){j.dealer=nm;j.dealerDiscount=disc;}});
   dealerEdit=false;renderDealerRows();renderDealerDetail();toast('Dealer saved');}
 function dealerJobs(id){return [...appts,...queue].filter(x=>x.dealerId===id);}
+/* v98: a Dealer Apt is linked to the account and SHOWS in that account's job
+   list -- that link is the point of the subtype. It is not work sold to the
+   dealer, so it is excluded from anything that counts or characterises the
+   account: the count badge, the completed/upcoming split and the job-type
+   mix. Revenue was never at risk here (a Task prices at zero), but a calendar
+   block would otherwise pad a dealer's apparent volume. */
+function dealerWorkJobs(id){return dealerJobs(id).filter(x=>!isTask(x));}
 
 function buildDealers(){const g=$('genericView');
   g.innerHTML=`<div class="gp-head">Dealers</div><div class="gp-sub">B2B accounts placing M&amp;I orders.</div>
@@ -5503,7 +5835,7 @@ function renderDealerRows(){const el=document.querySelector('.dl-rows');if(!el)r
   if(!dealerSel&&list.length)dealerSel=list[0].id;
   el.innerHTML=list.length?list.map(d=>`<div class="dl-row${d.id===dealerSel?' on':''}" data-did="${d.id}">
       <span class="dl-nm">${d.name}</span>
-      <span class="dl-meta">${d.discount?`<span class="dl-disc" data-admin>${d.discount}%</span>`:''}<span class="dl-ct">${dealerJobs(d.id).length}</span></span>
+      <span class="dl-meta">${d.discount?`<span class="dl-disc" data-admin>${d.discount}%</span>`:''}<span class="dl-ct">${dealerWorkJobs(d.id).length}</span></span>
     </div>`).join(''):`<div class="dl-empty">No dealers match that search.</div>`;}
 
 function dlTile(v,l,cls){return '<div class="inv-stat'+(cls?' '+cls:'')+'" data-admin><b>'+v+'</b><span>'+l+'</span></div>';}
@@ -5511,7 +5843,8 @@ function renderDealerDetail(){const el=document.querySelector('.dl-detail');if(!
   const d=DEALERS.find(x=>x.id===dealerSel);
   if(!d){el.innerHTML=`<div class="dl-empty">Select a dealer to see their detail.</div>`;return;}
   const jobs=dealerJobs(d.id);
-  const done=jobs.filter(isDone).length, upcoming=jobs.length-done;
+  const work=jobs.filter(x=>!isTask(x));
+  const done=work.filter(isDone).length, upcoming=work.length-done;
 
   /* Revenue tiles. Completed revenue is filtered by the selected period;
      forecast and outstanding are live totals and deliberately are not. */
@@ -5526,9 +5859,9 @@ function renderDealerDetail(){const el=document.querySelector('.dl-detail');if(!
   let coRev=0;[...appts,...queue].forEach(x=>{if(isDone(x)&&dlInPeriod(revDateKey(x),dealerPeriod))coRev+=jobPricing(x).total;});
   const share=coRev>0?(revPeriod/coRev*100):0;
 
-  const types={};jobs.forEach(x=>{const t=x.type||'Other';types[t]=(types[t]||0)+1;});
+  const types={};work.forEach(x=>{const t=x.type||'Other';types[t]=(types[t]||0)+1;});
   const typeRows=Object.keys(types).sort((a,b)=>types[b]-types[a]).map(t=>
-    '<div class="dl-type"><b>'+esc(t)+'</b><span>'+types[t]+' \u00b7 '+(jobs.length?Math.round(types[t]/jobs.length*100):0)+'%</span></div>').join('')
+    '<div class="dl-type"><b>'+esc(t)+'</b><span>'+types[t]+' \u00b7 '+(work.length?Math.round(types[t]/work.length*100):0)+'%</span></div>').join('')
     ||'<div class="dl-empty">No jobs on record.</div>';
 
   const seg=DL_PERIODS.map(([v,l])=>'<button class="'+(dealerPeriod===v?'on':'')+'" onclick="dlSetPeriod(\''+v+'\')">'+l+'</button>').join('');
@@ -5562,7 +5895,7 @@ function renderDealerDetail(){const el=document.querySelector('.dl-detail');if(!
   const shown=csel?jobs.filter(x=>x.customerId===csel):jobs;
   const selName=csel&&Array.isArray(cache)?(cache.find(c=>c.id===csel)||{}).name:null;
   const sorted=[...shown].sort((a,b)=>(b.dateKey||'').localeCompare(a.dateKey||''));
-  const jr=sorted.length?sorted.map(x=>'<tr class="dl-jr'+(isClosed(x)?' closed':'')+'" data-jid="'+x.id+'"><td>'+(x.dateKey||'\u2014')+'</td><td class="nm">'+esc(x.cust)+'</td><td>'+esc(x.type)+'</td><td class="r">'+(x.status?(STATUS[x.status]?STATUS[x.status].label:x.status):'Unscheduled')+'</td><td class="r" data-admin>'+fmtMoney(jobPricing(x).total)+'</td></tr>').join('')
+  const jr=sorted.length?sorted.map(x=>'<tr class="dl-jr'+(isClosed(x)?' closed':'')+'" data-jid="'+x.id+'"><td>'+(x.dateKey||'\u2014')+'</td><td class="nm">'+esc(jobTitle(x))+'</td><td>'+esc(x.type)+'</td><td class="r">'+(isTask(x)?(x.taskDone?'Done':'To do'):(x.status?(STATUS[x.status]?STATUS[x.status].label:x.status):'Unscheduled'))+'</td><td class="r" data-admin>'+(isTask(x)?'\u2014':fmtMoney(jobPricing(x).total))+'</td></tr>').join('')
     :'<tr><td colspan="5" style="text-align:center;color:var(--muted);padding:22px">'+(csel?'No jobs for this customer.':'No jobs on record for this account.')+'</td></tr>';
 
   el.innerHTML=`<div class="dl-h"><h3>${esc(d.name)}</h3>${d.discount?`<span class="dl-badge" data-admin>${d.discount}% dealer discount</span>`:''}${IS_ADMIN&&!dealerEdit?'<button class="pedit" onclick="dlEdit(true)">Edit</button>':''}</div>
