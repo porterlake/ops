@@ -539,6 +539,13 @@
     background:var(--side-2);border:1px solid var(--side-border);border-radius:9px;padding:11px 13px}
   .tchk:hover{border-color:var(--sand-dim)}
   .durrow{display:flex;align-items:center;gap:8px}
+  /* v102: the reschedule date+start pair shares a .durrow. The date input
+     carries width:100% from .fld input, so without a flex basis and
+     min-width:0 it refuses to shrink below its intrinsic width and pushes
+     the start select off the edge on a narrow phone -- which is the one
+     device this whole feature exists for. */
+  #ejrDate{flex:1 1 auto;min-width:0}
+  #ejrStart{flex:0 0 auto}
   .durrow select{width:auto;min-width:70px;background:var(--side-3);border:1px solid var(--side-border);color:var(--sand-ink);font:inherit;font-size:13.5px;padding:9px 11px;border-radius:8px;outline:none}
   .durrow select:focus{border-color:var(--accent)}
   .durx{color:var(--sand-dim);font-size:12px;font-weight:600;margin-left:-3px}
@@ -1834,11 +1841,66 @@ function apptCard(a){const s=STATUS[a.status],sc=statusColor(a.status),st=status
   el.addEventListener('dragstart',e=>{e.dataTransfer.setData('appt',a.id);el.classList.add('dragging');document.body.classList.add('dragging')});
   el.addEventListener('dragend',()=>{el.classList.remove('dragging');document.body.classList.remove('dragging')});
   el.onclick=()=>openDrawer(a.id);return el;}
-async function moveAppt(id,key,hour){const a=appts.find(x=>x.id===id);if(!a)return;
-  a.dateKey=key;a.start=Math.max(START_HOUR,Math.min(hour,END_HOUR+1-Math.min(a.dur,END_HOUR+1-START_HOUR)));
+/* Start-time options, shared by the New Task form and the reschedule picker.
+   HALF-HOUR STEPS, and that ceiling is not arbitrary: fmt() renders the
+   minutes as  h%1 ? ':30' : ''  so ANY fractional hour prints as :30. A
+   15-minute option would store and position correctly and then display the
+   wrong time on the tile, in the drawer and on every PDF. Finer granularity
+   needs fmt() rewritten first. */
+function fillStartOptions(sel,val){if(!sel)return;sel.innerHTML='';
+  for(let h=START_HOUR;h<=END_HOUR;h+=0.5){const o=document.createElement('option');o.value=h;o.textContent=fmt(h);sel.appendChild(o);}
+  const v=(val==null)?9:Math.round(val*2)/2;
+  sel.value=(v>=START_HOUR&&v<=END_HOUR)?v:9;}
+
+/* ===== v102 THE ONE MOVE PATH =====
+   Drag-drop and the Edit Job reschedule picker both end up here, so the two
+   cannot drift apart. Writes start_time, installer_id and duration_minutes
+   in a SINGLE update.
+
+   THE ROLLBACK IS THE POINT. The old moveAppt mutated the appointment and
+   re-rendered BEFORE awaiting the write, and on failure it toasted "Move not
+   saved" and returned -- leaving the card sitting in its new slot while the
+   database still held the old one. The UI lied until the next reload. Here
+   the previous position is captured first and restored, with a second
+   markConflicts/render, if the write fails.
+
+   Optimistic-then-revert is kept deliberately rather than awaiting first: a
+   drag that only repaints after a network round trip feels broken on a slow
+   connection. The revert is what makes it honest.
+
+   duration comes from a.dur, NEVER a.estMins. Those are different numbers --
+   mapAppt reads dur from appointments.duration_minutes and estMins from
+   jobs.estimated_minutes -- and writing the job's estimate into the
+   appointment would quietly resize every visit that had been adjusted.
+   estMins is deliberately not touched here; this path writes the APPOINTMENT
+   only, and jobs.estimated_minutes stays the drawer's business. */
+async function rescheduleAppt(id,key,start,installer,mins){
+  const a=appts.find(x=>x.id===id);if(!a)return false;
+  const prev={dateKey:a.dateKey,start:a.start,dur:a.dur,installer:a.installer};
+  const m=Math.max(15,Math.round(mins||prev.dur*60||120));
+  const dur=m/60;
+  a.dateKey=key;
+  a.start=Math.max(START_HOUR,Math.min(start,END_HOUR+1-Math.min(dur,END_HOUR+1-START_HOUR)));
+  a.dur=dur;a.installer=installer||'un';
   markConflicts();render();
-  const {error}=await sb.from('appointments').update({start_time:composeISO(a.dateKey,a.start)}).eq('id',id);
-  if(error){toast('Move not saved',true);console.error(error);return;}
+  const {error}=await sb.from('appointments').update({
+    start_time:composeISO(a.dateKey,a.start),
+    installer_id:a.installer==='un'?null:a.installer,
+    duration_minutes:m}).eq('id',id);
+  if(error){console.error('rescheduleAppt',error);
+    a.dateKey=prev.dateKey;a.start=prev.start;a.dur=prev.dur;a.installer=prev.installer;
+    markConflicts();render();
+    toast('Not saved — the visit is back where it was',true);return false;}
+  return true;}
+
+/* Drag-drop. Behaviour is unchanged from v101 down to the toast wording: the
+   installer and the duration are passed through as they already are, so the
+   only difference in the write is that two columns are now re-sent with the
+   values they already held. What IS new is that a failed drop now snaps the
+   card back instead of leaving it where it was dropped. */
+async function moveAppt(id,key,hour){const a=appts.find(x=>x.id===id);if(!a)return;
+  const ok=await rescheduleAppt(id,key,hour,a.installer,Math.round((a.dur||2)*60));
+  if(!ok)return;
   toast(a._conflict?`Moved — <b>heads up:</b> installer double-booked`:`<b>${esc(jobTitle(a))}</b> moved`,a._conflict);}
 function timeCol(){const t=document.createElement('div');t.className='time-col';for(let h=START_HOUR;h<=END_HOUR;h++){const c=document.createElement('div');c.className='time-cell';const am=h<12,hr=h%12===0?12:h%12;c.textContent=`${hr}${am?'am':'pm'}`;t.appendChild(c)}return t}
 function dayCol(key){const col=document.createElement('div');col.className='day-col';col.dataset.key=key;
@@ -2637,6 +2699,87 @@ function ejcSettle(v){$('ejcBg').classList.remove('open');
 
 function ejClose(){$('ejBg').classList.remove('open');}
 
+/* ===== v102 RESCHEDULE BLOCK =====
+   Built by one function and used verbatim in both the job branch and the
+   Task branch, so the two can never diverge. It only makes sense on a
+   scheduled visit, so a queue job -- which has no appointment row at all --
+   gets nothing.
+   This exists mainly for PHONES. The calendar moves a job by HTML5
+   drag-and-drop, which does not fire on touch, so before this there was no
+   way to move a visit from a phone other than unschedule-and-rebook. Every
+   control here is a native date input or a select, which is what gives iOS
+   and Android their own wheel pickers. */
+function ejrBlock(){
+  if(EJ_MODE!=='appt')return '';
+  return '<div style="border-top:1px solid var(--side-border);margin-top:6px;padding-top:14px">'
+    +'<div style="font-size:10.5px;letter-spacing:1.2px;text-transform:uppercase;color:var(--sand-dim);margin-bottom:9px">Reschedule</div>'
+    +'<div class="fld"><label>Date &amp; start</label><div class="durrow">'
+    +'<input id="ejrDate" type="date"><select id="ejrStart"></select></div></div>'
+    +'<div class="fld"><label>Duration</label><div class="durrow">'
+    +'<select id="ejrDurH"></select><span class="durx">hr</span>'
+    +'<select id="ejrDurM"></select><span class="durx">min</span></div></div>'
+    +'<div class="fld"><label>Assigned to</label><select id="ejrInst"></select></div>'
+    +'<button type="button" class="btn" id="ejrGo" style="width:100%">Move this visit</button>'
+    +'<div style="'+EJ_DIM+';margin-top:8px">Moves the visit and jumps the calendar to the new date. A clash with another job on the same installer is flagged, not blocked.</div></div>';}
+
+/* Fills the reschedule controls from the appointment currently open.
+   Unassigned is offered for a job and withheld for a Task: Q20 made an
+   assignee mandatory on a Task, and the New Task form already refuses to
+   save without one, so this must not be a back door around that. */
+function ejrFill(a){
+  if(EJ_MODE!=='appt'||!$('ejrDate'))return;
+  $('ejrDate').value=a.dateKey||dateKey(TODAY);
+  fillStartOptions($('ejrStart'),a.start);
+  fillDur($('ejrDurH'),$('ejrDurM'),Math.round((a.dur||2)*60));
+  /* Same list-building rule as the drawer: an installer already on this
+     visit is kept even when archived, because dropping them would leave
+     sel.value unmatched and the browser would silently fall back to option
+     zero -- reassigning the job to whoever sorts first. */
+  const sel=$('ejrInst');sel.innerHTML='';
+  const cur=a.installer||'un';
+  const opts=INSTALLERS.filter(i=>i.id!=='un'&&i.status!=='inactive');
+  if(cur!=='un'&&!opts.some(i=>i.id===cur)){const c=INSTALLERS.find(i=>i.id===cur)||ALL_INSTALLERS.find(i=>i.id===cur);if(c)opts.push(c);}
+  const list=isTask(a)?opts:opts.concat([UNASSIGNED]);
+  list.forEach(i=>{const o=document.createElement('option');o.value=i.id;o.textContent=i.name+(i.status==='inactive'?' (inactive)':'');sel.appendChild(o);});
+  sel.value=list.some(i=>i.id===cur)?cur:(list[0]?list[0].id:'un');
+  $('ejrGo').onclick=ejrGo;}
+
+async function ejrGo(){
+  const a=currentItem();if(!a||EJ_MODE!=='appt')return;
+  const key=$('ejrDate').value;
+  if(!key){toast('Pick a date',true);return;}
+  const start=+$('ejrStart').value;
+  const mins=Math.max(15,hmToMins($('ejrDurH').value,$('ejrDurM').value)||Math.round((a.dur||2)*60));
+  const inst=$('ejrInst').value;
+  if(isTask(a)&&(!inst||inst==='un')){toast('A task needs someone assigned',true);return;}
+  const wasUn=(a.installer||'un')==='un';
+  const btn=$('ejrGo');if(btn){btn.disabled=true;btn.textContent='Moving…';}
+  const id=a.id;
+  const ok=await rescheduleAppt(id,key,start,inst,mins);
+  if(btn){btn.disabled=false;btn.textContent='Move this visit';}
+  if(!ok)return;
+  ejClose();
+  /* Conflict handling matches drag-drop exactly: markConflicts has already
+     run inside rescheduleAppt, the flag drives the same red Conflict pill on
+     both cards, and the toast is warn-styled with the same wording pattern.
+     The save is never blocked. */
+  toast(a._conflict?`Rescheduled — <b>heads up:</b> installer double-booked`:`<b>${esc(jobTitle(a))}</b> rescheduled`,a._conflict);
+  /* Without this the visit silently vanishes whenever it lands outside the
+     loaded range: buildWeek only creates columns for the seven visible days
+     and appends each card behind an if(col) guard, so a card with no matching
+     column is dropped without error. gotoDate lands on the new date in Day
+     view. */
+  const [y,mo,da]=key.split('-').map(Number);
+  gotoDate(new Date(y,mo-1,da));
+  /* The queue itself holds only UNSCHEDULED jobs, so it cannot contain this
+     visit either way -- but the nav counts it renders are the cheapest thing
+     to keep honest, and only an Unassigned transition can change what the
+     scheduler screens say about assignment. */
+  if(wasUn!==((a.installer||'un')==='un')){renderQueue();if(page==='toschedule')buildGeneric('toschedule');}
+  /* The drawer is still showing the old date, time, installer and duration.
+     Reopen it on the saved values rather than leave it lying. */
+  if(selectedId)openDrawer(selectedId);}
+
 function ejOpen(){
   const a=currentItem();if(!a){toast('No job open',true);return;}
   EJ_MODE=drawerMode;
@@ -2650,12 +2793,14 @@ function ejOpen(){
      "unschedule" would make it vanish rather than return it. */
   if(isTask(a)){
     $('ejSub').textContent=taskLabel(a);
-    $('ejBody').innerHTML='<p style="'+EJ_DIM+';margin-bottom:14px">Task type, description, dealer, timing and who it is assigned to are all edited in the drawer behind this popup.</p>'
+    $('ejBody').innerHTML='<p style="'+EJ_DIM+';margin-bottom:14px">Task type, description and dealer are edited in the drawer behind this popup.</p>'
+      +ejrBlock()
       +'<div style="border-top:1px solid var(--side-border);margin-top:6px;padding-top:14px">'
       +'<div style="font-size:10.5px;letter-spacing:1.2px;text-transform:uppercase;color:var(--sand-dim);margin-bottom:9px">This task</div>'
       +'<button type="button" class="btn del" id="ejDanger" style="width:100%">Delete this task</button>'
       +'<div style="'+EJ_DIM+';margin-top:8px">Removes it from the calendar permanently. Its notes go with it. Nothing else on the schedule is affected.</div></div>';
     $('ejDanger').onclick=ejDanger;
+    ejrFill(a);
     $('ejBg').classList.add('open');return;}
   EJ_ORIG={addr:(a.addr&&a.addr!=='\u2014')?a.addr:'',phone:a.phone||'',dealerId:a.dealerId||''};
   $('ejSub').textContent=(a.cust||'Job')+' \u00b7 '+(a.type||'');
@@ -2683,6 +2828,7 @@ function ejOpen(){
     +'<button type="button" class="btn ghost" id="ejInvoice" style="flex:1">Generate Invoice</button></div>'
     +'<div style="'+EJ_DIM+';margin-top:8px">Both are built from this job\u2019s <b>current</b> rates and frozen as issued. Editing rates afterwards never changes a document already issued.</div></div>';
   const appt=EJ_MODE==='appt';
+  h+=ejrBlock();
   h+='<div style="border-top:1px solid var(--side-border);margin-top:6px;padding-top:14px">'
     +'<div style="font-size:10.5px;letter-spacing:1.2px;text-transform:uppercase;color:var(--sand-dim);margin-bottom:9px">'
     +(appt?'Scheduling':'This job')+'</div>'
@@ -2701,6 +2847,7 @@ function ejOpen(){
   if($('ejRates'))$('ejRates').onclick=function(){ejClose();drEnterEdit(currentItem());};
   if($('ejQuote'))$('ejQuote').onclick=function(){biGenerate('quote');};
   if($('ejInvoice'))$('ejInvoice').onclick=function(){biGenerate('invoice');};
+  ejrFill(a);
   $('ejBg').classList.add('open');}
 
 async function ejDanger(){
@@ -5097,9 +5244,7 @@ function njFillMeetingTypes(){const s=$('njMeetingType');s.innerHTML='';
   s.value=MEETING_TYPES[0];}
 /* Start times span the same window the calendar draws, in half hours, so a
    task cannot be created at an hour the grid has no row for. */
-function njFillStart(){const s=$('njTaskStart');s.innerHTML='';
-  for(let h=START_HOUR;h<=END_HOUR;h+=0.5){const o=document.createElement('option');o.value=h;o.textContent=fmt(h);s.appendChild(o);}
-  s.value=9;}
+function njFillStart(){fillStartOptions($('njTaskStart'),9);}
 function njFillTaskInstallers(){const s=$('njInstaller');s.innerHTML='';
   const o=document.createElement('option');o.value='';o.textContent='Select someone…';o.disabled=true;o.selected=true;s.appendChild(o);
   INSTALLERS.filter(i=>i.id!=='un'&&i.status!=='inactive').forEach(i=>{const x=document.createElement('option');x.value=i.id;x.textContent=i.name;s.appendChild(x);});}
