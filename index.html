@@ -2077,12 +2077,24 @@ function openDrawer(id){let a=appts.find(x=>x.id===id),mode='appt';if(!a){a=queu
   else{drRenderMargin(a);biRender(a);refreshFiles();}
   $('drawer').classList.add('open');render();}
 function currentJobId(){if(!selectedId)return null;if(drawerMode==='queue')return selectedId;const a=appts.find(x=>x.id===selectedId);return a?a.jobId:null;}
-async function uploadFile(jobId,file,kind){const safe=file.name.replace(/[^\w.\-]/g,'_');const path=`${jobId}/${Date.now()}_${safe}`;
+/* v104: files.uploaded_by, for all three writers of a files row (uploadFile,
+   sdUploadEmailCopy, biUploadPdf). Until v104 it was the literal 'M. Lake', so
+   every upload by anyone was attributed to Michael. Same derivation as
+   recvWho(), so one person reads identically in receiving and on files.
+   Unlike recvWho() there is NO fallback: with no PROFILE (signed out mid-task)
+   this THROWS, and each writer calls it BEFORE touching storage, so the upload
+   is refused whole - no storage object, no files row, no placeholder name.
+   Every caller already catches and toasts an upload failure. Existing rows
+   that say 'M. Lake' are left as written. */
+function fileWho(){const e=PROFILE&&PROFILE.email;
+  if(!e)throw new Error('No signed-in profile - upload refused rather than written unattributed');
+  return noteWho(e);}
+async function uploadFile(jobId,file,kind){const by=fileWho();const safe=file.name.replace(/[^\w.\-]/g,'_');const path=`${jobId}/${Date.now()}_${safe}`;
   const {error:ue}=await sb.storage.from('job-files').upload(path,file);if(ue)throw ue;
   /* v103: the inserted id is now RETURNED so a caller that needs to link the
      file to its own record can. Every existing caller ignores the return, so
      behaviour is unchanged for them. */
-  const {data:fr,error:ie}=await sb.from('files').insert({job_id:jobId,kind,name:file.name,storage_path:path,uploaded_by:'M. Lake'}).select('id').single();if(ie)throw ie;return fr?fr.id:null;}
+  const {data:fr,error:ie}=await sb.from('files').insert({job_id:jobId,kind,name:file.name,storage_path:path,uploaded_by:by}).select('id').single();if(ie)throw ie;return fr?fr.id:null;}
 /* Signed URLs, not getPublicUrl (v39). The job-files bucket is being taken
    private, and a signed URL is the only read that survives that. This is the
    ONE place the app turns a storage path into a URL — thumbnails, the PDF
@@ -2451,8 +2463,8 @@ async function noteAdd(ctx){
   if(btn){btn.disabled=true;btn.textContent='Adding…';}
   /* job_id and body ONLY. tenant_id, created_by and author_email are filled by
      database defaults from the caller's own JWT, so the client cannot claim to
-     be someone else — unlike files.uploaded_by, which the client sends as the
-     hardcoded string 'M. Lake'.
+     be someone else — unlike files.uploaded_by, which the client sends (the
+     signed-in user since v104, the hardcoded string 'M. Lake' before that).
 
      Receiving notes are deliberately written UNTAGGED (v48) — no "[Receiving]"
      prefix. job_notes is append-only: its RLS grants SELECT and INSERT and no
@@ -4740,12 +4752,13 @@ function sdSyncButton(){
    same jobId/timestamp_name path shape, same files row — but returns the new
    row id, which is what the Edge Function needs to attach it. */
 async function sdUploadEmailCopy(jobId,file,i){
+  const by=fileWho();
   const safe=file.name.replace(/[^\w.\-]/g,'_');
   const path=jobId+'/'+Date.now()+'-'+i+'_'+safe;
   const {error:ue}=await sb.storage.from('job-files').upload(path,file);
   if(ue)throw ue;
   const {data,error:ie}=await sb.from('files')
-    .insert({job_id:jobId,kind:'email',name:file.name,storage_path:path,uploaded_by:'M. Lake'})
+    .insert({job_id:jobId,kind:'email',name:file.name,storage_path:path,uploaded_by:by})
     .select('id').single();
   if(ie)throw ie;
   return data.id;
@@ -5437,10 +5450,11 @@ function biPdfFilename(docType,number){const d=new Date(),p=function(x){return S
    jobId/timestamp path, same files row - but returns the new row id so the
    billing record can point at its own PDF. */
 async function biUploadPdf(jobId,file){
+  const by=fileWho();
   const safe=file.name.replace(/[^\w.\-]/g,'_');const path=jobId+'/'+Date.now()+'_'+safe;
   const {error:ue}=await sb.storage.from('job-files').upload(path,file);if(ue)throw ue;
   const {data,error:ie}=await sb.from('files')
-    .insert({job_id:jobId,kind:'pdf',name:file.name,storage_path:path,uploaded_by:'M. Lake'})
+    .insert({job_id:jobId,kind:'pdf',name:file.name,storage_path:path,uploaded_by:by})
     .select('id').single();
   if(ie)throw ie;
   return data?data.id:null;}
