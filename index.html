@@ -5839,6 +5839,17 @@ function inReportPeriod(key){if(reportPeriod==='all')return true;if(!key)return 
   const [y,mo,da]=key.split('-').map(Number);const dt=new Date(y,mo-1,da);
   if(reportPeriod==='week'){const s=new Date(BASE_MON);s.setHours(0,0,0,0);const e=new Date(s);e.setDate(e.getDate()+7);return dt>=s&&dt<e;}
   return y===TODAY.getFullYear()&&(mo-1)===TODAY.getMonth();}
+/* v106: the bounds inReportPeriod() tests against, as YYYY-MM-DD strings, so a
+   filed record can print real dates instead of "This month". Returns null for
+   an unbounded period. Must agree with inReportPeriod exactly; the v106 test
+   checks every day across a 400-day window for each period kind. */
+function reportPeriodBounds(){
+  if(reportPeriod==='all')return null;
+  if(reportPeriod==='range'){if(!reportFrom||!reportTo)return null;
+    return reportFrom<=reportTo?{from:reportFrom,to:reportTo}:{from:reportTo,to:reportFrom};}
+  if(reportPeriod==='week'){const s=new Date(BASE_MON);s.setHours(0,0,0,0);const e=new Date(s);e.setDate(e.getDate()+6);
+    return {from:_ymd(s),to:_ymd(e)};}
+  return {from:_ymd(new Date(TODAY.getFullYear(),TODAY.getMonth(),1)),to:_ymd(new Date(TODAY.getFullYear(),TODAY.getMonth()+1,0))};}
 function setReportPeriod(p){reportPeriod=p;buildReports();}
 function setReportGroup(x){reportGroup=x;buildReports();}
 function setReportStatus(s){reportStatus=s;buildReports();}
@@ -5860,18 +5871,27 @@ function isOutstanding(a){return a.status==='done';}
    The math was moved out of buildReports() verbatim -- same filters, same sum
    order, same sort -- so no figure changed in the move.
    Detail rows are flattened to plain values here, so the PDF builder never
-   holds an appointment and never calls apptFinance itself. */
-function reportData(){
+   holds an appointment and never calls apptFinance itself.
+   v106: opts is for the Commission Report only and is ABSENT for the screen and
+   the internal PDF, whose figures are unchanged. opts.statuses (a Set of raw
+   status keys) REPLACES the screen's status filter, opts.allDealers ignores
+   the dealer filter (a payroll statement is every dealer), opts.noTasks drops
+   Task jobs (not paid work). Installer and period filters always apply. */
+function reportData(opts){
+  const O=opts||{};
   const inPeriod=appts.filter(a=>inReportPeriod(a.dateKey));
   // Forecast vs completed totals — always shown, independent of the status filter.
   let fcRev=0,dnRev=0,dnCost=0,fcCost=0;
   inPeriod.forEach(a=>{const F=apptFinance(a);if(isDone(a)){dnRev+=F.rev;dnCost+=F.cost;}else{fcRev+=F.rev;fcCost+=F.cost;}});
   // Apply filters for the table below.
   const rows=inPeriod.filter(a=>{
-    if(reportStatus==='done'&&!isDone(a))return false;
-    if(reportStatus==='sched'&&isDone(a))return false;
+    if(O.statuses){if(!O.statuses.has(a.status))return false;}
+    else{
+      if(reportStatus==='done'&&!isDone(a))return false;
+      if(reportStatus==='sched'&&isDone(a))return false;}
+    if(O.noTasks&&isTask(a))return false;
     if(reportInst!=='all'&&a.installer!==reportInst)return false;
-    if(reportDealer!=='all'&&a.dealer!==reportDealer)return false;
+    if(!O.allDealers&&reportDealer!=='all'&&a.dealer!==reportDealer)return false;
     return true;});
   let tRev=0,tCost=0,tUn=0;const groups={};
   rows.forEach(a=>{const F=apptFinance(a);tRev+=F.rev;tCost+=F.cost;if(!F.assigned)tUn++;
@@ -5894,7 +5914,13 @@ function reportData(){
   const statusLbl={all:'All',sched:'Forecast (not completed)',done:'Completed'};
   const dealerNames=[...new Set(inPeriod.map(a=>a.dealer).filter(Boolean))].sort();
   const singleInst=reportInst!=='all'?INSTALLERS.find(i=>i.id===reportInst):null;
-  const singleDealer=reportDealer!=='all'?reportDealer:null;
+  const singleDealer=(!O.allDealers&&reportDealer!=='all')?reportDealer:null;
+  /* Actual first and last dates the period covers, as YYYY-MM-DD. For a
+     bounded period these are the filter's own bounds; for All time (or a
+     half-typed custom range, which inReportPeriod also treats as unbounded)
+     they are the span of the jobs actually in the rows. */
+  const B=reportPeriodBounds(),keys=rows.map(a=>a.dateKey).filter(Boolean).sort();
+  const periodFrom=B?B.from:(keys[0]||null),periodTo=B?B.to:(keys[keys.length-1]||null);
   // Per-job detail when a single installer or dealer is isolated (commission / account statement).
   let detail=null;
   if((singleInst||singleDealer)&&rows.length){
@@ -5903,7 +5929,7 @@ function reportData(){
       other:singleInst?(a.dealer||'—'):(F.inst?F.inst.name:'Unassigned'),type:a.type,
       status:STATUS[a.status]?STATUS[a.status].label:a.status,rev:F.rev,cost:F.cost,margin:F.margin};});
   }
-  return {fcRev,dnRev,dnCost,fcCost,rows,tRev,tCost,tUn,tMargin,tPct,arr,periodTxt,
+  return {fcRev,dnRev,dnCost,fcCost,rows,tRev,tCost,tUn,tMargin,tPct,arr,periodTxt,periodFrom,periodTo,
     statusTxt:statusLbl[reportStatus],dealerNames,singleInst,singleDealer,detail,
     detailName:singleInst?singleInst.name:singleDealer,
     otherLabel:singleInst?'Dealer':'Installer',costLabel:singleInst?'Installer pay':'Cost',
@@ -6027,7 +6053,7 @@ let REP_BUSY=false;
 async function exportReportPDF(){
   if(!IS_ADMIN){toast('Only an admin can export reports',true);return;}
   if(REP_BUSY)return;
-  const btn=document.querySelector('#genericView .btn-exp'),lbl=btn?btn.textContent:'';
+  const btn=document.querySelector('#genericView .btn-exp:not(.alt)'),lbl=btn?btn.textContent:'';
   REP_BUSY=true;if(btn){btn.disabled=true;btn.textContent='Preparing…';}
   try{
     const ok=await msEnsurePdfLib();
@@ -6037,6 +6063,137 @@ async function exportReportPDF(){
     toast('Report downloaded');
   }catch(err){console.error('report pdf',err);toast('Could not generate the report PDF',true);}
   finally{REP_BUSY=false;if(btn&&btn.isConnected){btn.disabled=false;btn.textContent=lbl||'Export PDF';}}}
+
+/* ===== v106: Commission Report (Q14) =====================================
+   The installer-facing statement of what they are owed. It is filed to that
+   installer's My Documents (installer_documents, doc_group 'installer',
+   doc_type 'commission_report') under the installer the report is ABOUT.
+
+   ⚠ STRUCTURE IS THE SAFETY. reportData() carries revenue, margin and the
+   installer record (payRate, payType). None of that may reach this document,
+   so it is kept out of scope rather than filtered out at print time:
+     reportData(opts) -> commissionSnapshot(D) -> cmBuildPdf(snap)
+   commissionSnapshot copies NAMED fields into a new object -- no spread, no
+   delete -- and cmBuildPdf receives only that snapshot. exportCommissionPDF is
+   the only holder of D, the way biGenerate holds the appointment. Never pass D,
+   a detail row, or an installer object to cmBuildPdf, and never add a field to
+   the snapshot by copying an object wholesale.
+
+   Rules, all decided (Q14):
+   - Only 1099 and hourly. For salary, "cost" is a LOADED hourly cost -- a
+     company figure, not pay -- and must never print as someone's earnings.
+   - Status set is FIXED (below), regardless of the screen's status filter:
+     progress billing pays for partial work; any other status has not happened.
+   - Tasks never appear (not paid work), and the dealer filter is ignored (a
+     payroll statement covers every dealer). Installer and period still apply.
+   - Pay per job is the internal report's Installer pay figure (detail cost).
+   - No revenue, no margin, no pay-basis note. Period prints as real dates.
+   - A new document every time; nothing is overwritten. */
+const CM_STATUSES=new Set(['done','issue','closed']);
+const CM_STATUS_TXT='Completed, Issue Reported, Closed';
+const CM_PAY_TYPES=new Set(['sub_1099','hourly']);
+function cmEligible(inst){return !!(inst&&CM_PAY_TYPES.has(inst.payType));}
+
+function commissionSnapshot(D){
+  if(!D||!cmEligible(D.singleInst))throw new Error('commissionSnapshot: needs a single 1099 or hourly installer');
+  const rows=[];
+  (D.detail||[]).forEach(function(r){
+    if(r.type==='Task')return;              /* second guard; reportData(noTasks) is the first */
+    rows.push({date:String(r.date),cust:String(r.cust),dealer:String(r.other),
+      type:String(r.type),status:String(r.status),pay:Number(r.cost)});});
+  return {installerName:String(D.singleInst.name),
+    periodFrom:D.periodFrom?String(D.periodFrom):null,
+    periodTo:D.periodTo?String(D.periodTo):null,
+    statusesTxt:CM_STATUS_TXT,
+    rows:rows,
+    totalPay:Number(D.tCost)};}
+
+function cmDate(k){return /^\d{4}-\d{2}-\d{2}$/.test(k||'')?msFmtDate(k):'—';}
+function cmPeriodTxt(snap){return snap.periodFrom?cmDate(snap.periodFrom)+' – '+cmDate(snap.periodTo):'—';}
+/* Installer, date range AND generation time, so two exports of the same
+   installer and range stay distinguishable in the documents list. */
+function cmPdfFilename(snap){const d=new Date(),p=n=>String(n).padStart(2,'0');
+  return 'Commission Report — '+snap.installerName+' — '+(snap.periodFrom||'')+' to '+(snap.periodTo||'')
+    +' — '+d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate())+' '+p(d.getHours())+'-'+p(d.getMinutes())+'.pdf';}
+
+/* Takes the commission snapshot and NOTHING else. No revenue, margin, rate or
+   installer record exists anywhere it can reach.
+   Column widths are FIXED and sum to 187.9mm: 24+46+44+21+30+22.9. */
+function cmBuildPdf(snap){
+  const {jsPDF}=window.jspdf;
+  const doc=new jsPDF({unit:'mm',format:'letter',orientation:'portrait'});
+  const PW=doc.internal.pageSize.getWidth(),PH=doc.internal.pageSize.getHeight(),M=14;
+  const SAND=[216,198,160],INK=[39,36,31],MUT=[140,135,125],LINE=[229,227,219],ALT=[250,250,247];
+  const drawHeader=pdfLetterhead(doc,PW,M);
+  drawHeader();
+  doc.setFont('helvetica','bold');doc.setFontSize(15);doc.setTextColor(INK[0],INK[1],INK[2]);
+  doc.text('COMMISSION REPORT',M,61);
+  const gen=msFmtDate(new Date());
+  const startY=pdfContext(doc,PW,M,[['Installer',snap.installerName],['Period',cmPeriodTxt(snap)],
+    ['Statuses included',snap.statusesTxt],['Generated',gen]]);
+  const R={halign:'right'};
+  doc.autoTable({startY:startY,theme:'grid',
+    styles:{font:'helvetica',fontSize:9,cellPadding:2.2,textColor:INK,lineColor:LINE,lineWidth:0.15,overflow:'linebreak',valign:'top'},
+    headStyles:{fillColor:SAND,textColor:INK,fontStyle:'bold',fontSize:8.5},
+    alternateRowStyles:{fillColor:ALT},
+    head:[['Date','Customer','Dealer','Type','Status',{content:'Pay',styles:R}]],
+    body:snap.rows.map(r=>[cmDate(r.date),r.cust,r.dealer,r.type,r.status,fmtMoney(r.pay)]),
+    columnStyles:{0:{cellWidth:24},1:{cellWidth:46},2:{cellWidth:44},3:{cellWidth:21},
+      4:{cellWidth:30},5:{cellWidth:22.9,halign:'right'}},
+    margin:{left:M,right:M,top:57,bottom:PDF_TABLE_BOTTOM},rowPageBreak:'avoid',didDrawPage:drawHeader});
+  /* Totals block: 14mm from its top, kept off the footer by pdfTail. */
+  const top=pdfTail(doc,doc.lastAutoTable.finalY+4,14,PH,drawHeader);
+  doc.setDrawColor(SAND[0],SAND[1],SAND[2]);doc.setLineWidth(0.5);doc.line(PW-M-80,top+1,PW-M,top+1);
+  doc.setFont('helvetica','normal');doc.setFontSize(9);doc.setTextColor(MUT[0],MUT[1],MUT[2]);
+  doc.text(snap.rows.length+(snap.rows.length===1?' job':' jobs'),PW-M-80,top+7);
+  doc.setFont('helvetica','bold');doc.setFontSize(12.5);doc.setTextColor(INK[0],INK[1],INK[2]);
+  doc.text('Total pay: '+fmtMoney(snap.totalPay),PW-M,top+8,{align:'right'});
+  const pages=doc.internal.getNumberOfPages();
+  for(let p=1;p<=pages;p++){doc.setPage(p);
+    doc.setDrawColor(SAND[0],SAND[1],SAND[2]);doc.setLineWidth(0.5);doc.line(M,PH-18,PW-M,PH-18);
+    doc.setFont('helvetica','normal');doc.setFontSize(8.5);doc.setTextColor(MUT[0],MUT[1],MUT[2]);
+    doc.text('Commission statement from Porter Lake Shading Systems',M,PH-13);
+    doc.text('Generated '+gen,M,PH-8.8);
+    doc.text('Page '+p+' of '+pages,PW-M,PH-8.8,{align:'right'});}
+  return {doc:doc,filename:cmPdfFilename(snap)};}
+
+/* ORDER: eligibility, snapshot, zero-job refusal, build in memory, file to the
+   installer, then download -- the download runs even if filing fails, the same
+   rule msGeneratePdf and biGenerate follow, and the toast says which half
+   worked. ipUploadDoc sends no uploaded_by/uploader_email: both are column
+   defaults from the caller's JWT, so the row records the admin who ran it
+   while installer_id records who it is about. */
+let CM_BUSY=false;
+async function exportCommissionPDF(){
+  if(!IS_ADMIN){toast('Only an admin can issue commission reports',true);return;}
+  if(CM_BUSY)return;
+  const D=reportData({statuses:CM_STATUSES,allDealers:true,noTasks:true});
+  const inst=D.singleInst;
+  if(!cmEligible(inst)){toast('Commission reports are for a single 1099 or hourly installer',true);return;}
+  const snap=commissionSnapshot(D);
+  /* Nothing to pay is not a document. Refuse out loud rather than filing an
+     empty statement into someone's records. */
+  if(!snap.rows.length){toast('No completed, issue-reported or closed jobs for '+esc(inst.name)+' in this period — nothing was filed.',true);return;}
+  const btn=document.querySelector('#genericView .btn-exp.alt'),lbl=btn?btn.textContent:'';
+  CM_BUSY=true;if(btn){btn.disabled=true;btn.textContent='Preparing…';}
+  try{
+    const ok=await msEnsurePdfLib();
+    if(!ok){toast('Could not load the PDF tool — check your connection. Nothing was filed.',true);return;}
+    const built=cmBuildPdf(snap);
+    let filed=false;
+    try{
+      const blob=built.doc.output('blob');
+      let file;
+      try{file=new File([blob],built.filename,{type:'application/pdf'});}
+      catch(e){file=blob;file.name=built.filename;}
+      await ipUploadDoc(inst.id,file,'installer','commission_report');
+      filed=true;
+    }catch(err){console.error('commission report filing',err);}
+    built.doc.save(built.filename);
+    if(filed)toast('Commission report filed to <b>'+esc(inst.name)+'</b>’s documents and downloaded');
+    else toast('Downloaded — but it could NOT be filed to '+esc(inst.name)+'’s documents. Check your connection and generate again.',true);
+  }catch(err){console.error('commission report',err);toast('Could not generate the commission report',true);}
+  finally{CM_BUSY=false;if(btn&&btn.isConnected){btn.disabled=false;btn.textContent=lbl||'Commission Report';}}}
 
 function buildReports(){const g=$('genericView');
   if(IS_ADMIN)msEnsurePdfLib();
@@ -6066,7 +6223,7 @@ function buildReports(){const g=$('genericView');
     <div class="rep-controls"><div class="rseg">${seg1}</div>${rangeUI}<div class="rseg">${seg3}</div><div class="rseg">${seg2}</div>
       <select class="rep-sel" onchange="setReportInst(this.value)">${instOpts}</select>
       <select class="rep-sel" onchange="setReportDealer(this.value)">${dealerOpts}</select>
-      <div class="rep-exp"><button class="btn-exp" onclick="exportReportPDF()">Export PDF</button></div></div>
+      <div class="rep-exp"><button class="btn-exp" onclick="exportReportPDF()">Export PDF</button>${cmEligible(singleInst)?'<button class="btn-exp alt" onclick="exportCommissionPDF()">Commission Report</button>':''}</div></div>
     <div class="inv-bar"><div class="inv-stat"><b style="color:#5D84A5">${fmtMoney(fcRev)}</b><span>Forecast revenue</span></div><div class="inv-stat hl"><b style="color:#4d7010">${fmtMoney(dnRev)}</b><span>Completed revenue</span></div><div class="inv-stat"><b>${fmtMoney(dnRev-dnCost)}</b><span>Completed margin</span></div></div>
     <div class="inv-bar"><div class="inv-stat"><b>${fmtMoney(tRev)}</b><span>Revenue (filtered)</span></div><div class="inv-stat"><b>${fmtMoney(tCost)}</b><span>Installer cost</span></div><div class="inv-stat"><b style="color:${tMargin>=0?'#4d7010':'#a3211d'}">${fmtMoney(tMargin)}</b><span>Margin</span></div><div class="inv-stat"><b>${tPct.toFixed(0)}%</b><span>Margin</span></div><div class="inv-stat"><b>${rows.length}</b><span>Jobs</span></div></div>
     <table class="rep-table"><thead><tr><th>${reportGroup==='installer'?'Installer':'Dealer'}</th><th class="r">Jobs</th><th class="r">Revenue</th><th class="r">Cost</th><th class="r">Margin</th><th class="r">Margin %</th></tr></thead><tbody>${body}</tbody></table>
