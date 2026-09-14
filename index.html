@@ -182,6 +182,63 @@
   .grow .gt{font-size:9.5px;font-weight:800;text-transform:uppercase;letter-spacing:.7px;padding:2px 8px;border-radius:5px}
   .grow .gname{font-weight:700}.grow .gmeta{font-size:12px;color:var(--muted)}
   .empty{text-align:center;padding:70px 20px;color:var(--muted)}
+  /* v107 Dashboard (Q12). Light-area palette only. Grids use auto-fill/auto-fit
+     so they reflow with no breakpoint of their own; phone tweaks live in the
+     single 640px block. */
+  .db{max-width:1180px}
+  .db-hello{margin-bottom:16px}
+  .db-hello h1{font-size:26px;font-weight:800;letter-spacing:-.3px;line-height:1.2}
+  .db-alert{display:flex;align-items:center;gap:10px;background:#fbe9e7;border:1px solid #e8b4ae;color:#a3211d;border-radius:12px;padding:12px 16px;font-weight:700;margin-bottom:14px;cursor:pointer}
+  .db-alert svg{width:18px;height:18px;flex-shrink:0}
+  .db-counts{display:grid;grid-template-columns:repeat(auto-fit,minmax(145px,1fr));gap:10px;margin-bottom:16px}
+  .db-count{background:var(--card);border:1px solid var(--border);border-radius:13px;padding:12px 16px}
+  .db-count b{display:block;font-size:24px;font-weight:800;line-height:1.2}
+  .db-count span{font-size:12px;color:var(--muted)}
+  .db-count.go{cursor:pointer}.db-count.go:hover{border-color:var(--accent-line)}
+  .db-count.hot b{color:#a3211d}
+  .db-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(400px,1fr));gap:16px;align-items:start}
+  .db-card{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:16px;min-width:0}
+  .db-card h3{font-size:15px;font-weight:800}
+  .db-head{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:12px}
+  .db-head .db-fill{flex:1}
+  .db-seg{display:inline-flex;border:1px solid var(--border);border-radius:9px;overflow:hidden}
+  .db-seg button{border:0;background:transparent;font:inherit;font-size:12px;padding:6px 10px;cursor:pointer;color:var(--muted)}
+  .db-seg button.on{background:var(--ink);color:#fff}
+  .db-sel{font:inherit;font-size:12.5px;padding:6px 8px;border:1px solid var(--border);border-radius:9px;background:var(--card);color:var(--ink);max-width:100%}
+  .db-qa{display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap}
+  .db-qa input{flex:1 1 180px;min-width:0;font:inherit;padding:8px 10px;border:1px solid var(--border);border-radius:9px;background:var(--card);color:var(--ink)}
+  .db-qa button{font:inherit;font-weight:700;font-size:12.5px;padding:8px 14px;border:0;border-radius:9px;background:var(--ink);color:#fff;cursor:pointer}
+  .db-qa button:disabled{opacity:.5;cursor:default}
+  .db-sub{font-size:10.5px;letter-spacing:1.2px;text-transform:uppercase;color:var(--muted);margin:14px 0 7px}
+  .db-row{display:flex;align-items:center;gap:10px;padding:9px 10px;border:1px solid var(--border-soft);border-radius:10px;margin-bottom:6px;cursor:pointer;background:var(--raised)}
+  .db-row:hover{border-color:var(--accent-line)}
+  .db-when{font-size:12px;font-weight:700;min-width:58px;white-space:nowrap}
+  .db-main{flex:1;min-width:0}
+  .db-main .gname,.db-main .gmeta{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .db-st{font-size:11px;color:var(--muted);white-space:nowrap;display:flex;align-items:center;gap:5px}
+  .db-st i{width:8px;height:8px;border-radius:50%;display:inline-block}
+  .db-task{cursor:default}
+  .db-task input{width:17px;height:17px;flex-shrink:0;cursor:pointer;accent-color:var(--ink)}
+  .db-task .db-main{cursor:pointer}
+  .db-task.done .gname{text-decoration:line-through;color:var(--muted)}
+  .db-empty{font-size:12.5px;color:var(--muted);padding:4px 2px 8px}
+  .db-money{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-bottom:10px}
+  .db-money div{background:var(--raised);border:1px solid var(--border-soft);border-radius:10px;padding:10px 12px;min-width:0}
+  .db-money b{display:block;font-size:18px;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .db-money span{font-size:11.5px;color:var(--muted)}
+  .db-chart svg{width:100%;height:auto;display:block}
+  .db-chart .g{stroke:var(--border);stroke-width:1}
+  .db-chart .t{fill:var(--muted);font-size:10px;font-family:inherit}
+  .db-chart .rev{fill:#b49e6f}.db-chart .cost{fill:#8c877d}
+  .db-leg{display:flex;flex-wrap:wrap;gap:14px;font-size:11.5px;color:var(--muted);margin-top:6px}
+  .db-leg i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:5px;vertical-align:-1px}
+  .db-tiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;margin-bottom:16px}
+  .db-tile{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:16px 14px;cursor:pointer;display:flex;flex-direction:column;gap:10px;font-weight:700;min-height:92px;color:var(--ink)}
+  .db-tile svg{width:22px;height:22px}
+  .db-tile.on{border-color:var(--ink);box-shadow:inset 0 0 0 1px var(--ink)}
+  .db-doc{display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid var(--border-soft);border-radius:10px;margin-bottom:6px;background:var(--raised);cursor:pointer;font-size:13px}
+  .db-doc svg{width:18px;height:18px;flex-shrink:0}
+  .db-doc .nm{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .empty .ei{width:54px;height:54px;border-radius:14px;background:var(--raised);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;margin:0 auto 16px}
   .empty .ei svg{width:26px;height:26px;color:var(--faint)}.empty h3{font-size:16px;color:var(--ink);margin-bottom:5px}
   .ts-wrap{display:flex;gap:26px;align-items:flex-start}
@@ -1271,7 +1328,12 @@ body.role-installer [data-admin]{display:none!important}
   .fld input,.fld select,.fld textarea,
   .combo>input,.durrow select,.topfilter,
   #njLines input,#njDiscWrap input,#drPriceEdit input,
-  .mtable input,.gate-input,.dl-input{font-size:16px}
+  .mtable input,.gate-input,.dl-input,.db-qa input,.db-sel{font-size:16px}
+
+  /* --- v107 Dashboard on a phone --- */
+  .db-hello h1{font-size:21px}
+  .db-grid{grid-template-columns:1fr}
+  .db-money b{font-size:15px}
 }
 </style>
 </head>
@@ -1288,6 +1350,7 @@ body.role-installer [data-admin]{display:none!important}
   <aside class="sidebar">
     <div class="brand"><div class="mark"><img src="data:image/png;base64,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" alt="" style="width:22px;height:22px;object-fit:contain"></div><div><div class="name">Porter Lake</div><div class="sub">M&amp;I Ops</div></div></div>
     <div class="nav-label">Operations</div>
+    <div class="nav-item" data-page="dashboard"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 11l9-8 9 8"/><path d="M5 10v10h5v-6h4v6h5V10"/></svg>Dashboard</div>
     <div class="nav-item active" data-page="scheduler"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>Scheduler</div>
     <div class="nav-item" data-page="toschedule"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7h18M3 12h18M3 17h12"/></svg>To Schedule <span class="badge" id="navCount">0</span></div>
     <div class="nav-item" data-page="inventory"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.7l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.7l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><path d="M3.3 7L12 12l8.7-5M12 22V12"/></svg>Receiving <span class="badge" id="navRecv">0</span></div>
@@ -1820,7 +1883,12 @@ function hexA(hex,a){const n=parseInt(hex.slice(1),16);return `rgba(${n>>16&255}
 const fmt=h=>{const hh=Math.floor(h),mm=h%1?':30':'';const am=hh<12;return `${hh%12===0?12:hh%12}${mm}${am?'a':'p'}`};
 function weekDays(off){return [...Array(7)].map((_,i)=>{const d=new Date(BASE_MON);d.setDate(d.getDate()+off*7+i);return{date:d,dow:DOW[i],num:d.getDate(),key:dateKey(d),today:d.toDateString()===TODAY.toDateString()}})}
 const isBaseWeek=()=>weekOffset===0, isBaseMonth=()=>monthOffset===0;
-function markConflicts(){appts.forEach(a=>a._conflict=false);for(let i=0;i<appts.length;i++)for(let j=i+1;j<appts.length;j++){const A=appts[i],B=appts[j];if(A.installer!=="un"&&A.installer===B.installer&&A.dateKey===B.dateKey&&A.start<B.start+B.dur&&B.start<A.start+A.dur){A._conflict=true;B._conflict=true}}}
+/* v107: Tasks never take part in conflict detection, on either side of a pair.
+   A meeting or an errand overlapping an install is not a double-booking, and
+   quick-added to-dos land at a default time that would otherwise flag real
+   jobs as conflicting. A Task is never flagged and never flags anything; every
+   job-vs-job pair is tested exactly as before. */
+function markConflicts(){appts.forEach(a=>a._conflict=false);for(let i=0;i<appts.length;i++)for(let j=i+1;j<appts.length;j++){const A=appts[i],B=appts[j];if(isTask(A)||isTask(B))continue;if(A.installer!=="un"&&A.installer===B.installer&&A.dateKey===B.dateKey&&A.start<B.start+B.dur&&B.start<A.start+A.dur){A._conflict=true;B._conflict=true}}}
 
 function apptCard(a){const s=STATUS[a.status],sc=statusColor(a.status),st=statusText(a.status),inst=instById(a.installer);const unassigned=(a.installer==='un'||!a.installer);
   const task=isTask(a);
@@ -1951,9 +2019,15 @@ function render(){sizeCalendar();markConflicts();const cal=$('cal');cal.innerHTM
   if(view==='week')buildWeek();else if(view==='day')buildDay();else buildMonth();
   const days=weekDays(weekOffset);
   $('rangeLbl').textContent=view==='month'?monthLabel(monthOffset):view==='day'?`${days[selectedDay].dow} ${MONTHN[days[selectedDay].date.getMonth()].slice(0,3)} ${days[selectedDay].num}, ${days[selectedDay].date.getFullYear()}`:weekLabel(days);
-  const un=appts.filter(a=>(a.installer==='un'||!a.installer)&&!isDone(a)).length;const b=$('assignBanner');
-  if(un){b.style.display='flex';b.innerHTML=`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9v4M12 17h.01"/></svg>${un} scheduled job${un>1?'s':''} need an installer assigned — click to review`;b.onclick=()=>{instFilter='un';const s=$('instFilter');if(s)s.value='un';render()};}
-  else b.style.display='none';}
+  const un=unassignedAppts().length;const b=$('assignBanner');
+  if(un){b.style.display='flex';b.innerHTML=`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9v4M12 17h.01"/></svg>${un} scheduled job${un>1?'s':''} need an installer assigned — click to review`;b.onclick=showUnassigned;}
+  else b.style.display='none';
+  dbSchedule();}
+/* v107: the ONE definition of "a scheduled job that needs an installer",
+   shared by the scheduler banner and the dashboard. Lifted out of render()
+   unchanged. */
+function unassignedAppts(){return appts.filter(a=>(a.installer==='un'||!a.installer)&&!isDone(a));}
+function showUnassigned(){instFilter='un';const s=$('instFilter');if(s)s.value='un';render();}
 function setView(v){view=v;document.querySelectorAll('#viewSeg button').forEach(b=>b.classList.toggle('on',b.dataset.v===v));render()}
 
 function renderQueue(){const list=$('queueList');list.innerHTML='';
@@ -1972,7 +2046,11 @@ function renderQueue(){const list=$('queueList');list.innerHTML='';
     el.addEventListener('dragend',()=>{el.classList.remove('dragging');document.body.classList.remove('dragging')});
     el.addEventListener('click',()=>openDrawer(j.id));list.appendChild(el)});
   $('queueCount').textContent=ready.length;$('navCount').textContent=ready.length;
-  $('navRecv').textContent=queue.filter(stillAwaiting).length;}
+  $('navRecv').textContent=awaitingQueue().length;
+  dbSchedule();}
+/* v107: the unscheduled queue still waiting on product -- the Receiving badge's
+   definition, shared with the dashboard's awaiting-product count. */
+function awaitingQueue(){return queue.filter(stillAwaiting);}
 async function dropJob(key,hour,e){const id=e.dataTransfer.getData('id');const j=queue.find(x=>x.id===id);if(!j)return;
   const mins=j.estMins||defaultMins(j.type);const dur=mins/60;const start=Math.max(START_HOUR,Math.min(hour,END_HOUR+1-dur));
   const {data:appt,error}=await sb.from('appointments').insert({job_id:j.id,installer_id:null,status:'scheduled',start_time:composeISO(key,start),duration_minutes:mins}).select('id').single();
@@ -2157,6 +2235,7 @@ function viewerSet(f){
       : jf.filter(x=>x.kind==='pdf'&&(IS_ADMIN||!BILLING_RE.test(x.name||''))).reverse();}
   const ip=IP_DOCS.find(x=>x.id===f.id);
   if(ip)return IP_DOCS.filter(x=>x.group===ip.group).reverse();
+  if(DB_DOCS.some(x=>x.id===f.id))return DB_DOCS.slice().reverse();
   if(PJ_FILES.some(x=>x.id===f.id))return PJ_FILES.filter(x=>x.kind===f.kind);
   return [f];}
 function viewerIcon(kind){return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">'
@@ -2189,7 +2268,7 @@ function renderViewer(){
 function viewStep(d){const n=VIEW_SET.length;if(n<2)return;
   const ix=VIEW_IX+d;if(ix<0||ix>=n)return;VIEW_IX=ix;renderViewer();}
 function openViewer(fileId){const a=currentItem();
-  const f=(((a&&a.files)||[]).find(x=>x.id===fileId))||PJ_FILES.find(x=>x.id===fileId)||IP_DOCS.find(x=>x.id===fileId);
+  const f=(((a&&a.files)||[]).find(x=>x.id===fileId))||PJ_FILES.find(x=>x.id===fileId)||IP_DOCS.find(x=>x.id===fileId)||DB_DOCS.find(x=>x.id===fileId);
   if(!f)return;
   VIEW_SET=viewerSet(f);
   const ix=VIEW_SET.findIndex(x=>x.id===f.id);
@@ -5743,10 +5822,14 @@ async function saveInstaller(){if(!IS_ADMIN)return;if(!editingInst)return;
   populateInstallerFilter();
   $('instBg').classList.remove('open');if(page==='installers')buildGeneric('installers');toast('Profile saved');}
 const IP_TYPES={application:'Application',resume:'Resume',tax_w2:'W-2',tax_1099:'1099',insurance:'Insurance',commission_report:'Commission report',coi:'Certificate of insurance',other:'Other'};
-async function ipLoadDocs(installerId){
-  const {data,error}=await sb.from('installer_documents')
+/* v107: optional group narrows the query (the dashboard's My Docs asks for
+   'installer' only). A query filter, not a permission -- see Q17. */
+async function ipLoadDocs(installerId,group){
+  let q=sb.from('installer_documents')
     .select('id,doc_group,doc_type,kind,name,storage_path,uploaded_at,uploader_email')
-    .eq('installer_id',installerId).order('uploaded_at');
+    .eq('installer_id',installerId);
+  if(group)q=q.eq('doc_group',group);
+  const {data,error}=await q.order('uploaded_at');
   if(error){console.error(error);return[];}
   const rows=data||[];if(!rows.length)return[];
   const paths=rows.map(d=>d.storage_path);
@@ -5834,22 +5917,33 @@ const _ymd=d=>`${d.getFullYear()}-${_pad(d.getMonth()+1)}-${_pad(d.getDate())}`;
 let reportFrom=_ymd(new Date(TODAY.getFullYear(),TODAY.getMonth(),1)),
     reportTo=_ymd(new Date(TODAY.getFullYear(),TODAY.getMonth()+1,0));
 function setReportRange(which,val){if(!val)return;if(which==='from')reportFrom=val;else reportTo=val;reportPeriod='range';buildReports();}
-function inReportPeriod(key){if(reportPeriod==='all')return true;if(!key)return false;
-  if(reportPeriod==='range'){if(!reportFrom||!reportTo)return true;const lo=reportFrom<=reportTo?reportFrom:reportTo,hi=reportFrom<=reportTo?reportTo:reportFrom;return key>=lo&&key<=hi;}
+/* v107: the period logic takes an explicit period P = {period, from, to}, so
+   the dashboard can ask for "this week" without reading or writing the Reports
+   tab's reportPeriod/reportFrom/reportTo. inReportPeriod() and
+   reportPeriodBounds() are thin wrappers that pass the Reports tab's own state,
+   so every existing caller behaves exactly as before. 'today' is new and is
+   used only by the dashboard. */
+function periodCfg(){return {period:reportPeriod,from:reportFrom,to:reportTo};}
+function inPeriodFor(key,P){if(P.period==='all')return true;if(!key)return false;
+  if(P.period==='today')return key===_ymd(TODAY);
+  if(P.period==='range'){if(!P.from||!P.to)return true;const lo=P.from<=P.to?P.from:P.to,hi=P.from<=P.to?P.to:P.from;return key>=lo&&key<=hi;}
   const [y,mo,da]=key.split('-').map(Number);const dt=new Date(y,mo-1,da);
-  if(reportPeriod==='week'){const s=new Date(BASE_MON);s.setHours(0,0,0,0);const e=new Date(s);e.setDate(e.getDate()+7);return dt>=s&&dt<e;}
+  if(P.period==='week'){const s=new Date(BASE_MON);s.setHours(0,0,0,0);const e=new Date(s);e.setDate(e.getDate()+7);return dt>=s&&dt<e;}
   return y===TODAY.getFullYear()&&(mo-1)===TODAY.getMonth();}
+function inReportPeriod(key){return inPeriodFor(key,periodCfg());}
 /* v106: the bounds inReportPeriod() tests against, as YYYY-MM-DD strings, so a
    filed record can print real dates instead of "This month". Returns null for
    an unbounded period. Must agree with inReportPeriod exactly; the v106 test
    checks every day across a 400-day window for each period kind. */
-function reportPeriodBounds(){
-  if(reportPeriod==='all')return null;
-  if(reportPeriod==='range'){if(!reportFrom||!reportTo)return null;
-    return reportFrom<=reportTo?{from:reportFrom,to:reportTo}:{from:reportTo,to:reportFrom};}
-  if(reportPeriod==='week'){const s=new Date(BASE_MON);s.setHours(0,0,0,0);const e=new Date(s);e.setDate(e.getDate()+6);
+function boundsFor(P){
+  if(P.period==='all')return null;
+  if(P.period==='today'){const t=_ymd(TODAY);return {from:t,to:t};}
+  if(P.period==='range'){if(!P.from||!P.to)return null;
+    return P.from<=P.to?{from:P.from,to:P.to}:{from:P.to,to:P.from};}
+  if(P.period==='week'){const s=new Date(BASE_MON);s.setHours(0,0,0,0);const e=new Date(s);e.setDate(e.getDate()+6);
     return {from:_ymd(s),to:_ymd(e)};}
   return {from:_ymd(new Date(TODAY.getFullYear(),TODAY.getMonth(),1)),to:_ymd(new Date(TODAY.getFullYear(),TODAY.getMonth()+1,0))};}
+function reportPeriodBounds(){return boundsFor(periodCfg());}
 function setReportPeriod(p){reportPeriod=p;buildReports();}
 function setReportGroup(x){reportGroup=x;buildReports();}
 function setReportStatus(s){reportStatus=s;buildReports();}
@@ -5876,10 +5970,19 @@ function isOutstanding(a){return a.status==='done';}
    the internal PDF, whose figures are unchanged. opts.statuses (a Set of raw
    status keys) REPLACES the screen's status filter, opts.allDealers ignores
    the dealer filter (a payroll statement is every dealer), opts.noTasks drops
-   Task jobs (not paid work). Installer and period filters always apply. */
+   Task jobs (not paid work). Installer and period filters always apply.
+   v107: every filter this function applies is resolved ONCE, below, from opts
+   first and the Reports tab's state second. The dashboard passes period,
+   status, inst and allDealers, so its figures neither read nor disturb what
+   the Reports tab has selected. opts.byDay adds a per-day revenue/cost series
+   accumulated in the SAME loop as the totals -- one calculation, not a second.
+   With no opts, every value resolves to the Reports state exactly as before. */
 function reportData(opts){
   const O=opts||{};
-  const inPeriod=appts.filter(a=>inReportPeriod(a.dateKey));
+  const P=O.period?{period:O.period,from:O.from||null,to:O.to||null}:periodCfg();
+  const ST=O.status||reportStatus,INST=O.inst!==undefined?O.inst:reportInst;
+  const DEALER=O.allDealers?'all':reportDealer,GROUP=O.group||reportGroup;
+  const inPeriod=appts.filter(a=>inPeriodFor(a.dateKey,P));
   // Forecast vs completed totals — always shown, independent of the status filter.
   let fcRev=0,dnRev=0,dnCost=0,fcCost=0;
   inPeriod.forEach(a=>{const F=apptFinance(a);if(isDone(a)){dnRev+=F.rev;dnCost+=F.cost;}else{fcRev+=F.rev;fcCost+=F.cost;}});
@@ -5887,39 +5990,44 @@ function reportData(opts){
   const rows=inPeriod.filter(a=>{
     if(O.statuses){if(!O.statuses.has(a.status))return false;}
     else{
-      if(reportStatus==='done'&&!isDone(a))return false;
-      if(reportStatus==='sched'&&isDone(a))return false;}
+      if(ST==='done'&&!isDone(a))return false;
+      if(ST==='sched'&&isDone(a))return false;}
     if(O.noTasks&&isTask(a))return false;
-    if(reportInst!=='all'&&a.installer!==reportInst)return false;
-    if(!O.allDealers&&reportDealer!=='all'&&a.dealer!==reportDealer)return false;
+    if(INST!=='all'&&a.installer!==INST)return false;
+    if(DEALER!=='all'&&a.dealer!==DEALER)return false;
     return true;});
+  const B=boundsFor(P);
+  let DAY=null;
+  if(O.byDay&&B){DAY={};const d=new Date(B.from+'T00:00:00'),end=B.to;
+    for(let k=_ymd(d);k<=end;d.setDate(d.getDate()+1),k=_ymd(d))DAY[k]={key:k,rev:0,cost:0};}
   let tRev=0,tCost=0,tUn=0;const groups={};
   rows.forEach(a=>{const F=apptFinance(a);tRev+=F.rev;tCost+=F.cost;if(!F.assigned)tUn++;
+    if(DAY&&DAY[a.dateKey]){DAY[a.dateKey].rev+=F.rev;DAY[a.dateKey].cost+=F.cost;}
     /* Keyed by installer ID, not by name. Names are editable as of v72, so a
        typo that duplicates another installer's name would otherwise merge two
        people's revenue and cost into one silently-wrong row. The name is
        carried as a label instead. Dealer grouping still keys on its name
        string - same latent fault, left alone because dealer names are not
        editable here. */
-    const key=reportGroup==='installer'?(F.inst?'i:'+F.inst.id:'i:un'):(a.dealer||'—');
-    const label=reportGroup==='installer'?(F.inst?F.inst.name:'Unassigned'):(a.dealer||'—');
-    const grp=groups[key]||(groups[key]={label:label,rev:0,cost:0,jobs:0,un:0,color:(reportGroup==='installer'&&F.inst)?F.inst.color:null});
+    const key=GROUP==='installer'?(F.inst?'i:'+F.inst.id:'i:un'):(a.dealer||'—');
+    const label=GROUP==='installer'?(F.inst?F.inst.name:'Unassigned'):(a.dealer||'—');
+    const grp=groups[key]||(groups[key]={label:label,rev:0,cost:0,jobs:0,un:0,color:(GROUP==='installer'&&F.inst)?F.inst.color:null});
     grp.label=label;
     grp.rev+=F.rev;grp.cost+=F.cost;grp.jobs++;if(!F.assigned)grp.un++;});
   const tMargin=tRev-tCost,tPct=tRev>0?tMargin/tRev*100:0;
   const arr=Object.values(groups).map(v=>({name:v.label,rev:v.rev,cost:v.cost,jobs:v.jobs,un:v.un,color:v.color,margin:v.rev-v.cost,pct:v.rev>0?(v.rev-v.cost)/v.rev*100:0})).sort((x,y)=>y.margin-x.margin);
-  const periodLbl={week:'This week',month:'This month',all:'All time',range:'Custom range'};
+  const periodLbl={today:'Today',week:'This week',month:'This month',all:'All time',range:'Custom range'};
   const fmtD=s=>{if(!s)return '—';const [y,m,d]=s.split('-').map(Number);return new Date(y,m-1,d).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})};
-  const periodTxt=reportPeriod==='range'?`${fmtD(reportFrom)} – ${fmtD(reportTo)}`:periodLbl[reportPeriod];
+  const periodTxt=P.period==='range'?`${fmtD(P.from)} – ${fmtD(P.to)}`:periodLbl[P.period];
   const statusLbl={all:'All',sched:'Forecast (not completed)',done:'Completed'};
   const dealerNames=[...new Set(inPeriod.map(a=>a.dealer).filter(Boolean))].sort();
-  const singleInst=reportInst!=='all'?INSTALLERS.find(i=>i.id===reportInst):null;
-  const singleDealer=(!O.allDealers&&reportDealer!=='all')?reportDealer:null;
+  const singleInst=INST!=='all'?INSTALLERS.find(i=>i.id===INST):null;
+  const singleDealer=DEALER!=='all'?DEALER:null;
   /* Actual first and last dates the period covers, as YYYY-MM-DD. For a
      bounded period these are the filter's own bounds; for All time (or a
      half-typed custom range, which inReportPeriod also treats as unbounded)
      they are the span of the jobs actually in the rows. */
-  const B=reportPeriodBounds(),keys=rows.map(a=>a.dateKey).filter(Boolean).sort();
+  const keys=rows.map(a=>a.dateKey).filter(Boolean).sort();
   const periodFrom=B?B.from:(keys[0]||null),periodTo=B?B.to:(keys[keys.length-1]||null);
   // Per-job detail when a single installer or dealer is isolated (commission / account statement).
   let detail=null;
@@ -5930,10 +6038,11 @@ function reportData(opts){
       status:STATUS[a.status]?STATUS[a.status].label:a.status,rev:F.rev,cost:F.cost,margin:F.margin};});
   }
   return {fcRev,dnRev,dnCost,fcCost,rows,tRev,tCost,tUn,tMargin,tPct,arr,periodTxt,periodFrom,periodTo,
-    statusTxt:statusLbl[reportStatus],dealerNames,singleInst,singleDealer,detail,
+    statusTxt:statusLbl[ST],dealerNames,singleInst,singleDealer,detail,
+    byDay:DAY?Object.keys(DAY).sort().map(k=>DAY[k]):null,
     detailName:singleInst?singleInst.name:singleDealer,
     otherLabel:singleInst?'Dealer':'Installer',costLabel:singleInst?'Installer pay':'Cost',
-    groupLabel:reportGroup==='installer'?'Installer':'Dealer',
+    groupLabel:GROUP==='installer'?'Installer':'Dealer',
     who:singleInst?singleInst.name:(singleDealer||'All accounts'),
     title:singleInst?'Installer Performance Report':'Margin Report'};}
 
@@ -6313,20 +6422,57 @@ async function njSaveTask(){
      then the meeting kind was changed -- the visible row is not the authority,
      meetingNeedsDealer is. */
   const dId=(meetingNeedsDealer(mt)&&njDealerId&&njDealerId!=='new')?njDealerId:null;
-  const {data:job,error:je}=await sb.from('jobs').insert({type:'Task',task_type:tt,meeting_type:mt,task_done:false,customer_id:null,dealer_id:dId,scope:desc,site_address:null,estimated_minutes:mins,awaiting_product:false,override_schedule:false}).select('id').single();
-  if(je){console.error(je);toast('Could not save this task',true);return;}
-  const {data:appt,error:ae}=await sb.from('appointments').insert({job_id:job.id,installer_id:inst,status:'scheduled',start_time:composeISO(key,start),duration_minutes:mins}).select('id').single();
+  const r=await createTask({taskType:tt,meetingType:mt,installerId:inst,dealerId:dId,desc,dateKey:key,start,mins});
+  if(r.error==='installer'){toast('Assign this task to someone',true);return;}
+  if(r.error==='job'){toast('Could not save this task',true);return;}
   /* The job exists but has no visit. Say so plainly rather than leaving an
      invisible row behind -- a Task is filtered out of the queue, so without
      an appointment it would be on no screen at all. */
-  if(ae){console.error(ae);toast('Task saved but could <b>not</b> be put on the calendar — see the console',true);$('njBg').classList.remove('open');return;}
-  const d=dId?DEALERS.find(x=>x.id===dId):null;
-  appts.push({id:appt.id,jobId:job.id,type:'Task',taskType:tt,meetingType:mt,taskDone:false,installer:inst,status:'scheduled',
-    dateKey:key,start,dur:mins/60,estMins:mins,notes:'',
-    cust:'—',dealer:d?d.name:'—',dealerId:dId,customerId:null,addr:'—',phone:'',scope:desc,
-    jobNo:null,awaitingProduct:false,override:false,lineItems:[],dealerDiscount:d?(+d.discount||0):0,files:[]});
-  markConflicts();render();$('njBg').classList.remove('open');
+  if(r.error==='appt'){toast('Task saved but could <b>not</b> be put on the calendar — see the console',true);$('njBg').classList.remove('open');return;}
+  if(r.error){toast('Could not save this task',true);return;}
+  $('njBg').classList.remove('open');
   toast(`<b>${esc(tt)}</b> added to the calendar`);}
+
+/* v107: THE Task insert, shared by the New Job modal (njSaveTask) and the
+   dashboard's quick-add. There is one way a Task gets created.
+   Q20 rules enforced HERE, not by callers:
+   - an installer is required (the database would accept a NULL assignee;
+     this does not);
+   - task_type must be one of TASK_TYPES;
+   - meeting_type is written ONLY for task_type 'Meeting' and is NULL
+     otherwise (jobs_meeting_shape_chk), and a dealer ONLY for an Existing
+     Dealer Meeting;
+   - next_job_number() is never called, so job_number stays NULL.
+   Returns {error:null|'installer'|'type'|'job'|'appt', apptId}. On success
+   the new visit is pushed onto appts and the calendar re-rendered. */
+async function createTask(t){
+  if(!t.installerId||t.installerId==='un')return {error:'installer'};
+  if(TASK_TYPES.indexOf(t.taskType)<0)return {error:'type'};
+  const mt=t.taskType==='Meeting'?(t.meetingType||null):null;
+  const dId=(mt&&meetingNeedsDealer(mt)&&t.dealerId)?t.dealerId:null;
+  const mins=Math.max(15,+t.mins||60);
+  const {data:job,error:je}=await sb.from('jobs').insert({type:'Task',task_type:t.taskType,meeting_type:mt,task_done:false,customer_id:null,dealer_id:dId,scope:t.desc,site_address:null,estimated_minutes:mins,awaiting_product:false,override_schedule:false}).select('id').single();
+  if(je){console.error(je);return {error:'job'};}
+  const {data:appt,error:ae}=await sb.from('appointments').insert({job_id:job.id,installer_id:t.installerId,status:'scheduled',start_time:composeISO(t.dateKey,t.start),duration_minutes:mins}).select('id').single();
+  if(ae){console.error(ae);return {error:'appt'};}
+  const d=dId?DEALERS.find(x=>x.id===dId):null;
+  appts.push({id:appt.id,jobId:job.id,type:'Task',taskType:t.taskType,meetingType:mt,taskDone:false,installer:t.installerId,status:'scheduled',
+    dateKey:t.dateKey,start:t.start,dur:mins/60,estMins:mins,notes:'',
+    cust:'—',dealer:d?d.name:'—',dealerId:dId,customerId:null,addr:'—',phone:'',scope:t.desc,
+    jobNo:null,awaitingProduct:false,override:false,lineItems:[],dealerDiscount:d?(+d.discount||0):0,files:[]});
+  markConflicts();render();
+  return {error:null,apptId:appt.id};}
+
+/* v107: a Task's done flag, from the dashboard to-do checkbox. A targeted
+   single-field write -- never the full saveTaskDrawer path, and never
+   appointments.status (a Task's done-ness lives only in jobs.task_done).
+   Optimistic, and reverted if the write fails. */
+async function setTaskDone(apptId,done){
+  const a=appts.find(x=>x.id===apptId);if(!a||!isTask(a))return;
+  const prev=a.taskDone;a.taskDone=!!done;dbSchedule();
+  const {error}=await sb.from('jobs').update({task_done:!!done}).eq('id',a.jobId);
+  if(error){console.error(error);a.taskDone=prev;dbSchedule();toast('Could not update that task',true);return;}
+  render();}
 
 $('njSave').onclick=async()=>{if(!IS_ADMIN)return;
   if(njIsTask())return njSaveTask();
@@ -6872,12 +7018,246 @@ document.addEventListener('change',function(e){
   const card=e.target.closest('.mscard');if(card)cqSyncCard(card);
   cqSyncTotals();});
 
-function navTo(p){if(!IS_ADMIN&&ADMIN_PAGES.has(p))p='scheduler';
+/* ===== v107: Dashboard (Q12) =============================================
+   The landing page. TWO layouts, chosen by device and role together:
+     desk  = an admin on a screen wider than 640px: welcome, the today alert,
+             actionable counts, Your Agenda with quick-add, booked-work money.
+     field = everyone else (any phone, and every non-admin): welcome and
+             shortcut tiles; an admin on a phone also gets the counts and money.
+   Role decides which tiles appear, never which design.
+
+   It computes nothing of its own:
+   - counts come from unassignedAppts(), awaitingQueue() and isOutstanding();
+   - money comes from reportData({period, status:'all', inst:'all',
+     allDealers, noTasks, byDay}) -- which neither reads nor changes the Reports
+     tab's filters -- so the dashboard can never disagree with Reports;
+   - quick-add goes through createTask(), the same insert New Job uses.
+   It redraws from render()/renderQueue() via dbSchedule(), so it follows every
+   change to jobs and appointments.
+
+   ⚠ MY DOCS IS A CONVENIENCE FILTER, NOT A PERMISSION. It asks only for the
+   signed-in user's doc_group 'installer' rows and renders no delete control,
+   but installer_documents and the installer-files bucket still let ANY
+   signed-in user in the tenant read (and delete) every installer's
+   documents. Nothing here enforces "own documents only". That is Q17, and it
+   must land before any non-admin login exists. */
+var DB={agendaPeriod:'today',agendaInst:null,moneyPeriod:'week',panel:null,qaWho:null,qaBusy:false,docsState:'idle',layout:null};
+var DB_DOCS=[];   /* the viewer's source for My Docs; separate from IP_DOCS so an open profile popup is never clobbered */
+var _dbTimer=0;
+function dbReset(){DB.agendaPeriod='today';DB.agendaInst=null;DB.moneyPeriod='week';DB.panel=null;DB.qaWho=null;DB.docsState='idle';DB.layout=null;DB_DOCS=[];}
+/* Coalesce the many render() calls one action can trigger into one redraw. */
+function dbSchedule(){if(page!=='dashboard'||_dbTimer)return;_dbTimer=setTimeout(function(){_dbTimer=0;if(page==='dashboard')dbRefresh();},0);}
+function dbIsDesk(){return IS_ADMIN&&!MOBILE_Q.matches;}
+/* Who the signed-in user is, via current_profile()'s installer_id. Resolves to
+   null until INSTALLERS has loaded, so defaults are re-derived on every draw
+   rather than frozen at boot. */
+function myInstallerId(){const id=PROFILE&&PROFILE.installer_id;if(!id)return null;
+  return (INSTALLERS.some(i=>i.id===id)||ALL_INSTALLERS.some(i=>i.id===id))?id:null;}
+function myDisplayName(){const id=PROFILE&&PROFILE.installer_id;
+  const i=id?(INSTALLERS.find(x=>x.id===id)||ALL_INSTALLERS.find(x=>x.id===id)):null;
+  return i?i.name:(PROFILE&&PROFILE.email?noteWho(PROFILE.email):'');}
+function dbAgendaInst(){return DB.agendaInst||myInstallerId()||'all';}
+
+const DB_ICONS={
+  today:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18M8 14h3v3H8z"/></svg>',
+  upcoming:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>',
+  dealers:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 21h18M5 21V8l7-5 7 5v13M9 21v-6h6v6"/></svg>',
+  customers:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="8" r="4"/><path d="M2 21a7 7 0 0 1 14 0M17 11a3 3 0 1 0 0-6M22 21a6 6 0 0 0-5-5.9"/></svg>',
+  docs:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M8 13h8M8 17h5"/></svg>',
+  alert:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9v4M12 17h.01"/></svg>'};
+
+function dbSeg(which){const cur=DB[which+'Period'];
+  return '<div class="db-seg" id="dbSeg_'+which+'">'+[['today','Today'],['week','This Week'],['month','This Month']]
+    .map(o=>'<button type="button" data-p="'+o[0]+'" class="'+(cur===o[0]?'on':'')+'" onclick="dbSetPeriod(\''+which+'\',\''+o[0]+'\')">'+o[1]+'</button>').join('')+'</div>';}
+function dbSetPeriod(which,p){DB[which+'Period']=p;
+  document.querySelectorAll('#dbSeg_'+which+' button').forEach(b=>b.classList.toggle('on',b.dataset.p===p));dbRefresh();}
+function dbSetAgendaInst(v){DB.agendaInst=v||'all';dbRefresh();}
+
+function buildDashboard(){const g=$('genericView');const desk=dbIsDesk();DB.layout=desk?'desk':'field';
+  g.innerHTML='<div class="db">'
+    +'<div class="db-hello"><h1>Welcome, <span id="dbName"></span></h1><div class="gp-sub" style="margin-bottom:0" id="dbDate"></div></div>'
+    +'<div id="dbAlert"></div>'
+    +(desk
+      ?'<div class="db-counts" id="dbCounts"></div>'
+        +'<div class="db-grid">'
+        +'<section class="db-card"><div class="db-head"><h3>Your Agenda</h3><div class="db-fill"></div>'+dbSeg('agenda')
+        +'<select class="db-sel" id="dbAgInst" onchange="dbSetAgendaInst(this.value)" aria-label="Whose agenda"></select></div>'
+        +'<div class="db-qa"><input id="dbQaText" maxlength="200" placeholder="Add a task for today…" aria-label="New task">'
+        +'<select class="db-sel" id="dbQaWho" onchange="DB.qaWho=this.value" aria-label="Assign to"></select>'
+        +'<button type="button" id="dbQaGo" onclick="dbQuickAdd()">Add task</button></div>'
+        +'<div id="dbAgenda"></div></section>'
+        +'<section class="db-card"><div class="db-head"><h3>Booked work</h3><div class="db-fill"></div>'+dbSeg('money')+'</div><div id="dbMoney"></div></section>'
+        +'</div>'
+      :'<div class="db-tiles" id="dbTiles"></div>'
+        +(IS_ADMIN?'<div class="db-counts" id="dbCounts"></div>'
+          +'<div class="db-card" style="margin-bottom:16px"><div class="db-head"><h3>Booked work</h3><div class="db-fill"></div>'+dbSeg('money')+'</div><div id="dbMoney"></div></div>':'')
+        +'<div id="dbPanel"></div>')
+    +'</div>';
+  const qa=$('dbQaText');if(qa)qa.addEventListener('keydown',function(e){if(e.key==='Enter'){e.preventDefault();dbQuickAdd();}});
+  dbRefresh();}
+
+/* Rebuild a <select>'s options only when the list itself changed, so a redraw
+   never resets what someone is in the middle of choosing. */
+function dbFillSelect(sel,opts,val){if(!sel)return;const sig=opts.map(o=>o[0]+'='+o[1]).join('|');
+  if(sel.dataset.sig!==sig){sel.innerHTML=opts.map(o=>'<option value="'+esc(o[0])+'">'+esc(o[1])+'</option>').join('');sel.dataset.sig=sig;}
+  if(opts.some(o=>o[0]===val))sel.value=val;}
+
+function dbRefresh(){if(page!=='dashboard')return;
+  if(!document.querySelector('#genericView .db'))return;
+  if((dbIsDesk()?'desk':'field')!==DB.layout){buildDashboard();return;}
+  const set=function(id,h){const el=$(id);if(el)el.innerHTML=h;};
+  const nm=$('dbName');if(nm)nm.textContent=myDisplayName();
+  const dt=$('dbDate');if(dt)dt.textContent=TODAY.toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric',year:'numeric'});
+  /* Today's unassigned work is an ALERT, above everything, not another tile. */
+  const todayUn=IS_ADMIN?unassignedAppts().filter(a=>a.dateKey===_ymd(TODAY)).length:0;
+  set('dbAlert',todayUn?'<div class="db-alert" role="alert" onclick="dbGoUnassignedToday()">'+DB_ICONS.alert
+    +todayUn+' job'+(todayUn>1?'s':'')+' today '+(todayUn>1?'have':'has')+' no installer — assign now</div>':'');
+  if($('dbCounts'))set('dbCounts',IS_ADMIN?dbCountsHtml():'');
+  if($('dbMoney'))set('dbMoney',IS_ADMIN?dbMoneyHtml():'');
+  if($('dbAgenda')){
+    const people=INSTALLERS.filter(i=>i.id!=='un');
+    dbFillSelect($('dbAgInst'),[['all','Company (all)']].concat(people.map(i=>[i.id,i.name])),dbAgendaInst());
+    const active=people.filter(i=>i.status!=='inactive');
+    dbFillSelect($('dbQaWho'),active.map(i=>[i.id,i.name]),DB.qaWho||myInstallerId()||(active[0]&&active[0].id)||'');
+    set('dbAgenda',dbAgendaHtml());}
+  if($('dbTiles'))set('dbTiles',dbTilesHtml());
+  if($('dbPanel'))set('dbPanel',dbPanelHtml());}
+
+function dbCount(n,label,go,hot){return '<div class="db-count'+(go?' go':'')+(hot&&n?' hot':'')+'"'+(go?' onclick="'+go+'"':'')+'><b>'+n+'</b><span>'+label+'</span></div>';}
+function dbCountsHtml(){
+  return dbCount(unassignedAppts().length,'Unassigned scheduled jobs','dbGoUnassigned()',true)
+    +dbCount(appts.filter(a=>a.status==='issue').length,'Issues reported',null,true)
+    +dbCount(awaitingQueue().length,'Awaiting product',"navTo('inventory')",false)
+    +dbCount(appts.filter(isOutstanding).length,'Completed, not closed',null,false);}
+function dbGoUnassigned(){navTo('scheduler');showUnassigned();}
+function dbGoUnassignedToday(){gotoDate(TODAY);showUnassigned();}
+
+function dbWhen(a,withDate){let s='';
+  if(withDate&&a.dateKey){const [y,m,d]=a.dateKey.split('-').map(Number);const dt=new Date(y,m-1,d);s=DOW[(dt.getDay()+6)%7]+' '+d+' · ';}
+  return s+fmt(a.start);}
+function dbJobRow(a,withDate,withWho){const st=STATUS[a.status]||{label:a.status,color:'#9aa1ab'};
+  const meta=[a.scope,a.addr].filter(x=>x&&x!=='—');if(withWho)meta.push(instById(a.installer).name);
+  return '<div class="db-row" onclick="openDrawer(\''+esc(a.id)+'\')"><div class="db-when">'+esc(dbWhen(a,withDate))+'</div>'
+    +'<span class="gt" style="background:rgba(216,198,160,.28);color:#7a6c45">'+esc(a.type)+'</span>'
+    +'<div class="db-main"><div class="gname">'+esc(a.cust)+'</div><div class="gmeta">'+esc(meta.join(' · '))+'</div></div>'
+    +'<div class="db-st"><i style="background:'+esc(st.color)+'"></i>'+esc(st.label)+'</div></div>';}
+function dbTaskRow(a,withDate,withWho){
+  const meta=[a.taskType||'Task'];if(a.meetingType)meta.push(a.meetingType);if(withWho)meta.push(instById(a.installer).name);
+  return '<div class="db-row db-task'+(a.taskDone?' done':'')+'">'
+    +'<input type="checkbox" aria-label="Done"'+(a.taskDone?' checked':'')+' onchange="setTaskDone(\''+esc(a.id)+'\',this.checked)">'
+    +'<div class="db-when">'+esc(dbWhen(a,withDate))+'</div>'
+    +'<div class="db-main" onclick="openDrawer(\''+esc(a.id)+'\')"><div class="gname">'+esc(a.scope&&a.scope!=='—'?a.scope:(a.taskType||'Task'))+'</div>'
+    +'<div class="gmeta">'+esc(meta.join(' · '))+'</div></div></div>';}
+function dbSortAppts(list){return list.sort((x,y)=>(x.dateKey||'').localeCompare(y.dateKey||'')||x.start-y.start);}
+/* Your Agenda: that person's visits in the period as line items, then their
+   Tasks as the to-do list. A Task IS the to-do -- there is no second system. */
+function dbAgendaHtml(){const P={period:DB.agendaPeriod},inst=dbAgendaInst();
+  const items=dbSortAppts(appts.filter(a=>inPeriodFor(a.dateKey,P)&&(inst==='all'||a.installer===inst)));
+  const jobs=items.filter(a=>!isTask(a)),tasks=items.filter(isTask);
+  const withDate=P.period!=='today',withWho=inst==='all';
+  const open=tasks.filter(a=>!a.taskDone).length;
+  return '<div class="db-sub">Jobs · '+jobs.length+'</div>'
+    +(jobs.length?jobs.map(a=>dbJobRow(a,withDate,withWho)).join(''):'<div class="db-empty">No jobs scheduled.</div>')
+    +'<div class="db-sub">Tasks · '+open+' open of '+tasks.length+'</div>'
+    +(tasks.length?tasks.map(a=>dbTaskRow(a,withDate,withWho)).join(''):'<div class="db-empty">No tasks. Add one above.</div>');}
+
+/* Booked work: everything SCHEDULED in the period, whatever its status. Tasks
+   are excluded from the count; apptFinance already books them at zero. */
+function dbMoneyHtml(){
+  const D=reportData({period:DB.moneyPeriod,status:'all',inst:'all',allDealers:true,noTasks:true,byDay:true});
+  return '<div class="db-money"><div><b>'+fmtMoney(D.tRev)+'</b><span>Revenue</span></div>'
+    +'<div><b>'+fmtMoney(D.tCost)+'</b><span>Cost</span></div>'
+    +'<div><b style="color:'+(D.tMargin>=0?'#4d7010':'#a3211d')+'">'+fmtMoney(D.tMargin)+'</b><span>Margin'+(D.tRev>0?' · '+D.tPct.toFixed(0)+'%':'')+'</span></div></div>'
+    +'<div class="db-chart">'+dbBarsSvg(D.byDay)+'</div>'
+    +'<div class="db-leg"><span><i style="background:#b49e6f"></i>Revenue</span><span><i style="background:#8c877d"></i>Cost</span><span>'+D.rows.length+' scheduled job'+(D.rows.length===1?'':'s')+'</span></div>';}
+function dbNice(x){const p=Math.pow(10,Math.floor(Math.log10(x)));const f=x/p;return (f<=1?1:f<=2?2:f<=5?5:10)*p;}
+function dbAbbr(v){return v>=1000?'$'+(v/1000).toFixed(v>=10000?0:1)+'k':'$'+Math.round(v);}
+/* Inline SVG bar chart: revenue and cost side by side per day. No library, no
+   network, colours from the light palette. viewBox scaling makes it fluid. */
+function dbBarsSvg(series){if(!series||!series.length)return '';
+  const W=640,H=190,L=46,R=8,T=10,B=24,n=series.length,iw=W-L-R,ih=H-T-B;
+  const max=Math.max(1,...series.map(s=>Math.max(s.rev,s.cost)));
+  const step=dbNice(max/3),top=Math.max(step*3,step*Math.ceil(max/step));
+  let out='<svg viewBox="0 0 '+W+' '+H+'" role="img" aria-label="Revenue and cost by day">';
+  for(let v=0;v<=top+1e-9;v+=step){const y=(T+ih-(v/top)*ih).toFixed(1);
+    out+='<line class="g" x1="'+L+'" x2="'+(W-R)+'" y1="'+y+'" y2="'+y+'"/><text class="t" x="'+(L-6)+'" y="'+(+y+3)+'" text-anchor="end">'+dbAbbr(v)+'</text>';}
+  const gw=iw/n,bw=Math.max(1.5,Math.min(18,gw*0.34));
+  series.forEach(function(s,i){const cx=L+gw*i+gw/2;const [yy,mm,dd]=s.key.split('-').map(Number);const dt=new Date(yy,mm-1,dd);
+    const tip=esc(dt.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'})+': revenue '+fmtMoney(s.rev)+', cost '+fmtMoney(s.cost)+', margin '+fmtMoney(s.rev-s.cost));
+    const hr=s.rev/top*ih,hc=s.cost/top*ih;
+    out+='<g><title>'+tip+'</title><rect class="rev" x="'+(cx-bw-1).toFixed(1)+'" y="'+(T+ih-hr).toFixed(1)+'" width="'+bw.toFixed(1)+'" height="'+hr.toFixed(1)+'" rx="2"/>'
+      +'<rect class="cost" x="'+(cx+1).toFixed(1)+'" y="'+(T+ih-hc).toFixed(1)+'" width="'+bw.toFixed(1)+'" height="'+hc.toFixed(1)+'" rx="2"/></g>';
+    const lbl=n<=7?DOW[(dt.getDay()+6)%7]:((dd===1||dd%5===0)?String(dd):'');
+    if(lbl)out+='<text class="t" x="'+cx.toFixed(1)+'" y="'+(H-7)+'" text-anchor="middle">'+lbl+'</text>';});
+  return out+'</svg>';}
+
+/* Field layout: shortcut tiles. Today's Schedule opens the scheduler's day view
+   on today; Upcoming Appointments and My Docs open a panel on this page. */
+function dbTilesHtml(){
+  const t=function(key,label,act){return '<div class="db-tile'+(DB.panel===key?' on':'')+'" onclick="'+act+'">'+DB_ICONS[key]+'<span>'+label+'</span></div>';};
+  return t('today','Today’s Schedule','gotoDate(TODAY)')
+    +t('upcoming','Upcoming Appointments',"dbPanel('upcoming')")
+    +t('dealers','Dealers',"navTo('dealers')")
+    +t('customers','Customers',"navTo('customers')")
+    +t('docs','My Docs',"dbPanel('docs')");}
+function dbPanel(k){DB.panel=DB.panel===k?null:k;if(DB.panel==='docs')dbLoadDocs();else dbRefresh();}
+const DB_UPCOMING_DAYS=14;
+function dbPanelHtml(){
+  if(DB.panel==='upcoming'){const id=myInstallerId();
+    if(!id)return '<div class="db-card"><h3>Upcoming appointments</h3><div class="db-empty" style="margin-top:8px">Your login is not linked to an installer, so there is no personal schedule to show.</div></div>';
+    const from=_ymd(TODAY),e=new Date(TODAY);e.setDate(e.getDate()+DB_UPCOMING_DAYS);const to=_ymd(e);
+    const items=dbSortAppts(appts.filter(a=>a.installer===id&&a.dateKey&&a.dateKey>from&&a.dateKey<=to));
+    return '<div class="db-card"><h3>Upcoming appointments</h3><div class="gmeta" style="margin:2px 0 10px">Your next '+DB_UPCOMING_DAYS+' days, after today</div>'
+      +(items.length?items.map(a=>isTask(a)?dbTaskRow(a,true,false):dbJobRow(a,true,false)).join(''):'<div class="db-empty">Nothing scheduled.</div>')+'</div>';}
+  if(DB.panel==='docs'){
+    let body;
+    if(DB.docsState==='loading')body='<div class="db-empty">Loading…</div>';
+    else if(DB.docsState==='nolink')body='<div class="db-empty">Your login is not linked to an installer, so there are no documents to show.</div>';
+    else body=DB_DOCS.length?DB_DOCS.slice().reverse().map(dbDocRow).join(''):'<div class="db-empty">No documents yet.</div>';
+    return '<div class="db-card"><h3>My Docs</h3><div class="gmeta" style="margin:2px 0 10px">View and download</div>'+body+'</div>';}
+  return '';}
+/* Read-only document row: view only, deliberately NO delete control. ipDocRow
+   (the admin profile popup's row) always renders one, so it is not reused. */
+function dbDocRow(d){const id=esc(d.id);
+  return '<div class="db-doc" onclick="openViewer(\''+id+'\')">'+viewerIcon(d.kind)
+    +'<span class="nm">'+esc(d.name)+'</span><span class="gmeta">'+esc(IP_TYPES[d.type]||d.type||'')+'</span><span class="gmeta">View ›</span></div>';}
+async function dbLoadDocs(){const id=myInstallerId();
+  if(!id){DB.docsState='nolink';DB_DOCS=[];dbRefresh();return;}
+  DB.docsState='loading';dbRefresh();
+  const rows=await ipLoadDocs(id,'installer');
+  if(myInstallerId()!==id)return;
+  DB_DOCS=rows.filter(d=>d.group==='installer');DB.docsState='ready';dbRefresh();}
+
+/* Quick-add: one line, a real Task for TODAY through createTask. Starts at the
+   next half hour inside calendar hours, 30 minutes long. Tasks never flag
+   conflicts, so the default slot cannot mark a real job as double-booked. */
+async function dbQuickAdd(){if(DB.qaBusy)return;
+  const inp=$('dbQaText'),who=$('dbQaWho');if(!inp||!who)return;
+  const desc=inp.value.trim();if(!desc){toast('Type the task first',true);inp.focus();return;}
+  const inst=who.value;if(!inst){toast('Pick who the task is for',true);return;}
+  const now=new Date();let start=Math.ceil((now.getHours()+now.getMinutes()/60)*2)/2;
+  start=Math.min(Math.max(start,START_HOUR),END_HOUR-0.5);
+  DB.qaBusy=true;const btn=$('dbQaGo');if(btn)btn.disabled=true;
+  try{
+    const r=await createTask({taskType:'Task',meetingType:null,installerId:inst,dealerId:null,desc:desc,dateKey:_ymd(TODAY),start:start,mins:30});
+    if(r.error==='installer'){toast('Pick who the task is for',true);return;}
+    if(r.error==='appt'){toast('Task saved but could <b>not</b> be put on the calendar — see the console',true);return;}
+    if(r.error){toast('Could not add that task',true);return;}
+    const box=$('dbQaText');if(box)box.value='';
+    toast('Task added for '+esc(instById(inst).name)+' today');
+  }finally{DB.qaBusy=false;const b=$('dbQaGo');if(b)b.disabled=false;}}
+
+/* v107: the page registry, lifted out of navTo so boot can validate a page
+   name restored from sessionStorage before navigating to it. */
+const PAGE_TITLES={dashboard:'Dashboard',scheduler:'Scheduler',toschedule:'To Schedule',quickquote:'Quick Quote',installers:'Users',dealers:'Dealers',customers:'Customers',inventory:'Receiving',rates:'Service Rates',reports:'Reports'};
+function navTo(p){if(!PAGE_TITLES[p])p='dashboard';if(!IS_ADMIN&&ADMIN_PAGES.has(p))p='scheduler';
   page=p;document.querySelectorAll('.nav-item').forEach(n=>n.classList.toggle('active',n.dataset.page===p));
+  /* Page memory for REFRESH only (landPage decides when it is honoured).
+     sessionStorage is per tab, cleared on sign-out; failure is harmless. */
+  try{sessionStorage.setItem('pl.page',p);}catch(e){}
   const sched=p==='scheduler';$('schedView').style.display=sched?'flex':'none';$('genericView').style.display=sched?'none':'block';
   $('viewSeg').style.display=sched?'flex':'none';$('dayNav').style.display=sched?'flex':'none';$('rangeLbl').style.display=sched?'inline':'none';$('instFilter').style.display=sched?'block':'none';
-  const titles={scheduler:'Scheduler',toschedule:'To Schedule',quickquote:'Quick Quote',installers:'Users',dealers:'Dealers',customers:'Customers',inventory:'Receiving',rates:'Service Rates',reports:'Reports'};
-  $('ptitle').childNodes[0].nodeValue=titles[p]+' ';
+  $('ptitle').childNodes[0].nodeValue=PAGE_TITLES[p]+' ';
   if(sched)render();else buildGeneric(p);}
 function miniCal(){const m=monthAnchor(0),offset=(m.getDay()+6)%7,dim=daysInMonth(m);let cells='';
   for(let i=0;i<offset;i++)cells+=`<div class="mc-day out"></div>`;
@@ -6893,7 +7273,8 @@ function buildGeneric(p){const g=$('genericView');
   if(p==='inventory'){RECV_NOTE_N=null;buildReceiving();return}
   if(p==='quickquote'){buildQuickQuote();return}
   if(p==='rates'){buildRates();return}
-  if(p==='reports'){buildReports();return}}
+  if(p==='reports'){buildReports();return}
+  if(p==='dashboard'){buildDashboard();return}}
 
 /* ===== Dealers — master/detail (v22).
    The list sources from DEALERS, not from job rows, so accounts with no live
@@ -7845,6 +8226,8 @@ const queueHead=document.querySelector('.queue-head');
 if(queueHead)queueHead.addEventListener('click',()=>{if(MOBILE_Q.matches)document.body.classList.toggle('queueopen')});
 /* Rotating to landscape/tablet width must not strand the off-canvas state. */
 MOBILE_Q.addEventListener('change',()=>{if(!MOBILE_Q.matches){setNav(false);document.body.classList.remove('queueopen');}});
+/* v107: crossing 640px switches the dashboard between desk and field. */
+MOBILE_Q.addEventListener('change',()=>{if(page==='dashboard')buildDashboard();});
 
 /* ===== Swipe between days (v24) — mobile day view only.
    This adds an INPUT path, not a new render path: it ends in stepDay(±1) then
@@ -7885,6 +8268,8 @@ if(calWrap){
 }
 /* ===== Auth gate (v20) — email/password + self-service signup (Option B) ===== */
 let PROFILE=null,_booted=false,gateMode='signin';
+/* v107: set only by a real sign-in/sign-up in this tab; read once by landPage. */
+var LOGIN_FRESH=false;
 /* Role gating (v21). Fails closed: anything that isn't 'admin' is treated as an installer. */
 let IS_ADMIN=false;
 const ADMIN_PAGES=new Set(['installers','rates','reports']);
@@ -7954,7 +8339,7 @@ async function doSignin(){
   gateBusy('Signing in…');
   const {error}=await sb.auth.signInWithPassword({email,password:pass});
   if(error){gateForm(error.message);return;}
-  resolveSession();}
+  LOGIN_FRESH=true;resolveSession();}
 async function doSignup(){
   const email=$('gEmail').value.trim().toLowerCase(),pass=$('gPass').value;
   if(!email||!pass){gateForm('Enter an email and a password.');return;}
@@ -7963,7 +8348,7 @@ async function doSignup(){
   const {data,error}=await sb.auth.signUp({email,password:pass});
   if(error){gateForm(error.message);return;}
   // If email confirmation is OFF, a session exists now → resolve straight through.
-  if(data.session){resolveSession();return;}
+  if(data.session){LOGIN_FRESH=true;resolveSession();return;}
   // If confirmation is ON, no session yet → tell them to check email.
   gateMode='signin';
   gateForm('',`Account created. If a confirmation email is required, check your inbox, then sign in.`);}
@@ -7982,7 +8367,26 @@ function applyProfile(p){PROFILE=p;
 function bootApp(){if(_booted)return;_booted=true;
   /* Phones open on Day: Week forces an 880px canvas that can't fit a phone. (v22) */
   if(MOBILE_Q.matches&&view==='week')setView('day');
-  renderQueue();render();loadAll();loadServices();}
+  renderQueue();render();
+  /* v107: only the Scheduler used to redraw when data arrived, because it was
+     the only page anyone booted onto. Now the landing page may be the
+     dashboard or a page restored on refresh, so redraw whichever page is
+     showing once everything has loaded -- otherwise it shows zeros. */
+  loadAll().then(function(){if(page!=='scheduler')buildGeneric(page);});
+  loadServices();}
+/* v107: where a session lands.
+   - A real sign-in in this tab (LOGIN_FRESH) -> Dashboard.
+   - A REFRESH (or back/forward) -> the page this tab was on, if remembered.
+   - Anything else -- a new tab, a typed URL, a link -- -> Dashboard.
+   The navigation type, not the mere presence of sessionStorage, decides
+   "refresh", because some browsers copy sessionStorage into a duplicated tab. */
+function landPage(){let target='dashboard';
+  if(!LOGIN_FRESH){let nav='navigate';
+    try{const e=performance.getEntriesByType('navigation')[0];if(e&&e.type)nav=e.type;}catch(err){}
+    let saved=null;try{saved=sessionStorage.getItem('pl.page');}catch(err){}
+    if((nav==='reload'||nav==='back_forward')&&saved&&PAGE_TITLES[saved])target=saved;}
+  LOGIN_FRESH=false;
+  navTo(target);}
 async function resolveSession(){
   if(RECOVERY_HASH.test(location.hash)){gateMode='recovery';gateRecovery();return;}
   gateBody.innerHTML='<div class="gate-spin"></div>';gate.classList.remove('hidden');
@@ -7991,13 +8395,16 @@ async function resolveSession(){
   const {data:prof,error}=await sb.rpc('current_profile');
   if(error){console.error(error);gateMode='signin';gateForm('Could not load your profile: '+error.message);return;}
   if(!prof||!prof.profile_id){gateDenied(session.user&&session.user.email);return;}
-  applyProfile(prof);gate.classList.add('hidden');bootApp();}
+  applyProfile(prof);gate.classList.add('hidden');bootApp();landPage();}
 sb.auth.onAuthStateChange((ev)=>{
   if(ev==='PASSWORD_RECOVERY'){gateMode='recovery';gateRecovery();return;}
   /* doRecovery signs out on purpose after setting the new password. The
      gateMode guard stops this handler repainting a blank sign-in form over
      the confirmation message that follows it. */
   if(ev==='SIGNED_OUT'){PROFILE=null;IS_ADMIN=false;document.body.classList.add('role-installer');
+    /* v107: forget this tab's page and the dashboard's per-user choices, so
+       the next sign-in starts clean on the Dashboard. */
+    LOGIN_FRESH=false;try{sessionStorage.removeItem('pl.page');}catch(err){}dbReset();
     if(gateMode!=='recovery'){gateMode='signin';gateForm();}}});
 $('siSignOut').onclick=async e=>{e.stopPropagation();menu.classList.remove('open');await sb.auth.signOut();};
 resolveSession();
