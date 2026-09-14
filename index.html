@@ -204,11 +204,16 @@
   .db-seg{display:inline-flex;border:1px solid var(--border);border-radius:9px;overflow:hidden}
   .db-seg button{border:0;background:transparent;font:inherit;font-size:12px;padding:6px 10px;cursor:pointer;color:var(--muted)}
   .db-seg button.on{background:var(--ink);color:#fff}
+  /* v108: the desk toggles reuse .seg.ghost.dl-seg for colour. .dl-seg's own
+     size is the Dealers page's compact 11px; this sizes them to sit level with
+     the Add task button and the selects beside them. Geometry only. */
+  .db-head .dl-seg button{font-size:12.5px;padding:6px 12px}
   .db-sel{font:inherit;font-size:12.5px;padding:6px 8px;border:1px solid var(--border);border-radius:9px;background:var(--card);color:var(--ink);max-width:100%}
   .db-qa{display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap}
   .db-qa input{flex:1 1 180px;min-width:0;font:inherit;padding:8px 10px;border:1px solid var(--border);border-radius:9px;background:var(--card);color:var(--ink)}
-  .db-qa button{font:inherit;font-weight:700;font-size:12.5px;padding:8px 14px;border:0;border-radius:9px;background:var(--ink);color:#fff;cursor:pointer}
-  .db-qa button:disabled{opacity:.5;cursor:default}
+  /* v108: Add task is the New Job button (.btn). Only its disabled state is
+     added here, because .btn has none and quick-add disables it mid-save. */
+  .db-qa .btn:disabled{opacity:.5;cursor:default;filter:none}
   .db-sub{font-size:10.5px;letter-spacing:1.2px;text-transform:uppercase;color:var(--muted);margin:14px 0 7px}
   .db-row{display:flex;align-items:center;gap:10px;padding:9px 10px;border:1px solid var(--border-soft);border-radius:10px;margin-bottom:6px;cursor:pointer;background:var(--raised)}
   .db-row:hover{border-color:var(--accent-line)}
@@ -239,6 +244,8 @@
   .db-doc{display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid var(--border-soft);border-radius:10px;margin-bottom:6px;background:var(--raised);cursor:pointer;font-size:13px}
   .db-doc svg{width:18px;height:18px;flex-shrink:0}
   .db-doc .nm{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .db-back{display:inline-block;font-size:12.5px;font-weight:600;color:var(--muted);cursor:pointer;margin-bottom:10px}
+  .db-back:hover{color:var(--ink)}
   .empty .ei{width:54px;height:54px;border-radius:14px;background:var(--raised);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;margin:0 auto 16px}
   .empty .ei svg{width:26px;height:26px;color:var(--faint)}.empty h3{font-size:16px;color:var(--ink);margin-bottom:5px}
   .ts-wrap{display:flex;gap:26px;align-items:flex-start}
@@ -1154,36 +1161,38 @@ body.role-installer [data-admin]{display:none!important}
   .topfilter:hover,.fileadd select:hover{border-color:var(--accent-line)}
   .topfilter option,.fileadd select option{background:var(--side-2);color:var(--sand-ink)}
 
-  select.dl-input,select.rep-sel,select.rate-search{
+  /* v108: select.db-sel (the dashboard Agenda's two dropdowns) joined this
+     light-palette group. It was added after the v80 sweep and missed it. */
+  select.dl-input,select.rep-sel,select.rate-search,select.db-sel{
     -webkit-appearance:none;-moz-appearance:none;appearance:none;
     background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238c877d' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
     background-repeat:no-repeat;background-position:right 10px center;background-size:12px;
     padding-right:30px;cursor:pointer}
-  select.dl-input:hover,select.rep-sel:hover,select.rate-search:hover{border-color:#b49e6f}
-  select.dl-input option,select.rep-sel option,select.rate-search option{background:var(--card);color:var(--ink)}
+  select.dl-input:hover,select.rep-sel:hover,select.rate-search:hover,select.db-sel:hover{border-color:#b49e6f}
+  select.dl-input option,select.rep-sel option,select.rate-search option,select.db-sel option{background:var(--card);color:var(--ink)}
 
   @supports (appearance:base-select){
-    .topfilter,.fileadd select,select.dl-input,select.rep-sel,select.rate-search{
+    .topfilter,.fileadd select,select.dl-input,select.rep-sel,select.rate-search,select.db-sel{
       appearance:base-select;background-image:none;padding-right:11px}
     .topfilter::picker-icon,.fileadd select::picker-icon{color:var(--sand-dim);transition:transform .16s}
-    select.dl-input::picker-icon,select.rep-sel::picker-icon,select.rate-search::picker-icon{color:var(--muted);transition:transform .16s}
+    select.dl-input::picker-icon,select.rep-sel::picker-icon,select.rate-search::picker-icon,select.db-sel::picker-icon{color:var(--muted);transition:transform .16s}
     .topfilter:open::picker-icon,.fileadd select:open::picker-icon,
-    select.dl-input:open::picker-icon,select.rep-sel:open::picker-icon,select.rate-search:open::picker-icon{transform:rotate(180deg)}
+    select.dl-input:open::picker-icon,select.rep-sel:open::picker-icon,select.rate-search:open::picker-icon,select.db-sel:open::picker-icon{transform:rotate(180deg)}
     .topfilter::picker(select),.fileadd select::picker(select){
       appearance:base-select;background:var(--side-2);border:1px solid var(--side-border);
       border-radius:10px;box-shadow:0 14px 34px rgba(0,0,0,.55);padding:5px;margin-top:4px}
-    select.dl-input::picker(select),select.rep-sel::picker(select),select.rate-search::picker(select){
+    select.dl-input::picker(select),select.rep-sel::picker(select),select.rate-search::picker(select),select.db-sel::picker(select){
       appearance:base-select;background:var(--card);border:1px solid var(--border);
       border-radius:10px;box-shadow:0 14px 34px rgba(30,28,24,.18);padding:5px;margin-top:4px}
     .topfilter option,.fileadd select option,
-    select.dl-input option,select.rep-sel option,select.rate-search option{
+    select.dl-input option,select.rep-sel option,select.rate-search option,select.db-sel option{
       border-radius:7px;padding:8px 10px}
     .topfilter option:hover,.fileadd select option:hover{background:var(--accent-soft)}
     .topfilter option:checked,.fileadd select option:checked{background:var(--accent);color:var(--accent-ink)}
-    select.dl-input option:hover,select.rep-sel option:hover,select.rate-search option:hover{background:rgba(216,198,160,.22)}
-    select.dl-input option:checked,select.rep-sel option:checked,select.rate-search option:checked{background:#b49e6f;color:var(--accent-ink)}
+    select.dl-input option:hover,select.rep-sel option:hover,select.rate-search option:hover,select.db-sel option:hover{background:rgba(216,198,160,.22)}
+    select.dl-input option:checked,select.rep-sel option:checked,select.rate-search option:checked,select.db-sel option:checked{background:#b49e6f;color:var(--accent-ink)}
     .topfilter option::checkmark,.fileadd select option::checkmark,
-    select.dl-input option::checkmark,select.rep-sel option::checkmark,select.rate-search option::checkmark{display:none}
+    select.dl-input option::checkmark,select.rep-sel option::checkmark,select.rate-search option::checkmark,select.db-sel option::checkmark{display:none}
   }
 }
 
@@ -7046,7 +7055,10 @@ var DB_DOCS=[];   /* the viewer's source for My Docs; separate from IP_DOCS so a
 var _dbTimer=0;
 function dbReset(){DB.agendaPeriod='today';DB.agendaInst=null;DB.moneyPeriod='week';DB.panel=null;DB.qaWho=null;DB.docsState='idle';DB.layout=null;DB_DOCS=[];}
 /* Coalesce the many render() calls one action can trigger into one redraw. */
-function dbSchedule(){if(page!=='dashboard'||_dbTimer)return;_dbTimer=setTimeout(function(){_dbTimer=0;if(page==='dashboard')dbRefresh();},0);}
+function dbSchedule(){if(!DB_LIVE||!DB_LIVE[page]||_dbTimer)return;_dbTimer=setTimeout(function(){_dbTimer=0;const f=DB_LIVE[page];if(f)f();},0);}
+/* v108: every page that must follow job and appointment changes live, and how
+   it redraws. The work queues rebuild whole: they hold no input to lose. */
+var DB_LIVE={dashboard:function(){dbRefresh();},issues:function(){buildWorkQueue('issues');},outstanding:function(){buildWorkQueue('outstanding');}};
 function dbIsDesk(){return IS_ADMIN&&!MOBILE_Q.matches;}
 /* Who the signed-in user is, via current_profile()'s installer_id. Resolves to
    null until INSTALLERS has loaded, so defaults are re-derived on every draw
@@ -7066,8 +7078,12 @@ const DB_ICONS={
   docs:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M8 13h8M8 17h5"/></svg>',
   alert:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9v4M12 17h.01"/></svg>'};
 
-function dbSeg(which){const cur=DB[which+'Period'];
-  return '<div class="db-seg" id="dbSeg_'+which+'">'+[['today','Today'],['week','This Week'],['month','This Month']]
+/* v108: sand=true (desk layout) uses the app's existing sand toggle, the
+   .seg.ghost.dl-seg pattern the Dealers period picker already uses -- the same
+   accent background and black text as the New Job .btn, plus the selected
+   state .btn does not have. The phone layout keeps the plain .db-seg. */
+function dbSeg(which,sand){const cur=DB[which+'Period'];
+  return '<div class="'+(sand?'seg ghost dl-seg':'db-seg')+'" id="dbSeg_'+which+'">'+[['today','Today'],['week','This Week'],['month','This Month']]
     .map(o=>'<button type="button" data-p="'+o[0]+'" class="'+(cur===o[0]?'on':'')+'" onclick="dbSetPeriod(\''+which+'\',\''+o[0]+'\')">'+o[1]+'</button>').join('')+'</div>';}
 function dbSetPeriod(which,p){DB[which+'Period']=p;
   document.querySelectorAll('#dbSeg_'+which+' button').forEach(b=>b.classList.toggle('on',b.dataset.p===p));dbRefresh();}
@@ -7080,13 +7096,13 @@ function buildDashboard(){const g=$('genericView');const desk=dbIsDesk();DB.layo
     +(desk
       ?'<div class="db-counts" id="dbCounts"></div>'
         +'<div class="db-grid">'
-        +'<section class="db-card"><div class="db-head"><h3>Your Agenda</h3><div class="db-fill"></div>'+dbSeg('agenda')
+        +'<section class="db-card"><div class="db-head"><h3>Your Agenda</h3><div class="db-fill"></div>'+dbSeg('agenda',true)
         +'<select class="db-sel" id="dbAgInst" onchange="dbSetAgendaInst(this.value)" aria-label="Whose agenda"></select></div>'
         +'<div class="db-qa"><input id="dbQaText" maxlength="200" placeholder="Add a task for today…" aria-label="New task">'
         +'<select class="db-sel" id="dbQaWho" onchange="DB.qaWho=this.value" aria-label="Assign to"></select>'
-        +'<button type="button" id="dbQaGo" onclick="dbQuickAdd()">Add task</button></div>'
+        +'<button type="button" class="btn" id="dbQaGo" onclick="dbQuickAdd()">Add task</button></div>'
         +'<div id="dbAgenda"></div></section>'
-        +'<section class="db-card"><div class="db-head"><h3>Booked work</h3><div class="db-fill"></div>'+dbSeg('money')+'</div><div id="dbMoney"></div></section>'
+        +'<section class="db-card"><div class="db-head"><h3>Booked work</h3><div class="db-fill"></div>'+dbSeg('money',true)+'</div><div id="dbMoney"></div></section>'
         +'</div>'
       :'<div class="db-tiles" id="dbTiles"></div>'
         +(IS_ADMIN?'<div class="db-counts" id="dbCounts"></div>'
@@ -7126,13 +7142,45 @@ function dbRefresh(){if(page!=='dashboard')return;
 function dbCount(n,label,go,hot){return '<div class="db-count'+(go?' go':'')+(hot&&n?' hot':'')+'"'+(go?' onclick="'+go+'"':'')+'><b>'+n+'</b><span>'+label+'</span></div>';}
 function dbCountsHtml(){
   return dbCount(unassignedAppts().length,'Unassigned scheduled jobs','dbGoUnassigned()',true)
-    +dbCount(appts.filter(a=>a.status==='issue').length,'Issues reported',null,true)
+    +dbCount(issueAppts().length,'Issues reported',"navTo('issues')",true)
     +dbCount(awaitingQueue().length,'Awaiting product',"navTo('inventory')",false)
-    +dbCount(appts.filter(isOutstanding).length,'Completed, not closed',null,false);}
+    +dbCount(outstandingAppts().length,'Completed, not closed',"navTo('outstanding')",false);}
+
+/* ===== v108: work queues -- Issues Reported, Completed not closed =========
+   Lists to work through, not financial views: the agenda's row format, no
+   money, oldest first, each row opening its job drawer. One definition each,
+   shared by the dashboard count and the page, so they can never disagree:
+   - issueAppts(): status 'issue'. A resolved issue changes status, so every
+     'issue' row is unresolved.
+   - outstandingAppts(): the existing isOutstanding() rule.
+   Tasks are excluded from both: a Task's done-ness lives in task_done and it
+   never carries either status. Admin-only, like the counts that lead here
+   (both pages are in ADMIN_PAGES). */
+function issueAppts(){return appts.filter(a=>!isTask(a)&&a.status==='issue');}
+function outstandingAppts(){return appts.filter(a=>!isTask(a)&&isOutstanding(a));}
+const WQ={
+  issues:{list:issueAppts,title:'Issues Reported',
+    sub:function(n){return n+' job'+(n===1?'':'s')+' with an issue reported, oldest first. Open one to resolve it.';},
+    empty:'No open issues.'},
+  outstanding:{list:outstandingAppts,title:'Completed, not closed',
+    sub:function(n){return n+' completed job'+(n===1?'':'s')+' not yet closed out, oldest first.';},
+    empty:'Nothing waiting to be closed.'}};
+function buildWorkQueue(kind){const g=$('genericView'),Q=WQ[kind];if(!Q)return;
+  const rows=dbSortAppts(Q.list());
+  g.innerHTML='<div class="db">'
+    +'<div class="db-back" onclick="navTo(\'dashboard\')">‹ Dashboard</div>'
+    +'<div class="gp-head">'+Q.title+'</div><div class="gp-sub">'+Q.sub(rows.length)+'</div>'
+    +'<div class="db-card">'+(rows.length?rows.map(a=>dbJobRow(a,'full',true)).join(''):'<div class="db-empty">'+Q.empty+'</div>')+'</div></div>';}
 function dbGoUnassigned(){navTo('scheduler');showUnassigned();}
 function dbGoUnassignedToday(){gotoDate(TODAY);showUnassigned();}
 
-function dbWhen(a,withDate){let s='';
+/* withDate: false = time only (Today), true = "Mon 15 · 9a" (a week or month),
+   'full' = "Aug 3, 2026" (a work queue spanning months, where the weekday and
+   time matter less than how old it is). */
+function dbWhen(a,withDate){
+  if(withDate==='full'){if(!a.dateKey)return '—';const [y,m,d]=a.dateKey.split('-').map(Number);
+    return new Date(y,m-1,d).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});}
+  let s='';
   if(withDate&&a.dateKey){const [y,m,d]=a.dateKey.split('-').map(Number);const dt=new Date(y,m-1,d);s=DOW[(dt.getDay()+6)%7]+' '+d+' · ';}
   return s+fmt(a.start);}
 function dbJobRow(a,withDate,withWho){const st=STATUS[a.status]||{label:a.status,color:'#9aa1ab'};
@@ -7249,9 +7297,14 @@ async function dbQuickAdd(){if(DB.qaBusy)return;
 
 /* v107: the page registry, lifted out of navTo so boot can validate a page
    name restored from sessionStorage before navigating to it. */
-const PAGE_TITLES={dashboard:'Dashboard',scheduler:'Scheduler',toschedule:'To Schedule',quickquote:'Quick Quote',installers:'Users',dealers:'Dealers',customers:'Customers',inventory:'Receiving',rates:'Service Rates',reports:'Reports'};
+const PAGE_TITLES={dashboard:'Dashboard',scheduler:'Scheduler',toschedule:'To Schedule',quickquote:'Quick Quote',installers:'Users',dealers:'Dealers',customers:'Customers',inventory:'Receiving',rates:'Service Rates',reports:'Reports',
+  issues:'Issues Reported',outstanding:'Completed, Not Closed'};
+/* v108: pages with no sidebar entry of their own light up their parent. The
+   two work queues are reached from the dashboard counts, so Dashboard stays
+   highlighted while you work through one. */
+const NAV_PARENT={issues:'dashboard',outstanding:'dashboard'};
 function navTo(p){if(!PAGE_TITLES[p])p='dashboard';if(!IS_ADMIN&&ADMIN_PAGES.has(p))p='scheduler';
-  page=p;document.querySelectorAll('.nav-item').forEach(n=>n.classList.toggle('active',n.dataset.page===p));
+  page=p;const navKey=NAV_PARENT[p]||p;document.querySelectorAll('.nav-item').forEach(n=>n.classList.toggle('active',n.dataset.page===navKey));
   /* Page memory for REFRESH only (landPage decides when it is honoured).
      sessionStorage is per tab, cleared on sign-out; failure is harmless. */
   try{sessionStorage.setItem('pl.page',p);}catch(e){}
@@ -7274,7 +7327,8 @@ function buildGeneric(p){const g=$('genericView');
   if(p==='quickquote'){buildQuickQuote();return}
   if(p==='rates'){buildRates();return}
   if(p==='reports'){buildReports();return}
-  if(p==='dashboard'){buildDashboard();return}}
+  if(p==='dashboard'){buildDashboard();return}
+  if(p==='issues'||p==='outstanding'){buildWorkQueue(p);return}}
 
 /* ===== Dealers — master/detail (v22).
    The list sources from DEALERS, not from job rows, so accounts with no live
@@ -8272,7 +8326,7 @@ let PROFILE=null,_booted=false,gateMode='signin';
 var LOGIN_FRESH=false;
 /* Role gating (v21). Fails closed: anything that isn't 'admin' is treated as an installer. */
 let IS_ADMIN=false;
-const ADMIN_PAGES=new Set(['installers','rates','reports']);
+const ADMIN_PAGES=new Set(['installers','rates','reports','issues','outstanding']);
 const gate=$('authGate'),gateBody=$('gateBody');
 function esc(s){return String(s||'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
 function gateForm(msg,ok){gate.classList.remove('hidden');
