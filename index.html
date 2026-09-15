@@ -233,6 +233,10 @@
   .dbx-head{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:12px}
   .dbx-fill{flex:1}
   .dbx-grow{flex:1;display:flex;flex-direction:column;justify-content:center;min-height:0}
+  /* v112: the desk chart box takes the card's spare height so dbxDrawBars can
+     measure it. Scoped to .dbx: the phone's .db-chart is untouched. */
+  .dbx .db-chart{flex:1;min-height:190px;display:flex;align-items:center}
+  .dbx .db-chart svg{width:100%}
   .dbx-pie{display:flex;align-items:center;justify-content:center;gap:22px;flex-wrap:wrap}
   .dbx-pie svg{width:190px;max-width:100%;height:auto;flex-shrink:0}
   .dbx-pie .tot{font-size:34px;font-weight:800;fill:var(--ink)}
@@ -7153,6 +7157,11 @@ function myInstallerId(){const id=PROFILE&&PROFILE.installer_id;if(!id)return nu
 function myDisplayName(){const id=PROFILE&&PROFILE.installer_id;
   const i=id?(INSTALLERS.find(x=>x.id===id)||ALL_INSTALLERS.find(x=>x.id===id)):null;
   return i?i.name:(PROFILE&&PROFILE.email?noteWho(PROFILE.email):'');}
+/* v112: the welcome line greets someone by their FIRST name -- the first word
+   of the linked installer's name. A single-word name is returned whole, and a
+   name that resolves to nothing at all gives '' so the heading falls back to a
+   bare "Welcome" rather than "Welcome, ". */
+function myFirstName(){return String(myDisplayName()||'').trim().split(/\s+/)[0]||'';}
 function dbAgendaInst(){return DB.agendaInst||myInstallerId()||'all';}
 
 const DB_ICONS={
@@ -7177,7 +7186,7 @@ function buildDashboard(){const g=$('genericView');const desk=dbIsDesk();DB.layo
      filter (right), then the full-width Agenda. Everything desk-only is under
      .dbx, so no phone rule is touched. The phone branch below is unchanged. */
   g.innerHTML='<div class="db'+(desk?' dbx':'')+'">'
-    +'<div class="db-hello"><h1>Welcome, <span id="dbName"></span></h1><div class="gp-sub" style="margin-bottom:0" id="dbDate"></div></div>'
+    +'<div class="db-hello"><h1 id="dbHi">Welcome</h1><div class="gp-sub" style="margin-bottom:0" id="dbDate"></div></div>'
     +(desk?'':'<div id="dbAlert"></div>')
     +(desk
       ?'<div class="dbx-top">'
@@ -7209,14 +7218,16 @@ function dbRefresh(){if(page!=='dashboard')return;
   if(!document.querySelector('#genericView .db'))return;
   if((dbIsDesk()?'desk':'field')!==DB.layout){buildDashboard();return;}
   const set=function(id,h){const el=$(id);if(el)el.innerHTML=h;};
-  const nm=$('dbName');if(nm)nm.textContent=myDisplayName();
+  const nm=$('dbHi');if(nm){const f=myFirstName();nm.textContent=f?'Welcome, '+f:'Welcome';}
   const dt=$('dbDate');if(dt)dt.textContent=TODAY.toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric',year:'numeric'});
   /* Today's unassigned work is an ALERT, above everything, not another tile. */
   const todayUn=IS_ADMIN?unassignedAppts().filter(a=>a.dateKey===_ymd(TODAY)).length:0;
   set('dbAlert',todayUn?'<div class="db-alert" role="alert" onclick="dbGoUnassignedToday()">'+DB_ICONS.alert
     +todayUn+' job'+(todayUn>1?'s':'')+' today '+(todayUn>1?'have':'has')+' no installer — assign now</div>':'');
   if($('dbxTiles'))set('dbxTiles',IS_ADMIN?dbxTilesHtml():'');
-  if($('dbxCharts'))set('dbxCharts',IS_ADMIN?dbxChartsHtml():'');
+  if($('dbxCharts')){set('dbxCharts',IS_ADMIN?dbxChartsHtml():'');
+    /* after layout, so clientWidth/clientHeight are real */
+    if($('dbxBars'))requestAnimationFrame(dbxDrawBars);}
   dbxSyncFilter('ch');dbxSyncFilter('ag');
   if($('dbCounts'))set('dbCounts',IS_ADMIN?dbCountsHtml():'');
   if($('dbMoney'))set('dbMoney',IS_ADMIN?dbMoneyHtml():'');
@@ -7317,26 +7328,53 @@ function dbMoneyTiles(D){
   return '<div class="db-money"><div><b>'+fmtMoney(D.tRev)+'</b><span>Revenue</span></div>'
     +'<div><b>'+fmtMoney(D.tCost)+'</b><span>Cost</span></div>'
     +'<div><b style="color:'+(D.tMargin>=0?'#4d7010':'#a3211d')+'">'+fmtMoney(D.tMargin)+'</b><span>Margin'+(D.tRev>0?' · '+D.tPct.toFixed(0)+'%':'')+'</span></div></div>';}
-function dbNice(x){const p=Math.pow(10,Math.floor(Math.log10(x)));const f=x/p;return (f<=1?1:f<=2?2:f<=5?5:10)*p;}
-function dbAbbr(v){return v>=1000?'$'+(v/1000).toFixed(v>=10000?0:1)+'k':'$'+Math.round(v);}
+/* v112: the Y axis scales to what is plotted.
+   Rule: aim for FOUR intervals, then round the raw interval (peak / 4) UP to
+   the next round number on the 1, 2, 2.5, 5, 10 ladder times a power of ten;
+   the top of the axis is the peak rounded up to a whole number of those
+   intervals, never fewer than two. So a week peaking at $900 reads
+   $0/$250/$500/$750/$1k and a YTD peaking at $120k reads $0/$50k/$100k/$150k --
+   both in round money, at any magnitude. Before v112 the interval was
+   peak / 3 on a 1, 2, 5 ladder, which on this business's numbers landed on
+   $2k almost every time. */
+function dbNice(x){if(!(x>0))return 1;
+  const p=Math.pow(10,Math.floor(Math.log10(x))),f=x/p;
+  return (f<=1?1:f<=2?2:f<=2.5?2.5:f<=5?5:10)*p;}
+/* Money for an axis label: whole dollars below $1k, then k with one decimal
+   only while it says something ($2.5k, but $150k not $150.0k). */
+function dbAbbr(v){if(!v)return '$0';
+  if(v<1000)return '$'+Math.round(v);
+  const k=v/1000;return '$'+(k>=100?Math.round(k):Math.round(k*10)/10)+'k';}
 /* Inline SVG bar chart: revenue and cost side by side per day. No library, no
    network, colours from the light palette. viewBox scaling makes it fluid. */
-function dbBarsSvg(series){if(!series||!series.length)return '';
-  const W=640,H=190,L=46,R=8,T=10,B=24,n=series.length,iw=W-L-R,ih=H-T-B;
-  const max=Math.max(1,...series.map(s=>Math.max(s.rev,s.cost)));
-  const step=dbNice(max/3),top=Math.max(step*3,step*Math.ceil(max/step));
-  let out='<svg viewBox="0 0 '+W+' '+H+'" role="img" aria-label="Revenue and cost by day">';
+/* box (v112) is the measured pixel size of the container: {W,H}. With it the
+   chart is drawn in REAL PIXELS and every dimension is scaled by sc = W/640,
+   so a wide card renders exactly as the old fixed 640x190 viewBox did while a
+   narrow one is no longer squashed to a third of its height. Called with no
+   box (the phone's Booked work card) sc is 1 and the geometry is unchanged. */
+function dbBarsSvg(series,box){if(!series||!series.length)return '';
+  const sc=box?box.W/640:1;
+  const W=box?box.W:640,H=box?box.H:190;
+  const L=46*sc,R=8*sc,T=10*sc,B=24*sc,n=series.length,iw=W-L-R,ih=H-T-B;
+  const fs=Math.max(10*sc,box?9:10),sw=Math.max(1*sc,0.6),rx=2*sc;
+  const peak=Math.max(0,...series.map(s=>Math.max(s.rev,s.cost)));
+  /* Nothing booked: an axis of zeros says nothing, so say it in words. */
+  if(!(peak>0))return '<svg viewBox="0 0 '+W+' '+H+'" role="img" aria-label="No booked work in this period">'
+    +'<line class="g" style="stroke-width:'+sw.toFixed(2)+'px" x1="'+L.toFixed(1)+'" x2="'+(W-R).toFixed(1)+'" y1="'+(T+ih).toFixed(1)+'" y2="'+(T+ih).toFixed(1)+'"/>'
+    +'<text class="t" style="font-size:'+fs.toFixed(1)+'px" x="'+(W/2).toFixed(1)+'" y="'+(T+ih/2).toFixed(1)+'" text-anchor="middle">No booked work in this period</text></svg>';
+  const step=dbNice(peak/4);let top=Math.ceil(peak/step)*step;if(top<step*2)top=step*2;
+  let out='<svg viewBox="0 0 '+W.toFixed(1)+' '+H.toFixed(1)+'" role="img" aria-label="Revenue and cost by day">';
   for(let v=0;v<=top+1e-9;v+=step){const y=(T+ih-(v/top)*ih).toFixed(1);
-    out+='<line class="g" x1="'+L+'" x2="'+(W-R)+'" y1="'+y+'" y2="'+y+'"/><text class="t" x="'+(L-6)+'" y="'+(+y+3)+'" text-anchor="end">'+dbAbbr(v)+'</text>';}
-  const gw=iw/n,bw=Math.max(1.5,Math.min(18,gw*0.34));
+    out+='<line class="g" style="stroke-width:'+sw.toFixed(2)+'px" x1="'+L.toFixed(1)+'" x2="'+(W-R).toFixed(1)+'" y1="'+y+'" y2="'+y+'"/><text class="t" style="font-size:'+fs.toFixed(1)+'px" x="'+(L-6*sc).toFixed(1)+'" y="'+(+y+3*sc).toFixed(1)+'" text-anchor="end">'+dbAbbr(v)+'</text>';}
+  const gw=iw/n,bw=Math.max(1.5*sc,Math.min(18*sc,gw*0.34));
   series.forEach(function(s,i){const cx=L+gw*i+gw/2;const [yy,mm,dd]=s.key.split('-').map(Number);const dt=new Date(yy,mm-1,dd||1);
     /* v109: a week or month bucket (dbxBuckets) brings its own label and tip. */
     const tip=esc((s.tipLabel||dt.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'}))+': revenue '+fmtMoney(s.rev)+', cost '+fmtMoney(s.cost)+', margin '+fmtMoney(s.rev-s.cost));
     const hr=s.rev/top*ih,hc=s.cost/top*ih;
-    out+='<g><title>'+tip+'</title><rect class="rev" x="'+(cx-bw-1).toFixed(1)+'" y="'+(T+ih-hr).toFixed(1)+'" width="'+bw.toFixed(1)+'" height="'+hr.toFixed(1)+'" rx="2"/>'
-      +'<rect class="cost" x="'+(cx+1).toFixed(1)+'" y="'+(T+ih-hc).toFixed(1)+'" width="'+bw.toFixed(1)+'" height="'+hc.toFixed(1)+'" rx="2"/></g>';
+    out+='<g><title>'+tip+'</title><rect class="rev" x="'+(cx-bw-1*sc).toFixed(1)+'" y="'+(T+ih-hr).toFixed(1)+'" width="'+bw.toFixed(1)+'" height="'+hr.toFixed(1)+'" rx="'+rx.toFixed(1)+'"/>'
+      +'<rect class="cost" x="'+(cx+1*sc).toFixed(1)+'" y="'+(T+ih-hc).toFixed(1)+'" width="'+bw.toFixed(1)+'" height="'+hc.toFixed(1)+'" rx="'+rx.toFixed(1)+'"/></g>';
     const lbl=s.label!==undefined?s.label:(n<=7?DOW[(dt.getDay()+6)%7]:((dd===1||dd%5===0)?String(dd):''));
-    if(lbl)out+='<text class="t" x="'+cx.toFixed(1)+'" y="'+(H-7)+'" text-anchor="middle">'+lbl+'</text>';});
+    if(lbl)out+='<text class="t" style="font-size:'+fs.toFixed(1)+'px" x="'+cx.toFixed(1)+'" y="'+(H-7*sc).toFixed(1)+'" text-anchor="middle">'+lbl+'</text>';});
   return out+'</svg>';}
 
 /* ===== v109: desk dashboard -- tiles, shared chart filter, pie ===========
@@ -7430,11 +7468,25 @@ function dbxPieHtml(rows){
   return '<div class="dbx-pie">'+svg+'<div class="dbx-leg">'
     +counts.map(c=>'<div><i style="background:'+c[1]+'"></i><span>'+c[0]+'</span><b>'+c[2]+'</b><em>'+(total?Math.round(c[2]/total*100):0)+'%</em></div>').join('')
     +'</div></div>';}
+/* The desk bar chart is drawn AFTER layout, from the measured size of its box
+   (dbxDrawBars), because its height can only be known once the card has been
+   laid out beside the tile stack. DBX_BARS holds the series between the two. */
+var DBX_BARS=null;
+function dbxDrawBars(){const el=$('dbxBars');if(!el||!DBX_BARS)return;
+  const W=Math.max(240,Math.round(el.clientWidth));
+  const avail=Math.round(el.clientHeight)||0;
+  /* Never shorter than the 190 the old fixed viewBox drew, never taller than
+     the box, and on a wide card exactly the height it has always been
+     (width / 3.37) -- so a desktop is pixel-for-pixel unchanged and only the
+     squashed laptop case grows. */
+  const aspect=W*190/640,want=Math.max(aspect,190);
+  const H=Math.round(avail?Math.min(want,Math.max(avail,140)):want);
+  el.innerHTML=dbBarsSvg(DBX_BARS,{W:W,H:H});}
 function dbxChartsHtml(){const P=dbxResolve(DB.chP,DB.chFrom,DB.chTo);
   const D=reportData({period:P.period,from:P.from,to:P.to,status:'all',inst:'all',allDealers:true,noTasks:true,byDay:true});
-  const series=dbxBuckets(D.byDay,dbxMode(DB.chP,P));
+  const series=dbxBuckets(D.byDay,dbxMode(DB.chP,P));DBX_BARS=series;
   return '<section class="dbx-card"><div class="dbx-head"><h3>Booked Jobs</h3></div>'+dbMoneyTiles(D)
-    +'<div class="dbx-grow"><div class="db-chart">'+dbBarsSvg(series)+'</div></div>'
+    +'<div class="dbx-grow"><div class="db-chart" id="dbxBars"></div></div>'
     +'<div class="db-leg"><span><i style="background:#b49e6f"></i>Revenue</span><span><i style="background:#8c877d"></i>Cost</span><span>'+D.rows.length+' scheduled job'+(D.rows.length===1?'':'s')+'</span></div></section>'
     +'<section class="dbx-card"><div class="dbx-head"><h3>Job Types</h3></div><div class="dbx-grow">'+dbxPieHtml(D.rows)+'</div></section>';}
 
@@ -8481,6 +8533,11 @@ if(queueHead)queueHead.addEventListener('click',()=>{if(MOBILE_Q.matches)documen
 MOBILE_Q.addEventListener('change',()=>{if(!MOBILE_Q.matches){setNav(false);document.body.classList.remove('queueopen');}});
 /* v107: crossing 640px switches the dashboard between desk and field. */
 MOBILE_Q.addEventListener('change',()=>{if(page==='dashboard')buildDashboard();});
+/* v112: the desk bar chart is sized from its measured box, so a window resize
+   has to redraw it. Debounced, and it redraws nothing else. */
+var _dbxResize=0;
+window.addEventListener('resize',function(){if(page!=='dashboard')return;
+  clearTimeout(_dbxResize);_dbxResize=setTimeout(function(){if(page==='dashboard'&&$('dbxBars'))dbxDrawBars();},150);});
 
 /* ===== Swipe between days (v24) — mobile day view only.
    This adds an INPUT path, not a new render path: it ends in stepDay(±1) then
