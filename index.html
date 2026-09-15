@@ -2125,7 +2125,7 @@ function openDrawer(id){let a=appts.find(x=>x.id===id),mode='appt';if(!a){a=queu
   {const ad=drMapAddr(a.addr);
     $('drAddr').innerHTML=ad?drMapLink(ad):'\u2014';}
   {const ph=a.phone||'';$('drPhone').innerHTML=ph?`<a class="tel" href="tel:${telDigits(ph)}">${ph}</a>`:'—';}
-  const li=a.lineItems||[];if(li.length){const d=li.filter(x=>x.delivered).length;$('drProductFld').style.display='block';$('drProduct').innerHTML=d===li.length?`<span style="color:#7c9a3f">All ${li.length} line item${li.length>1?'s':''} delivered</span>`:`<span style="color:#caa017">${d}/${li.length} delivered — awaiting product</span>`;}else $('drProductFld').style.display='none';
+  drRenderProduct(a);
   renderDrPricing(a);drCancelEdit();
   $('drScope').value=a.scope||'';
   /* Notes are their own append-only feed as of v44; nothing to prefill. */
@@ -2804,7 +2804,41 @@ $('drDealer').onclick=dlrOpen;
    on ic alone, so this needs no per-type wiring and works in the queue
    drawer too. The field is only rendered when the job HAS line items, which
    is exactly when the stock view has anything to say. */
-$('drProduct').onclick=function(){openModal('box','Confirm Stock Received');};
+function drProductOpen(){openModal('box','Confirm Stock Received');}
+/* v110: the drawer's Product status row. Until v110 it counted EVERY line
+   (services too) by the old delivered boolean and said "awaiting product" for
+   any job with lines, ignoring awaiting_product and override_schedule -- so a
+   job created "No - ready to schedule" read as awaiting product, and its row
+   led into Receiving, while every other surface correctly treated it as ready.
+   It now reads exactly what Receiving reads:
+   - stockLines() only, so service lines are never counted as products;
+   - liFull() on received quantity, so a part-received line reads the same as
+     it does in Receiving and in the stock popup;
+   - "awaiting product" only when stillAwaiting() or partialAwaiting() says so.
+   Strings:
+     awaiting            "{got}/{n} delivered — awaiting product"    amber, link
+     flagged, all in     "All {n} line item(s) delivered"             green, link
+     not flagged ("No")  "{got} of {n} product(s) received"           plain, no link
+     no product lines    row hidden, whatever the flag
+   The row is the Receiving link (it opens the stock popup, whose button is Go
+   to Receiving). It is offered only on a job flagged awaiting product, in every
+   state that job can be in -- exactly as before for those jobs -- and never on
+   a "No" job, which Receiving has nothing to say about. */
+function drRenderProduct(a){const fld=$('drProductFld'),el=$('drProduct');
+  const stock=stockLines(a.lineItems);
+  if(!stock.length){fld.style.display='none';el.onclick=null;return;}
+  const n=stock.length,got=stock.filter(liFull).length;
+  const link=!!a.awaitingProduct;
+  fld.style.display='block';
+  if(stillAwaiting(a)||partialAwaiting(a))
+    el.innerHTML=`<span style="color:#caa017">${got}/${n} delivered — awaiting product</span>`;
+  else if(a.awaitingProduct)
+    el.innerHTML=`<span style="color:#7c9a3f">All ${n} line item${n>1?'s':''} delivered</span>`;
+  else
+    el.textContent=got+' of '+n+' product'+(n===1?'':'s')+' received';
+  el.onclick=link?drProductOpen:null;
+  el.style.cursor=link?'pointer':'default';
+  el.style.textDecoration=link?'underline':'none';}
 $('dlrClose').onclick=dlrClosePopup;$('dlrCancel').onclick=dlrClosePopup;
 $('dlrBg').addEventListener('click',e=>{if(e.target.id==='dlrBg')dlrClosePopup()});
 
@@ -8583,9 +8617,23 @@ function bootApp(){if(_booted)return;_booted=true;
   /* v107: only the Scheduler used to redraw when data arrived, because it was
      the only page anyone booted onto. Now the landing page may be the
      dashboard or a page restored on refresh, so redraw whichever page is
-     showing once everything has loaded -- otherwise it shows zeros. */
-  loadAll().then(function(){if(page!=='scheduler')buildGeneric(page);});
-  loadServices();}
+     showing once everything has loaded -- otherwise it shows zeros.
+     v110: "everything" now includes the services catalogue. isStockLine()
+     treats a line whose service is not yet known as stock, so until SERVICES
+     arrives a flagged job whose only open lines are services counts as
+     awaiting product -- in the Receiving badge, the queue, the hourglass tags
+     -- and loadServices() itself redraws only the Rates page. The two loads
+     still run in parallel; this ONE redraw waits for both, replacing the
+     v107 redraw rather than adding a second:
+       renderQueue()  queue rail, To Schedule/Receiving badges
+       render()       calendar tiles (hourglass); via dbSchedule() also the
+                      dashboard and the work queues, coalesced into one pass
+       buildGeneric() any other page that is showing (To Schedule, Receiving,
+                      Reports...) -- skipped for the DB_LIVE pages render()
+                      has already scheduled, so none is drawn twice. */
+  Promise.all([loadAll(),loadServices()]).then(function(){
+    renderQueue();render();
+    if(page!=='scheduler'&&!DB_LIVE[page])buildGeneric(page);});}
 /* v107: where a session lands.
    - A real sign-in in this tab (LOGIN_FRESH) -> Dashboard.
    - A REFRESH (or back/forward) -> the page this tab was on, if remembered.
