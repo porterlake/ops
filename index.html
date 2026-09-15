@@ -2815,30 +2815,37 @@ function drProductOpen(){openModal('box','Confirm Stock Received');}
    - liFull() on received quantity, so a part-received line reads the same as
      it does in Receiving and in the stock popup;
    - "awaiting product" only when stillAwaiting() or partialAwaiting() says so.
+   v111: a job that is NOT flagged has nothing to receive, so it is never
+   counted -- "No - ready to schedule" means no product on order, whatever
+   line items it carries. Counting and the link belong to flagged jobs only.
    Strings:
-     awaiting            "{got}/{n} delivered — awaiting product"    amber, link
-     flagged, all in     "All {n} line item(s) delivered"             green, link
-     not flagged ("No")  "{got} of {n} product(s) received"           plain, no link
-     no product lines    row hidden, whatever the flag
+     awaiting              "{got}/{n} delivered — awaiting product"  amber, link
+     flagged, all in       "All {n} line item(s) delivered"           green, link
+     flagged, no products  row hidden (only services, or no lines)
+     not flagged ("No")    "Nothing to receive"                       plain, no link
+                           -- any line items at all, product or service
+     not flagged, no lines row hidden: there is nothing to say
    The row is the Receiving link (it opens the stock popup, whose button is Go
    to Receiving). It is offered only on a job flagged awaiting product, in every
    state that job can be in -- exactly as before for those jobs -- and never on
    a "No" job, which Receiving has nothing to say about. */
 function drRenderProduct(a){const fld=$('drProductFld'),el=$('drProduct');
+  if(!a.awaitingProduct){
+    const any=(a.lineItems||[]).length>0;
+    fld.style.display=any?'block':'none';
+    el.textContent=any?'Nothing to receive':'';
+    el.onclick=null;el.style.cursor='default';el.style.textDecoration='none';
+    return;}
   const stock=stockLines(a.lineItems);
   if(!stock.length){fld.style.display='none';el.onclick=null;return;}
+  /* Flagged from here on: the row counts and is the Receiving link. */
   const n=stock.length,got=stock.filter(liFull).length;
-  const link=!!a.awaitingProduct;
   fld.style.display='block';
   if(stillAwaiting(a)||partialAwaiting(a))
     el.innerHTML=`<span style="color:#caa017">${got}/${n} delivered — awaiting product</span>`;
-  else if(a.awaitingProduct)
-    el.innerHTML=`<span style="color:#7c9a3f">All ${n} line item${n>1?'s':''} delivered</span>`;
   else
-    el.textContent=got+' of '+n+' product'+(n===1?'':'s')+' received';
-  el.onclick=link?drProductOpen:null;
-  el.style.cursor=link?'pointer':'default';
-  el.style.textDecoration=link?'underline':'none';}
+    el.innerHTML=`<span style="color:#7c9a3f">All ${n} line item${n>1?'s':''} delivered</span>`;
+  el.onclick=drProductOpen;el.style.cursor='pointer';el.style.textDecoration='underline';}
 $('dlrClose').onclick=dlrClosePopup;$('dlrCancel').onclick=dlrClosePopup;
 $('dlrBg').addEventListener('click',e=>{if(e.target.id==='dlrBg')dlrClosePopup()});
 
