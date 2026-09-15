@@ -204,10 +204,45 @@
   .db-seg{display:inline-flex;border:1px solid var(--border);border-radius:9px;overflow:hidden}
   .db-seg button{border:0;background:transparent;font:inherit;font-size:12px;padding:6px 10px;cursor:pointer;color:var(--muted)}
   .db-seg button.on{background:var(--ink);color:#fff}
-  /* v108: the desk toggles reuse .seg.ghost.dl-seg for colour. .dl-seg's own
-     size is the Dealers page's compact 11px; this sizes them to sit level with
-     the Add task button and the selects beside them. Geometry only. */
-  .db-head .dl-seg button{font-size:12.5px;padding:6px 12px}
+  /* v109 DESK dashboard. Every rule is scoped under .dbx, which only the desk
+     layout renders, so no phone rule changes. Layout reflows with flex-wrap and
+     auto-fit grids -- no breakpoint of its own:
+     - the right column (flex 999, basis 640px) sits beside the tiles until the
+       row cannot fit both, then wraps UNDER them;
+     - the tiles are one column beside the charts and 2-up when full width;
+     - the two charts sit side by side from 616px and stack below that.
+     max-width 2280px: a 27in display is 2560 CSS px (QHD at 100%, 5K at 2x);
+     minus the 226px sidebar and 64px page padding that is 2270px, so it fills
+     edge to edge, while an ultrawide stops there instead of stretching. */
+  .db.dbx{max-width:2280px}
+  .dbx .db-hello h1{font-weight:300;text-transform:uppercase;letter-spacing:.16em;color:var(--ink)}
+  .dbx-top{display:flex;flex-wrap:wrap;gap:16px;align-items:stretch;margin:6px 0 16px}
+  .dbx-tiles{flex:1 1 220px;display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,260px),1fr));grid-auto-rows:1fr;gap:12px;min-width:0}
+  .dbx-tile{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:16px 18px;display:flex;flex-direction:column;justify-content:space-between;gap:10px;min-height:118px;min-width:0}
+  .dbx-tile b{font-size:32px;font-weight:800;line-height:1.1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .dbx-tile.money b{font-size:24px}
+  .dbx-tile span{font-size:12.5px;font-weight:600;color:var(--muted)}
+  .dbx-tile.go{cursor:pointer}.dbx-tile.go:hover{border-color:var(--accent-line)}
+  .dbx-tile.hot b{color:#a3211d}
+  .dbx-right{flex:999 1 640px;display:flex;flex-direction:column;gap:10px;min-width:0}
+  .dbx-filter{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+  .dbx-lbl{font-size:10.5px;letter-spacing:1.2px;text-transform:uppercase;color:var(--muted)}
+  .dbx-charts{flex:1;display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:16px}
+  .dbx-card{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:16px;min-width:0;display:flex;flex-direction:column}
+  .dbx-card h3{font-size:15px;font-weight:800}
+  .dbx-head{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:12px}
+  .dbx-fill{flex:1}
+  .dbx-grow{flex:1;display:flex;flex-direction:column;justify-content:center;min-height:0}
+  .dbx-pie{display:flex;align-items:center;justify-content:center;gap:22px;flex-wrap:wrap}
+  .dbx-pie svg{width:190px;max-width:100%;height:auto;flex-shrink:0}
+  .dbx-pie .tot{font-size:34px;font-weight:800;fill:var(--ink)}
+  .dbx-pie .cap{font-size:11px;fill:var(--muted)}
+  .dbx-leg{display:flex;flex-direction:column;gap:9px;min-width:170px}
+  .dbx-leg div{display:flex;align-items:center;gap:9px;font-size:13px}
+  .dbx-leg i{width:11px;height:11px;border-radius:3px;flex-shrink:0}
+  .dbx-leg b{margin-left:auto;font-weight:700}
+  .dbx-leg em{font-style:normal;color:var(--muted);min-width:38px;text-align:right}
+  .dbx-agenda .db-qa{max-width:900px}
   .db-sel{font:inherit;font-size:12.5px;padding:6px 8px;border:1px solid var(--border);border-radius:9px;background:var(--card);color:var(--ink);max-width:100%}
   .db-qa{display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap}
   .db-qa input{flex:1 1 180px;min-width:0;font:inherit;padding:8px 10px;border:1px solid var(--border);border-radius:9px;background:var(--card);color:var(--ink)}
@@ -281,7 +316,7 @@
   .stamp{font-size:11px;color:var(--muted)}
 
   /* DRAWER (dark popover style) */
-  .drawer{position:fixed;top:0;right:0;height:100vh;width:386px;background:var(--side-2);border-left:1px solid var(--side-border);box-shadow:-24px 0 60px rgba(0,0,0,.5);transform:translateX(100%);transition:transform .26s cubic-bezier(.4,0,.2,1);z-index:50;display:flex;flex-direction:column;color:var(--sand-ink)}
+  .drawer{position:fixed;top:0;right:0;height:100vh;width:386px;background:var(--side-2);border-left:1px solid var(--side-border);box-shadow:none;transform:translateX(100%);transition:transform .26s cubic-bezier(.4,0,.2,1);z-index:50;display:flex;flex-direction:column;color:var(--sand-ink)}
   .drawer.open{transform:translateX(0)}
   .dr-head{flex:0 0 auto;padding:18px 22px;border-bottom:1px solid var(--side-border);display:flex;align-items:flex-start;gap:12px}
   .dr-head .typetag{font-size:9.5px;font-weight:800;letter-spacing:.8px;text-transform:uppercase;padding:3px 8px;border-radius:5px;display:inline-block;margin-bottom:7px}
@@ -1113,6 +1148,10 @@ body.role-installer [data-admin]{display:none!important}
    "delete from this comment to the end" note stays true.
    ===================================================================== */
 @media (min-width:641px){
+  /* v109: the drawer casts its shadow ONLY while open. Closed, it sits just
+     off the right edge (translateX(100%)) and its 60px blur used to bleed a dark
+     strip into every desktop page. The phone drawer is full width with no shadow. */
+  .drawer.open{box-shadow:-24px 0 60px rgba(0,0,0,.5)}
   .fld select,.durrow select{
     -webkit-appearance:none;-moz-appearance:none;appearance:none;
     background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23a99c7e' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
@@ -7050,10 +7089,15 @@ document.addEventListener('change',function(e){
    signed-in user in the tenant read (and delete) every installer's
    documents. Nothing here enforces "own documents only". That is Q17, and it
    must land before any non-admin login exists. */
-var DB={agendaPeriod:'today',agendaInst:null,moneyPeriod:'week',panel:null,qaWho:null,qaBusy:false,docsState:'idle',layout:null};
+/* v109: the desk layout keeps its OWN period state -- chP/chFrom/chTo for the
+   two charts, agP/agFrom/agTo for the Agenda -- separate from moneyPeriod,
+   which belongs to the phone's Today/Week/Month buttons. A desk "This Qtr"
+   can therefore never leave the phone with no button selected. */
+var DB={agendaInst:null,moneyPeriod:'week',panel:null,qaWho:null,qaBusy:false,docsState:'idle',layout:null,
+  chP:'week',chFrom:'',chTo:'',agP:'today',agFrom:'',agTo:''};
 var DB_DOCS=[];   /* the viewer's source for My Docs; separate from IP_DOCS so an open profile popup is never clobbered */
 var _dbTimer=0;
-function dbReset(){DB.agendaPeriod='today';DB.agendaInst=null;DB.moneyPeriod='week';DB.panel=null;DB.qaWho=null;DB.docsState='idle';DB.layout=null;DB_DOCS=[];}
+function dbReset(){DB.chP='week';DB.chFrom='';DB.chTo='';DB.agP='today';DB.agFrom='';DB.agTo='';DB.agendaInst=null;DB.moneyPeriod='week';DB.panel=null;DB.qaWho=null;DB.docsState='idle';DB.layout=null;DB_DOCS=[];}
 /* Coalesce the many render() calls one action can trigger into one redraw. */
 function dbSchedule(){if(!DB_LIVE||!DB_LIVE[page]||_dbTimer)return;_dbTimer=setTimeout(function(){_dbTimer=0;const f=DB_LIVE[page];if(f)f();},0);}
 /* v108: every page that must follow job and appointment changes live, and how
@@ -7078,32 +7122,34 @@ const DB_ICONS={
   docs:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M8 13h8M8 17h5"/></svg>',
   alert:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9v4M12 17h.01"/></svg>'};
 
-/* v108: sand=true (desk layout) uses the app's existing sand toggle, the
-   .seg.ghost.dl-seg pattern the Dealers period picker already uses -- the same
-   accent background and black text as the New Job .btn, plus the selected
-   state .btn does not have. The phone layout keeps the plain .db-seg. */
-function dbSeg(which,sand){const cur=DB[which+'Period'];
-  return '<div class="'+(sand?'seg ghost dl-seg':'db-seg')+'" id="dbSeg_'+which+'">'+[['today','Today'],['week','This Week'],['month','This Month']]
+/* The phone layout's Today/Week/Month buttons (Booked work). Since v109 the
+   desk layout uses the period dropdown instead (dbxFilterHtml). */
+function dbSeg(which){const cur=DB[which+'Period'];
+  return '<div class="db-seg" id="dbSeg_'+which+'">'+[['today','Today'],['week','This Week'],['month','This Month']]
     .map(o=>'<button type="button" data-p="'+o[0]+'" class="'+(cur===o[0]?'on':'')+'" onclick="dbSetPeriod(\''+which+'\',\''+o[0]+'\')">'+o[1]+'</button>').join('')+'</div>';}
 function dbSetPeriod(which,p){DB[which+'Period']=p;
   document.querySelectorAll('#dbSeg_'+which+' button').forEach(b=>b.classList.toggle('on',b.dataset.p===p));dbRefresh();}
 function dbSetAgendaInst(v){DB.agendaInst=v||'all';dbRefresh();}
 
 function buildDashboard(){const g=$('genericView');const desk=dbIsDesk();DB.layout=desk?'desk':'field';
-  g.innerHTML='<div class="db">'
+  /* v109 desk: welcome, then tiles (left) beside two charts under ONE shared
+     filter (right), then the full-width Agenda. Everything desk-only is under
+     .dbx, so no phone rule is touched. The phone branch below is unchanged. */
+  g.innerHTML='<div class="db'+(desk?' dbx':'')+'">'
     +'<div class="db-hello"><h1>Welcome, <span id="dbName"></span></h1><div class="gp-sub" style="margin-bottom:0" id="dbDate"></div></div>'
-    +'<div id="dbAlert"></div>'
+    +(desk?'':'<div id="dbAlert"></div>')
     +(desk
-      ?'<div class="db-counts" id="dbCounts"></div>'
-        +'<div class="db-grid">'
-        +'<section class="db-card"><div class="db-head"><h3>Your Agenda</h3><div class="db-fill"></div>'+dbSeg('agenda',true)
+      ?'<div class="dbx-top">'
+        +'<div class="dbx-tiles" id="dbxTiles"></div>'
+        +'<div class="dbx-right"><div class="dbx-filter"><span class="dbx-lbl">Period</span>'+dbxFilterHtml('ch')+'</div>'
+        +'<div class="dbx-charts" id="dbxCharts"></div></div>'
+        +'</div>'
+        +'<section class="dbx-card dbx-agenda"><div class="dbx-head"><h3>Agenda</h3><div class="dbx-fill"></div>'+dbxFilterHtml('ag')
         +'<select class="db-sel" id="dbAgInst" onchange="dbSetAgendaInst(this.value)" aria-label="Whose agenda"></select></div>'
         +'<div class="db-qa"><input id="dbQaText" maxlength="200" placeholder="Add a task for today…" aria-label="New task">'
         +'<select class="db-sel" id="dbQaWho" onchange="DB.qaWho=this.value" aria-label="Assign to"></select>'
         +'<button type="button" class="btn" id="dbQaGo" onclick="dbQuickAdd()">Add task</button></div>'
         +'<div id="dbAgenda"></div></section>'
-        +'<section class="db-card"><div class="db-head"><h3>Booked work</h3><div class="db-fill"></div>'+dbSeg('money',true)+'</div><div id="dbMoney"></div></section>'
-        +'</div>'
       :'<div class="db-tiles" id="dbTiles"></div>'
         +(IS_ADMIN?'<div class="db-counts" id="dbCounts"></div>'
           +'<div class="db-card" style="margin-bottom:16px"><div class="db-head"><h3>Booked work</h3><div class="db-fill"></div>'+dbSeg('money')+'</div><div id="dbMoney"></div></div>':'')
@@ -7128,6 +7174,9 @@ function dbRefresh(){if(page!=='dashboard')return;
   const todayUn=IS_ADMIN?unassignedAppts().filter(a=>a.dateKey===_ymd(TODAY)).length:0;
   set('dbAlert',todayUn?'<div class="db-alert" role="alert" onclick="dbGoUnassignedToday()">'+DB_ICONS.alert
     +todayUn+' job'+(todayUn>1?'s':'')+' today '+(todayUn>1?'have':'has')+' no installer — assign now</div>':'');
+  if($('dbxTiles'))set('dbxTiles',IS_ADMIN?dbxTilesHtml():'');
+  if($('dbxCharts'))set('dbxCharts',IS_ADMIN?dbxChartsHtml():'');
+  dbxSyncFilter('ch');dbxSyncFilter('ag');
   if($('dbCounts'))set('dbCounts',IS_ADMIN?dbCountsHtml():'');
   if($('dbMoney'))set('dbMoney',IS_ADMIN?dbMoneyHtml():'');
   if($('dbAgenda')){
@@ -7181,6 +7230,7 @@ function dbWhen(a,withDate){
   if(withDate==='full'){if(!a.dateKey)return '—';const [y,m,d]=a.dateKey.split('-').map(Number);
     return new Date(y,m-1,d).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});}
   let s='';
+  if(withDate==='md'&&a.dateKey){const [y,m,d]=a.dateKey.split('-').map(Number);return MONTHN[m-1].slice(0,3)+' '+d+' · '+fmt(a.start);}
   if(withDate&&a.dateKey){const [y,m,d]=a.dateKey.split('-').map(Number);const dt=new Date(y,m-1,d);s=DOW[(dt.getDay()+6)%7]+' '+d+' · ';}
   return s+fmt(a.start);}
 function dbJobRow(a,withDate,withWho){const st=STATUS[a.status]||{label:a.status,color:'#9aa1ab'};
@@ -7197,27 +7247,35 @@ function dbTaskRow(a,withDate,withWho){
     +'<div class="db-main" onclick="openDrawer(\''+esc(a.id)+'\')"><div class="gname">'+esc(a.scope&&a.scope!=='—'?a.scope:(a.taskType||'Task'))+'</div>'
     +'<div class="gmeta">'+esc(meta.join(' · '))+'</div></div></div>';}
 function dbSortAppts(list){return list.sort((x,y)=>(x.dateKey||'').localeCompare(y.dateKey||'')||x.start-y.start);}
-/* Your Agenda: that person's visits in the period as line items, then their
-   Tasks as the to-do list. A Task IS the to-do -- there is no second system. */
-function dbAgendaHtml(){const P={period:DB.agendaPeriod},inst=dbAgendaInst();
+/* Agenda: that person's visits in the period as line items, then their Tasks
+   as the to-do list. A Task IS the to-do -- there is no second system.
+   v109: its own period (DB.agP, Today by default) and each list is capped at
+   DB_AGENDA_CAP rows, earliest first, with a "showing N of M" count. */
+const DB_AGENDA_CAP=50;
+function dbAgendaHtml(){const P=dbxResolve(DB.agP,DB.agFrom,DB.agTo),inst=dbAgendaInst();
   const items=dbSortAppts(appts.filter(a=>inPeriodFor(a.dateKey,P)&&(inst==='all'||a.installer===inst)));
   const jobs=items.filter(a=>!isTask(a)),tasks=items.filter(isTask);
-  const withDate=P.period!=='today',withWho=inst==='all';
-  const open=tasks.filter(a=>!a.taskDone).length;
-  return '<div class="db-sub">Jobs · '+jobs.length+'</div>'
-    +(jobs.length?jobs.map(a=>dbJobRow(a,withDate,withWho)).join(''):'<div class="db-empty">No jobs scheduled.</div>')
-    +'<div class="db-sub">Tasks · '+open+' open of '+tasks.length+'</div>'
-    +(tasks.length?tasks.map(a=>dbTaskRow(a,withDate,withWho)).join(''):'<div class="db-empty">No tasks. Add one above.</div>');}
+  const withDate=DB.agP==='today'?false:(DB.agP==='week'?true:'md'),withWho=inst==='all';
+  const open=tasks.filter(a=>!a.taskDone).length,cap=DB_AGENDA_CAP;
+  const shown=function(n){return n>cap?'showing '+cap+' of '+n:String(n);};
+  return '<div class="db-sub">Jobs · '+shown(jobs.length)+'</div>'
+    +(jobs.length?jobs.slice(0,cap).map(a=>dbJobRow(a,withDate,withWho)).join(''):'<div class="db-empty">No jobs scheduled.</div>')
+    +'<div class="db-sub">Tasks · '+open+' open of '+tasks.length+(tasks.length>cap?' · showing '+cap:'')+'</div>'
+    +(tasks.length?tasks.slice(0,cap).map(a=>dbTaskRow(a,withDate,withWho)).join(''):'<div class="db-empty">No tasks. Add one above.</div>');}
 
 /* Booked work: everything SCHEDULED in the period, whatever its status. Tasks
    are excluded from the count; apptFinance already books them at zero. */
 function dbMoneyHtml(){
   const D=reportData({period:DB.moneyPeriod,status:'all',inst:'all',allDealers:true,noTasks:true,byDay:true});
-  return '<div class="db-money"><div><b>'+fmtMoney(D.tRev)+'</b><span>Revenue</span></div>'
-    +'<div><b>'+fmtMoney(D.tCost)+'</b><span>Cost</span></div>'
-    +'<div><b style="color:'+(D.tMargin>=0?'#4d7010':'#a3211d')+'">'+fmtMoney(D.tMargin)+'</b><span>Margin'+(D.tRev>0?' · '+D.tPct.toFixed(0)+'%':'')+'</span></div></div>'
+  return dbMoneyTiles(D)
     +'<div class="db-chart">'+dbBarsSvg(D.byDay)+'</div>'
     +'<div class="db-leg"><span><i style="background:#b49e6f"></i>Revenue</span><span><i style="background:#8c877d"></i>Cost</span><span>'+D.rows.length+' scheduled job'+(D.rows.length===1?'':'s')+'</span></div>';}
+/* Revenue / cost / margin tiles for a reportData result. Shared by the phone
+   Booked work card and the desk Booked Jobs chart so they read identically. */
+function dbMoneyTiles(D){
+  return '<div class="db-money"><div><b>'+fmtMoney(D.tRev)+'</b><span>Revenue</span></div>'
+    +'<div><b>'+fmtMoney(D.tCost)+'</b><span>Cost</span></div>'
+    +'<div><b style="color:'+(D.tMargin>=0?'#4d7010':'#a3211d')+'">'+fmtMoney(D.tMargin)+'</b><span>Margin'+(D.tRev>0?' · '+D.tPct.toFixed(0)+'%':'')+'</span></div></div>';}
 function dbNice(x){const p=Math.pow(10,Math.floor(Math.log10(x)));const f=x/p;return (f<=1?1:f<=2?2:f<=5?5:10)*p;}
 function dbAbbr(v){return v>=1000?'$'+(v/1000).toFixed(v>=10000?0:1)+'k':'$'+Math.round(v);}
 /* Inline SVG bar chart: revenue and cost side by side per day. No library, no
@@ -7230,14 +7288,114 @@ function dbBarsSvg(series){if(!series||!series.length)return '';
   for(let v=0;v<=top+1e-9;v+=step){const y=(T+ih-(v/top)*ih).toFixed(1);
     out+='<line class="g" x1="'+L+'" x2="'+(W-R)+'" y1="'+y+'" y2="'+y+'"/><text class="t" x="'+(L-6)+'" y="'+(+y+3)+'" text-anchor="end">'+dbAbbr(v)+'</text>';}
   const gw=iw/n,bw=Math.max(1.5,Math.min(18,gw*0.34));
-  series.forEach(function(s,i){const cx=L+gw*i+gw/2;const [yy,mm,dd]=s.key.split('-').map(Number);const dt=new Date(yy,mm-1,dd);
-    const tip=esc(dt.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'})+': revenue '+fmtMoney(s.rev)+', cost '+fmtMoney(s.cost)+', margin '+fmtMoney(s.rev-s.cost));
+  series.forEach(function(s,i){const cx=L+gw*i+gw/2;const [yy,mm,dd]=s.key.split('-').map(Number);const dt=new Date(yy,mm-1,dd||1);
+    /* v109: a week or month bucket (dbxBuckets) brings its own label and tip. */
+    const tip=esc((s.tipLabel||dt.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'}))+': revenue '+fmtMoney(s.rev)+', cost '+fmtMoney(s.cost)+', margin '+fmtMoney(s.rev-s.cost));
     const hr=s.rev/top*ih,hc=s.cost/top*ih;
     out+='<g><title>'+tip+'</title><rect class="rev" x="'+(cx-bw-1).toFixed(1)+'" y="'+(T+ih-hr).toFixed(1)+'" width="'+bw.toFixed(1)+'" height="'+hr.toFixed(1)+'" rx="2"/>'
       +'<rect class="cost" x="'+(cx+1).toFixed(1)+'" y="'+(T+ih-hc).toFixed(1)+'" width="'+bw.toFixed(1)+'" height="'+hc.toFixed(1)+'" rx="2"/></g>';
-    const lbl=n<=7?DOW[(dt.getDay()+6)%7]:((dd===1||dd%5===0)?String(dd):'');
+    const lbl=s.label!==undefined?s.label:(n<=7?DOW[(dt.getDay()+6)%7]:((dd===1||dd%5===0)?String(dd):''));
     if(lbl)out+='<text class="t" x="'+cx.toFixed(1)+'" y="'+(H-7)+'" text-anchor="middle">'+lbl+'</text>';});
   return out+'</svg>';}
+
+/* ===== v109: desk dashboard -- tiles, shared chart filter, pie ===========
+   Desk only (an admin wider than 640px). All markup sits under .dbx and all
+   of its CSS is scoped there, so the phone layout is untouched.
+
+   PERIODS. One dropdown drives both charts; the Agenda has its own instance
+   with Today added. This Qtr and YTD are resolved to explicit date ranges and
+   passed through reportData's existing period option. Custom reveals the
+   Reports .rep-range date inputs beside the dropdown, pre-filled with the
+   period that was showing, so it is never half-empty. */
+const DBX_PERIODS=[['week','This Week'],['month','This Month'],['qtr','This Qtr'],['ytd','YTD'],['custom','Custom']];
+function dbxResolve(kind,from,to){const Y=TODAY.getFullYear();
+  if(kind==='qtr'){const q=Math.floor(TODAY.getMonth()/3);return {period:'range',from:_ymd(new Date(Y,q*3,1)),to:_ymd(new Date(Y,q*3+3,0))};}
+  if(kind==='ytd')return {period:'range',from:_ymd(new Date(Y,0,1)),to:_ymd(TODAY)};
+  if(kind==='custom')return {period:'range',from:from,to:to};
+  return {period:kind};}
+function dbxFilterHtml(which){const id=which==='ch'?'dbx':'dbAg';
+  const opts=(which==='ag'?[['today','Today']]:[]).concat(DBX_PERIODS);
+  return '<select class="db-sel" id="'+id+'Per" onchange="dbxSetPeriod(\''+which+'\',this.value)" aria-label="Period">'
+    +opts.map(o=>'<option value="'+o[0]+'">'+o[1]+'</option>').join('')+'</select>'
+    +'<span class="rep-range" id="'+id+'Range" style="display:none">'
+    +'<input type="date" class="rep-sel" id="'+id+'From" onchange="dbxSetRange(\''+which+'\',\'From\',this.value)" aria-label="From">'
+    +'<span class="rdash">→</span>'
+    +'<input type="date" class="rep-sel" id="'+id+'To" onchange="dbxSetRange(\''+which+'\',\'To\',this.value)" aria-label="To"></span>';}
+function dbxSyncFilter(which){const id=which==='ch'?'dbx':'dbAg',pre=which;
+  const sel=$(id+'Per');if(!sel)return;
+  if(sel.value!==DB[pre+'P'])sel.value=DB[pre+'P'];
+  const custom=DB[pre+'P']==='custom';$(id+'Range').style.display=custom?'flex':'none';
+  if(custom){if($(id+'From').value!==DB[pre+'From'])$(id+'From').value=DB[pre+'From'];
+    if($(id+'To').value!==DB[pre+'To'])$(id+'To').value=DB[pre+'To'];}}
+function dbxSetPeriod(which,kind){const pre=which;
+  if(kind==='custom'){const B=boundsFor(dbxResolve(DB[pre+'P'],DB[pre+'From'],DB[pre+'To']))||boundsFor({period:'week'});
+    if(!DB[pre+'From'])DB[pre+'From']=B.from;if(!DB[pre+'To'])DB[pre+'To']=B.to;}
+  DB[pre+'P']=kind;dbRefresh();}
+/* A cleared date input is ignored rather than turning the range unbounded. */
+function dbxSetRange(which,end,val){if(!val)return;DB[which+end]=val;dbRefresh();}
+
+/* The four tiles. 1 and 2 are counts from the work-queue definitions and open
+   their pages. 3 and 4 are reportData over exactly the union of those two sets:
+   statuses issue + done (isOutstanding is status 'done'), Tasks excluded, all
+   dates, installers and dealers. Status is one field, so an appointment is in
+   one set or the other, never both, and is summed once. Tile 4 is margin, i.e.
+   cost data: data-admin and IS_ADMIN, like every other money figure. */
+const DBX_UNCLOSED=new Set(['issue','done']);
+function dbxTile(v,label,go,cls){return '<div class="dbx-tile'+(go?' go':'')+(cls?' '+cls:'')+'"'+(go?' onclick="'+go+'"':'')+'><b>'+v+'</b><span>'+label+'</span></div>';}
+function dbxTilesHtml(){const iss=issueAppts().length,out=outstandingAppts().length;
+  const U=reportData({period:'all',statuses:DBX_UNCLOSED,noTasks:true,inst:'all',allDealers:true});
+  return dbxTile(iss,'Issues Not Resolved',"navTo('issues')",iss?'hot':'')
+    +dbxTile(out,'Completed Not Closed',"navTo('outstanding')",'')
+    +dbxTile(fmtMoney(U.tRev),'Total Unclosed Revenue',null,'money')
+    +(IS_ADMIN?'<div class="dbx-tile money" data-admin><b style="color:'+(U.tMargin>=0?'#4d7010':'#a3211d')+'">'+fmtMoney(U.tMargin)+'</b><span>Total Unclosed Margin</span></div>':'');}
+
+/* Charts: one reportData call for the shared period feeds both. Booked Jobs is
+   the bar chart (daily for a week or month, weekly for a quarter, monthly for
+   YTD; a custom range picks by its length). Job Types counts the same rows --
+   non-Task appointments in the period, any status -- by type. */
+function dbxMode(kind,P){if(kind==='qtr')return 'week';if(kind==='ytd')return 'month';
+  if(kind==='custom'){const B=boundsFor(P);if(!B)return 'day';
+    const days=Math.round((new Date(B.to+'T00:00:00')-new Date(B.from+'T00:00:00'))/86400000)+1;
+    return days<=31?'day':(days<=120?'week':'month');}
+  return 'day';}
+function dbxBuckets(series,mode){if(!series||mode==='day')return series;
+  const map=new Map();
+  series.forEach(function(s){const [y,m,d]=s.key.split('-').map(Number);let k,label,tipLabel;
+    if(mode==='week'){const dt=new Date(y,m-1,d);dt.setDate(dt.getDate()-((dt.getDay()+6)%7));
+      k=_ymd(dt);label=MONTHN[dt.getMonth()].slice(0,3)+' '+dt.getDate();tipLabel='Week of '+label;}
+    else{k=y+'-'+String(m).padStart(2,'0')+'-01';label=MONTHN[m-1].slice(0,3);tipLabel=MONTHN[m-1]+' '+y;}
+    const b=map.get(k)||{key:k,label:label,tipLabel:tipLabel,rev:0,cost:0};b.rev+=s.rev;b.cost+=s.cost;map.set(k,b);});
+  return [...map.values()];}
+const DBX_TYPES=[['Measure','#d8c6a0'],['Install','#b49e6f'],['Return Trip','#8c877d']];
+/* Donut in inline SVG: one arc path per type clockwise from 12 o'clock, a
+   full ring when one type is 100% (a single arc cannot close), a grey ring
+   when there is nothing, total in the centre. */
+function dbxPieHtml(rows){
+  const counts=DBX_TYPES.map(t=>[t[0],t[1],rows.filter(a=>a.type===t[0]).length]);
+  const total=counts.reduce((n,c)=>n+c[2],0),cx=100,cy=100,R=92,r=58;
+  let svg='<svg viewBox="0 0 200 200" role="img" aria-label="Appointments by job type">';
+  if(!total)svg+='<circle cx="100" cy="100" r="'+((R+r)/2)+'" fill="none" stroke="#e5e3db" stroke-width="'+(R-r)+'"/>';
+  else{let a0=-Math.PI/2;
+    const pt=function(rad,ang){return (cx+rad*Math.cos(ang)).toFixed(2)+' '+(cy+rad*Math.sin(ang)).toFixed(2);};
+    counts.forEach(function(c){if(!c[2])return;const frac=c[2]/total;
+      const tip='<title>'+esc(c[0]+': '+c[2]+' ('+Math.round(frac*100)+'%)')+'</title>';
+      if(c[2]===total){svg+='<path fill="'+c[1]+'" fill-rule="evenodd" d="M'+(cx-R)+' '+cy+'a'+R+' '+R+' 0 1 0 '+(2*R)+' 0a'+R+' '+R+' 0 1 0 '+(-2*R)+' 0'
+        +'M'+(cx-r)+' '+cy+'a'+r+' '+r+' 0 1 0 '+(2*r)+' 0a'+r+' '+r+' 0 1 0 '+(-2*r)+' 0">'+tip+'</path>';return;}
+      const a1=a0+frac*2*Math.PI,large=frac>0.5?1:0;
+      svg+='<path fill="'+c[1]+'" stroke="#fff" stroke-width="1.5" d="M'+pt(R,a0)+'A'+R+' '+R+' 0 '+large+' 1 '+pt(R,a1)
+        +'L'+pt(r,a1)+'A'+r+' '+r+' 0 '+large+' 0 '+pt(r,a0)+'Z">'+tip+'</path>';
+      a0=a1;});}
+  svg+='<text class="tot" x="100" y="106" text-anchor="middle">'+total+'</text><text class="cap" x="100" y="126" text-anchor="middle">appointment'+(total===1?'':'s')+'</text></svg>';
+  return '<div class="dbx-pie">'+svg+'<div class="dbx-leg">'
+    +counts.map(c=>'<div><i style="background:'+c[1]+'"></i><span>'+c[0]+'</span><b>'+c[2]+'</b><em>'+(total?Math.round(c[2]/total*100):0)+'%</em></div>').join('')
+    +'</div></div>';}
+function dbxChartsHtml(){const P=dbxResolve(DB.chP,DB.chFrom,DB.chTo);
+  const D=reportData({period:P.period,from:P.from,to:P.to,status:'all',inst:'all',allDealers:true,noTasks:true,byDay:true});
+  const series=dbxBuckets(D.byDay,dbxMode(DB.chP,P));
+  return '<section class="dbx-card"><div class="dbx-head"><h3>Booked Jobs</h3></div>'+dbMoneyTiles(D)
+    +'<div class="dbx-grow"><div class="db-chart">'+dbBarsSvg(series)+'</div></div>'
+    +'<div class="db-leg"><span><i style="background:#b49e6f"></i>Revenue</span><span><i style="background:#8c877d"></i>Cost</span><span>'+D.rows.length+' scheduled job'+(D.rows.length===1?'':'s')+'</span></div></section>'
+    +'<section class="dbx-card"><div class="dbx-head"><h3>Job Types</h3></div><div class="dbx-grow">'+dbxPieHtml(D.rows)+'</div></section>';}
 
 /* Field layout: shortcut tiles. Today's Schedule opens the scheduler's day view
    on today; Upcoming Appointments and My Docs open a panel on this page. */
