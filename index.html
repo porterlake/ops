@@ -7472,15 +7472,24 @@ function dbxPieHtml(rows){
    (dbxDrawBars), because its height can only be known once the card has been
    laid out beside the tile stack. DBX_BARS holds the series between the two. */
 var DBX_BARS=null;
+/* Floor for a pathologically short container; never the operative value on a
+   real screen, where the card's own height wins. */
+const DBX_BARS_MIN=150;
 function dbxDrawBars(){const el=$('dbxBars');if(!el||!DBX_BARS)return;
   const W=Math.max(240,Math.round(el.clientWidth));
   const avail=Math.round(el.clientHeight)||0;
-  /* Never shorter than the 190 the old fixed viewBox drew, never taller than
-     the box, and on a wide card exactly the height it has always been
-     (width / 3.37) -- so a desktop is pixel-for-pixel unchanged and only the
-     squashed laptop case grows. */
-  const aspect=W*190/640,want=Math.max(aspect,190);
-  const H=Math.round(avail?Math.min(want,Math.max(avail,140)):want);
+  /* v113: FILL the card. The chart's height is the height its box has been
+     given -- which is the tile stack's height minus the card's own header,
+     money tiles and legend -- so the two charts and the tiles end level, which
+     is what the redesign asked for. The only cap is that box: there is nothing
+     above it to grow into. DBX_BARS_MIN is a floor for a container that is
+     somehow tiny (a card mid-animation, a very short window), and on any real
+     screen it is not the operative value. Width still sets the drawing scale
+     (sc = W/640), so labels, bars and spacing grow with the card rather than
+     being stretched.
+     v112 capped this at width x 190/640 to keep wide screens pixel-identical,
+     which left 116px of a 1366 laptop's card empty and 112px of a 1920's. */
+  const H=Math.max(DBX_BARS_MIN,avail||Math.round(W*190/640));
   el.innerHTML=dbBarsSvg(DBX_BARS,{W:W,H:H});}
 function dbxChartsHtml(){const P=dbxResolve(DB.chP,DB.chFrom,DB.chTo);
   const D=reportData({period:P.period,from:P.from,to:P.to,status:'all',inst:'all',allDealers:true,noTasks:true,byDay:true});
