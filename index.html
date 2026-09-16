@@ -7892,7 +7892,19 @@ function navTo(p){if(!PAGE_TITLES[p])p='dashboard';if(!IS_ADMIN&&ADMIN_PAGES.has
      sessionStorage is per tab, cleared on sign-out; failure is harmless. */
   try{sessionStorage.setItem('pl.page',p);}catch(e){}
   const sched=p==='scheduler';$('schedView').style.display=sched?'flex':'none';$('genericView').style.display=sched?'none':'block';
-  $('viewSeg').style.display=sched?'flex':'none';$('dayNav').style.display=sched?'flex':'none';$('rangeLbl').style.display=sched?'inline':'none';$('instFilter').style.display=sched?'block':'none';
+  $('viewSeg').style.display=sched?'flex':'none';$('dayNav').style.display=sched?'flex':'none';$('rangeLbl').style.display=sched?'inline':'none';
+  /* v118: the filter gets '' here, NOT 'block'. An inline style beats every
+     stylesheet rule including the UA sheet, and under appearance:base-select
+     Chrome lays a select out as inline-flex so its label and ::picker-icon sit
+     in a row. Pinning display:block took that away: the two stacked, the arrow
+     dropped under the text and the pill rendered 50px tall instead of 34px, at
+     EVERY width, with room to spare. 'block' was right for the old native
+     widget and became wrong the moment the v80 sweep opted this control into
+     base-select. The empty string removes the declaration so the stylesheet
+     decides, which is what every correctly-rendering select in the app does.
+     Do not put a display value back here -- and note the three siblings above
+     legitimately need theirs, because they are plain divs and a span. */
+  $('instFilter').style.display=sched?'':'none';
   $('ptitle').childNodes[0].nodeValue=PAGE_TITLES[p]+' ';
   if(sched)render();else buildGeneric(p);}
 function miniCal(){const m=monthAnchor(0),offset=(m.getDay()+6)%7,dim=daysInMonth(m);let cells='';
