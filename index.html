@@ -1166,6 +1166,22 @@ body.role-installer [data-admin]{display:none!important}
      off the right edge (translateX(100%)) and its 60px blur used to bleed a dark
      strip into every desktop page. The phone drawer is full width with no shadow. */
   .drawer.open{box-shadow:-24px 0 60px rgba(0,0,0,.5)}
+  /* v117: appearance:base-select (below) turns a select into a flex box whose
+     label is ORDINARY TEXT, and ordinary text wraps. .topbar is a flex row,
+     .spacer is flex:1, and .topfilter set no flex control, so once the spacer
+     had collapsed the filter was the next thing squeezed -- and at roughly
+     641-841px it was squeezed narrower than "All users", the label wrapped and
+     the picker arrow dropped onto a second line. A NATIVE select computes
+     white-space:pre and clips instead, which is why this was the only control
+     in the app that did it. Measured: 34px tall at 850px, 50px at 840px.
+     The label change in v116 did not cause it -- "All installers" broke 20px
+     earlier, at 861px. Mobile deliberately keeps flex:1 1 130px (it is not
+     base-select down there), so this is scoped to the desktop block. */
+  .topfilter{white-space:nowrap;flex:0 0 auto}
+  /* The squeeze has to land somewhere. The page title is the one topbar child
+     that can lose characters harmlessly, and it already ellipsises on mobile;
+     without this the seg buttons and day-nav get crushed instead. */
+  .page-title{min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .fld select,.durrow select{
     -webkit-appearance:none;-moz-appearance:none;appearance:none;
     background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23a99c7e' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
@@ -1177,7 +1193,10 @@ body.role-installer [data-admin]{display:none!important}
   @supports (appearance:base-select){
     /* base-select draws its own ::picker-icon, so the background chevron
        would otherwise double up. */
-    .fld select,.durrow select{appearance:base-select;background-image:none;padding-right:11px}
+    /* v117: nowrap on every base-select control, defensively. These five are
+       fine today only because nothing squeezes them; put any of them in a
+       shrinking flex row and they reproduce the .topfilter bug exactly. */
+    .fld select,.durrow select{appearance:base-select;background-image:none;padding-right:11px;white-space:nowrap}
     .fld select::picker-icon,.durrow select::picker-icon{color:var(--sand-dim);transition:transform .16s}
     .fld select:open::picker-icon,.durrow select:open::picker-icon{transform:rotate(180deg)}
     .fld select::picker(select),.durrow select::picker(select){
@@ -1226,7 +1245,7 @@ body.role-installer [data-admin]{display:none!important}
 
   @supports (appearance:base-select){
     .topfilter,.fileadd select,select.dl-input,select.rep-sel,select.rate-search,select.db-sel{
-      appearance:base-select;background-image:none;padding-right:11px}
+      appearance:base-select;background-image:none;padding-right:11px;white-space:nowrap}
     .topfilter::picker-icon,.fileadd select::picker-icon{color:var(--sand-dim);transition:transform .16s}
     select.dl-input::picker-icon,select.rep-sel::picker-icon,select.rate-search::picker-icon,select.db-sel::picker-icon{color:var(--muted);transition:transform .16s}
     .topfilter:open::picker-icon,.fileadd select:open::picker-icon,
@@ -1383,6 +1402,17 @@ body.role-installer [data-admin]{display:none!important}
   /* --- Dealers master/detail stacks: list above, detail below --- */
   .dl-wrap{flex-direction:column;gap:14px}
   .dl-list{width:auto;align-self:stretch}
+  /* v117: .dl-wrap is align-items:flex-start, and the rule above turns it into
+     a COLUMN here -- so the cross axis is horizontal and each child sizes to
+     its own max-content width instead of filling the row. .dl-list was given
+     align-self:stretch for that reason; .dl-detail never was, so it grew to
+     560px (the min-width the table rule above puts on thead/tbody) and
+     .generic{overflow-x:hidden} CLIPPED the overflow. flex:1 and min-width:0
+     on .dl-detail do not help: flex:1 is the main axis, now vertical, and
+     min-width is a floor, not a ceiling. Measured 560px against a 419px row.
+     With this, the pane fits and the job table scrolls inside itself, which is
+     what the table rule was always for. */
+  .dl-detail{align-self:stretch;width:100%}
   .dl-rows{max-height:40dvh}
   .dl-cust{grid-template-columns:1fr}
 
@@ -1552,7 +1582,13 @@ body.role-installer [data-admin]{display:none!important}
       <div class="fld" id="njTaskTypeFld" style="display:none"><label>Task type</label><select id="njTaskType"></select></div>
       <div class="fld" id="njMeetingTypeFld" style="display:none"><label>Meeting type</label><select id="njMeetingType"></select></div>
       <div class="fld" id="njDealerFld"><label>Dealer (account)</label><div class="combo" id="njDealerCombo"><input id="njDealerInput" placeholder="Search dealers…" autocomplete="off"><div class="combo-list" id="njDealerList"></div></div></div>
-      <div class="fld" id="njNewDealerWrap" style="display:none"><label>New dealer name</label><input id="njDealerName" placeholder="Dealer / account name"></div>
+      <div id="njNewDealerWrap" style="display:none">
+        <div class="fld"><label>New dealer name</label><input id="njDealerName" placeholder="Dealer / account name"></div>
+        <div class="fld2">
+          <div class="fld"><label>Dealer phone (optional)</label><input id="njDealerPhone" type="tel" placeholder="Can be added later"></div>
+          <div class="fld"><label>Dealer email (optional)</label><input id="njDealerEmail" type="email" placeholder="Can be added later"></div>
+        </div>
+      </div>
       <div id="njDiscWrap"><span class="dlbl">Dealer discount</span><input id="njDisc" type="number" min="0" max="100" step="0.5" placeholder="0"><span class="dlbl">% off subtotal</span></div>
       <div class="fld" id="njTaskDescFld" style="display:none"><label>Description</label><textarea id="njTaskDesc" rows="7" placeholder="What needs doing…"></textarea></div>
       <div class="fld" id="njWhenFld" style="display:none"><label>When</label><div class="durrow"><input id="njTaskDate" type="date"><select id="njTaskStart"></select></div></div>
@@ -1667,6 +1703,31 @@ body.role-installer [data-admin]{display:none!important}
       <input type="file" id="ipFile" hidden accept=".pdf,.png,.jpg,.jpeg,.webp">
     </div>
     <div class="modal-f"><div style="flex:1"></div><button class="btn ghost" onclick="$('instBg').classList.remove('open')">Cancel</button><button class="btn" onclick="saveInstaller()">Save</button></div>
+  </div></div>
+
+  <div class="modal-bg" id="auBg" data-admin><div class="modal" style="width:520px">
+    <div class="modal-h"><div class="mi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 21v-1a6 6 0 0 1 6-6h4a6 6 0 0 1 6 6v1"/></svg></div><div><h3>Add user</h3><div class="ms">Staff record</div></div><button class="x" onclick="$('auBg').classList.remove('open')">&times;</button></div>
+    <div class="modal-b">
+      <div class="fld"><label>Name</label><input id="auName" type="text" placeholder="Full name"></div>
+      <div class="fld"><label>Company role</label><select id="auRole">
+        <option value="">Not set</option>
+        <option value="Admin">Admin</option>
+        <option value="Manager">Manager</option>
+        <option value="Installer">Installer</option>
+      </select></div>
+      <div class="fld2">
+        <div class="fld"><label>Phone (optional)</label><input id="auPhone" type="tel" placeholder="Can be added later"></div>
+        <div class="fld"><label>Email (optional)</label><input id="auEmail" type="email" placeholder="Can be added later"></div>
+      </div>
+      <div class="fld"><label>Pay type</label><select id="auPayType" onchange="auRateUI()">
+        <option value="sub_1099">1099 subcontractor &#183; % of price</option>
+        <option value="hourly">Hourly &#183; $/hr</option>
+        <option value="salary">Salary &#183; allocated $/hr</option>
+      </select></div>
+      <div class="fld"><label id="auRateLbl">Hourly rate ($/hr)</label><input id="auRate" type="number" step="0.01" placeholder="0"></div>
+      <div class="limeta" style="padding:0 2px">Creates a staff record so this person can be scheduled and paid. It does not create a login. To give them access, add them to the profiles allowlist and have them register with this email address.</div>
+    </div>
+    <div class="modal-f"><div style="flex:1"></div><button class="btn ghost" onclick="$('auBg').classList.remove('open')">Cancel</button><button class="btn" id="auSave" onclick="saveNewUser()">Create user</button></div>
   </div></div>
 
   <div class="modal-bg" id="viewBg"><div class="modal" style="width:720px">
@@ -6095,6 +6156,47 @@ async function saveInstaller(){if(!IS_ADMIN)return;if(!editingInst)return;
      exception - its <option> text is built once - so rebuild it here. */
   populateInstallerFilter();
   $('instBg').classList.remove('open');if(page==='installers')buildGeneric('installers');toast('Profile saved');}
+/* ===== Add User (v117) =================================================
+   Creates a STAFF RECORD and nothing else. There is deliberately no auth work
+   here: no sb.auth call, no write to profiles, no installer_has_login, no
+   invite and no email. A login still needs a profiles allowlist row and the
+   person registering themselves, which is what the note under the form says.
+   Admin-gated twice, exactly as saveInstaller is: data-admin on the button so
+   the DOM hides it, and the IS_ADMIN guard below, which is the real one. */
+function auRateUI(){const t=$('auPayType').value,lbl=$('auRateLbl');
+  lbl.textContent=t==='sub_1099'?'Percent of job price (%)':(t==='hourly'?'Hourly rate ($/hr)':'Loaded hourly cost ($/hr)');}
+function openAddUser(){if(!IS_ADMIN)return;
+  ['auName','auPhone','auEmail','auRate'].forEach(function(k){$(k).value='';});
+  $('auRole').value='';$('auPayType').value='hourly';auRateUI();
+  $('auBg').classList.add('open');$('auName').focus();}
+async function saveNewUser(){if(!IS_ADMIN)return;
+  const nm=($('auName').value||'').trim();
+  if(!nm){toast('Name cannot be blank',true);$('auName').focus();return;}
+  const btn=$('auSave');if(btn){btn.disabled=true;btn.textContent='Creating\u2026';}
+  /* ACTIVE:TRUE IS SENT EXPLICITLY AND MUST STAY THAT WAY. loadInstallers()
+     reads with .eq('active',true) and NOTHING in this app has ever written
+     the active column -- one read, zero writes. A row inserted without it can
+     land with active NULL, fail that filter, and the person you just created
+     is missing from the Users page and from every assignee list, with no
+     error raised anywhere. Do not remove this because the column looks like
+     it has a default. */
+  const row={name:nm,active:true,employment_status:'active',
+    company_role:$('auRole').value||null,
+    pay_type:$('auPayType').value||'hourly',
+    pay_rate:+$('auRate').value||0,
+    phone:ipNz($('auPhone').value),email:ipNz($('auEmail').value)};
+  const {error}=await sb.from('installers').insert(row);
+  if(btn){btn.disabled=false;btn.textContent='Create user';}
+  if(error){toast('Could not create the user',true);console.error(error);return;}
+  /* Re-read rather than push onto the caches. The reload goes back through the
+     same active filter the whole app uses, so a row that did NOT land active
+     shows up as a missing tile here and now rather than as a mystery later.
+     It also rebuilds the scheduler filter, whose <option> text is built once
+     and is the one surface that does not re-resolve names at render time. */
+  await loadInstallers();
+  $('auBg').classList.remove('open');
+  if(page==='installers')buildGeneric('installers');
+  toast('<b>'+esc(nm)+'</b> added');}
 const IP_TYPES={application:'Application',resume:'Resume',tax_w2:'W-2',tax_1099:'1099',insurance:'Insurance',commission_report:'Commission report',coi:'Certificate of insurance',other:'Other'};
 /* v107: optional group narrows the query (the dashboard's My Docs asks for
    'installer' only). A query filter, not a permission -- see Q17. */
@@ -6657,7 +6759,7 @@ $('njCustomer').onchange=njFillCustomer;
 $('njPhone').addEventListener('input',e=>{e.target.value=fmtPhone(e.target.value)});
 $('newJobBtn').onclick=()=>{
   if(!IS_ADMIN)return;
-  njDealerId=null;$('njDealerInput').value='';$('njDealerList').classList.remove('open');$('njNewDealerWrap').style.display='none';$('njDealerName').value='';$('njAddr').value='';$('njPhone').value='';
+  njDealerId=null;$('njDealerInput').value='';$('njDealerList').classList.remove('open');$('njNewDealerWrap').style.display='none';$('njDealerName').value='';$('njDealerPhone').value='';$('njDealerEmail').value='';$('njAddr').value='';$('njPhone').value='';
   $('njNewCustWrap').style.display='none';$('njCustName').value='';$('njHist').style.display='none';
   document.querySelectorAll('#njType .chip').forEach((x,i)=>{x.classList.toggle('on',i===0);x.style.background=i===0?TYPES.Measure.c:''});
   document.querySelectorAll('#njProd .chip').forEach((x,i)=>{x.classList.toggle('on',i===0);x.style.background=i===0?'var(--sand)':''});
@@ -6762,7 +6864,13 @@ $('njSave').onclick=async()=>{if(!IS_ADMIN)return;
   let dId=njDealerId,dealer;
   if(!dId){toast('Search and pick a dealer',true);return;}
   if(dId==='new'){dealer=$('njDealerName').value.trim();if(!dealer){toast('Enter the new dealer name',true);return;}
-    const {data,error}=await sb.from('dealers').insert({name:dealer,discount_pct:njDiscount}).select().single();
+    /* v117: phone and email are captured here so a dealer created from New Job
+       is not born incomplete. Both optional -- ipNz sends null rather than the
+       empty string, matching how every other optional field is written. Send
+       to Dealer refuses with DEALER_EMAIL_MISSING when there is no address, so
+       an email missed here costs a failed send later. */
+    const {data,error}=await sb.from('dealers').insert({name:dealer,discount_pct:njDiscount,
+      phone:ipNz($('njDealerPhone').value),email:ipNz($('njDealerEmail').value)}).select().single();
     if(error){toast('Could not save dealer',true);console.error(error);return;}
     dId=data.id;DEALERS.push({id:dId,name:dealer,discount:njDiscount});}
   else dealer=DEALERS.find(d=>d.id===dId).name;
@@ -7795,7 +7903,7 @@ function miniCal(){const m=monthAnchor(0),offset=(m.getDay()+6)%7,dim=daysInMont
 function buildGeneric(p){const g=$('genericView');
   if(p==='toschedule'){const ready=queue.filter(readyToSchedule);const awaiting=queue.filter(stillAwaiting).length;
     g.innerHTML=`<div class="ts-wrap"><div class="ts-main"><div class="gp-head">To Schedule</div><div class="gp-sub">${ready.length} jobs ready to book.${awaiting?` ${awaiting} more awaiting product in Receiving.`:''}</div>${ready.map(j=>{const aw=partialAwaiting(j)?`<span class="awtag light">⏳ awaiting product</span>`:'';return `<div class="grow" style="cursor:pointer" onclick="openDrawer('${j.id}')"><span class="gt" style="background:rgba(216,198,160,.28);color:#7a6c45">${j.type}</span><div style="flex:1"><div class="gname">${j.cust} ${aw}</div><div class="gmeta">${j.scope} · ${j.addr}</div></div><div class="gmeta">${j.dealer}</div></div>`}).join('')||'<div class="empty"><h3>Queue is clear</h3><p>No jobs ready to schedule.</p></div>'}</div><div class="ts-side">${miniCal()}</div></div>`;return}
-  if(p==='installers'){markConflicts();g.innerHTML=`<div class="gp-head">Users</div><div class="gp-sub">Team load &amp; pay setup. Pay type drives cost and margin.</div><div class="gcards">${INSTALLERS.filter(i=>i.id!=='un').map(i=>{const inact=i.status==='inactive';const jobs=appts.filter(a=>a.installer===i.id);const conf=jobs.filter(a=>a._conflict).length;const pay=i.payType==='sub_1099'?`1099 · ${i.payRate||0}% of price`:`${i.payType==='salary'?'Salary':'Hourly'} · ${fmtMoney(i.payRate||0)}/hr`;return `<div class="gcard${inact?' ginactive':''}"><h4>${roleIco(i.companyRole)}${i.name}${inact?'<span class="ibadge">Inactive</span>':''}<button class="pedit" onclick="editInstaller('${i.id}')">Profile</button></h4>${i.companyRole?'<div class="irole">'+esc(i.companyRole)+'</div>':''}<div class="gstat"><div><b>${jobs.length}</b>jobs this week</div><div><b style="color:${conf?'#d9605c':'var(--ink)'}">${conf}</b>conflicts</div></div><div class="ipay">${pay}</div></div>`}).join('')}</div>`;return}
+  if(p==='installers'){markConflicts();g.innerHTML=`<div class="rate-top"><div><div class="gp-head">Users</div><div class="gp-sub">Team load &amp; pay setup. Pay type drives cost and margin.</div></div><button class="btn" data-admin onclick="openAddUser()">+ Add user</button></div><div class="gcards">${INSTALLERS.filter(i=>i.id!=='un').map(i=>{const inact=i.status==='inactive';const jobs=appts.filter(a=>a.installer===i.id);const conf=jobs.filter(a=>a._conflict).length;const pay=i.payType==='sub_1099'?`1099 · ${i.payRate||0}% of price`:`${i.payType==='salary'?'Salary':'Hourly'} · ${fmtMoney(i.payRate||0)}/hr`;return `<div class="gcard${inact?' ginactive':''}"><h4>${roleIco(i.companyRole)}${i.name}${inact?'<span class="ibadge">Inactive</span>':''}<button class="pedit" onclick="editInstaller('${i.id}')">Profile</button></h4>${i.companyRole?'<div class="irole">'+esc(i.companyRole)+'</div>':''}<div class="gstat"><div><b>${jobs.length}</b>jobs this week</div><div><b style="color:${conf?'#d9605c':'var(--ink)'}">${conf}</b>conflicts</div></div><div class="ipay">${pay}</div></div>`}).join('')}</div>`;return}
   if(p==='dealers'){buildDealers();return}
   if(p==='customers'){buildCustomers();return}
   if(p==='inventory'){RECV_NOTE_N=null;buildReceiving();return}
