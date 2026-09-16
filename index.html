@@ -1554,10 +1554,20 @@ body.role-installer [data-admin]{display:none!important}
       <div class="fld" id="njPhoneFld"><label>Contact</label><input id="njPhone" placeholder="(xxx) xxx-xxxx"></div>
       <div class="fld" id="njScopeFld"><label>Scope</label><input id="njScope" placeholder="e.g. 6 windows · roller shades"></div>
       <div class="fld"><label>Estimated duration</label><div class="durrow"><select id="njDurH"></select><span class="durx">hr</span><select id="njDurM"></select><span class="durx">min</span></div></div>
+      <div class="fld" id="njSchedFld"><label>Schedule now?</label><div class="chips" id="njSched"><div class="chip on" data-s="no">No · send to queue</div><div class="chip" data-s="yes">Yes · pick date &amp; time</div></div></div>
+      <div id="njSchedWrap" style="display:none">
+        <div class="fld"><label>Date &amp; start</label><div class="durrow"><input id="njSchedDate" type="date"><select id="njSchedStart"></select></div></div>
+        <div class="fld"><label>Visit duration</label><div class="durrow"><select id="njSchedDurH"></select><span class="durx">hr</span><select id="njSchedDurM"></select><span class="durx">min</span></div></div>
+        <div class="fld"><label>Assigned to</label><select id="njSchedInst"></select></div>
+      </div>
       <div class="fld" id="njProdFld"><label>Awaiting product?</label><div class="chips" id="njProd"><div class="chip on" data-p="no">No · ready to schedule</div><div class="chip" data-p="yes">Yes · product on order</div></div></div>
       <div id="njLinesWrap"><label class="lilabel">Line items &amp; pricing</label><div id="njLines"></div><button class="liadd" id="njAddLine">+ Add line item</button>
         <datalist id="njSvcList"></datalist>
         <div id="njTotals"></div>
+      </div>
+      <div class="fld" id="njFilesFld"><label>Attach files (optional)</label>
+        <input id="njFiles" type="file" multiple accept="application/pdf,image/*">
+        <div id="njFilesHint" style="font-size:11.5px;color:var(--sand-dim);margin-top:6px">PDFs and photos. They upload once the job has been created.</div>
       </div>
     </div>
     <div class="modal-f"><button class="btn ghost" id="njCancel">Cancel</button><button class="btn" id="njSave">Create job</button></div>
@@ -2103,12 +2113,37 @@ function renderQueue(){const list=$('queueList');list.innerHTML='';
 /* v107: the unscheduled queue still waiting on product -- the Receiving badge's
    definition, shared with the dashboard's awaiting-product count. */
 function awaitingQueue(){return queue.filter(stillAwaiting);}
+/* ===== v114 THE ONE CREATE PATH =====
+   Scheduling an unscheduled job CREATES an appointment, where rescheduleAppt
+   moves one. Drag-drop from the queue, the Edit Job "Schedule" picker and New
+   Job's Schedule Now all end up here, so the queue-to-calendar transition is
+   written once: insert the row, push the visit with the same shape mapAppt
+   would give it, drop the job out of the queue, then renderQueue (rail, queue
+   count, To Schedule and Receiving badges, and the dashboard via dbSchedule),
+   markConflicts and render (calendar card, hourglass, unassigned banner).
+   Returns the new visit, or null if the insert failed -- the CALLER owns the
+   toast, because each entry point says something different.
+   installer is a real id or null; null is the drag-drop case and lands as
+   'un', which the amber banner then chases. Nothing here touches
+   awaiting_product or override_schedule: scheduling is not a stock decision. */
+async function scheduleJob(j,key,start,mins,installer){
+  if(!j||!key)return null;
+  const m=Math.max(15,Math.round(mins||j.estMins||defaultMins(j.type)));
+  const dur=m/60;
+  const s=Math.max(START_HOUR,Math.min(start,END_HOUR+1-dur));
+  const inst=(installer&&installer!=='un')?installer:null;
+  const {data:appt,error}=await sb.from('appointments').insert({job_id:j.id,installer_id:inst,status:'scheduled',start_time:composeISO(key,s),duration_minutes:m}).select('id').single();
+  if(error){console.error('scheduleJob',error);return null;}
+  const a={id:appt.id,jobId:j.id,installer:inst||'un',status:'scheduled',dateKey:key,start:s,dur,notes:'',type:j.type,cust:j.cust,dealer:j.dealer,addr:j.addr,phone:j.phone,scope:j.scope,customerId:j.customerId,dealerId:j.dealerId,estMins:m,awaitingProduct:j.awaitingProduct,override:j.override,lineItems:j.lineItems,dealerDiscount:j.dealerDiscount||0,files:j.files||[]};
+  appts.push(a);
+  queue=queue.filter(x=>x.id!==j.id);renderQueue();markConflicts();render();
+  return a;}
+/* Drag-drop is now a thin caller, the way moveAppt is for rescheduleAppt. The
+   hour comes from the drop position and the duration from the job's estimate;
+   both were already clamped this way, and the toast is unchanged. */
 async function dropJob(key,hour,e){const id=e.dataTransfer.getData('id');const j=queue.find(x=>x.id===id);if(!j)return;
-  const mins=j.estMins||defaultMins(j.type);const dur=mins/60;const start=Math.max(START_HOUR,Math.min(hour,END_HOUR+1-dur));
-  const {data:appt,error}=await sb.from('appointments').insert({job_id:j.id,installer_id:null,status:'scheduled',start_time:composeISO(key,start),duration_minutes:mins}).select('id').single();
-  if(error){toast('Could not schedule',true);console.error(error);return;}
-  appts.push({id:appt.id,jobId:j.id,installer:'un',status:'scheduled',dateKey:key,start,dur,notes:'',type:j.type,cust:j.cust,dealer:j.dealer,addr:j.addr,phone:j.phone,scope:j.scope,customerId:j.customerId,dealerId:j.dealerId,estMins:mins,awaitingProduct:j.awaitingProduct,override:j.override,lineItems:j.lineItems,dealerDiscount:j.dealerDiscount||0,files:j.files||[]});
-  queue=queue.filter(x=>x.id!==id);renderQueue();markConflicts();render();
+  const a=await scheduleJob(j,key,hour,j.estMins||defaultMins(j.type),null);
+  if(!a){toast('Could not schedule',true);return;}
   toast(`<b>${j.cust}</b> booked — assign an installer`,true);}
 
 function openDrawer(id){let a=appts.find(x=>x.id===id),mode='appt';if(!a){a=queue.find(x=>x.id===id);mode='queue';}if(!a)return;
@@ -2907,34 +2942,51 @@ function ejClose(){$('ejBg').classList.remove('open');}
    way to move a visit from a phone other than unschedule-and-rebook. Every
    control here is a native date input or a select, which is what gives iOS
    and Android their own wheel pickers. */
+/* v114: ONE control, two modes. 'appt' reschedules the open visit; 'queue'
+   schedules a job that has none. The fields, the installer rules, the duration
+   helpers, the validation, the conflict handling and the date jump are shared
+   -- only the heading, the button, the hint and the save target differ. A Task
+   is never unscheduled, so the queue mode never applies to one. */
 function ejrBlock(){
-  if(EJ_MODE!=='appt')return '';
+  const appt=EJ_MODE==='appt';
+  if(!appt&&(EJ_MODE!=='queue'||isTask(currentItem()||{})))return '';
   return '<div style="border-top:1px solid var(--side-border);margin-top:6px;padding-top:14px">'
-    +'<div style="font-size:10.5px;letter-spacing:1.2px;text-transform:uppercase;color:var(--sand-dim);margin-bottom:9px">Reschedule</div>'
+    +'<div style="font-size:10.5px;letter-spacing:1.2px;text-transform:uppercase;color:var(--sand-dim);margin-bottom:9px">'+(appt?'Reschedule':'Schedule')+'</div>'
     +'<div class="fld"><label>Date &amp; start</label><div class="durrow">'
     +'<input id="ejrDate" type="date"><select id="ejrStart"></select></div></div>'
     +'<div class="fld"><label>Duration</label><div class="durrow">'
     +'<select id="ejrDurH"></select><span class="durx">hr</span>'
     +'<select id="ejrDurM"></select><span class="durx">min</span></div></div>'
     +'<div class="fld"><label>Assigned to</label><select id="ejrInst"></select></div>'
-    +'<button type="button" class="btn" id="ejrGo" style="width:100%">Move this visit</button>'
-    +'<div style="'+EJ_DIM+';margin-top:8px">Moves the visit and jumps the calendar to the new date. A clash with another job on the same installer is flagged, not blocked.</div></div>';}
+    +'<button type="button" class="btn" id="ejrGo" style="width:100%">'+(appt?'Move this visit':'Schedule this job')+'</button>'
+    +'<div style="'+EJ_DIM+';margin-top:8px">'
+    +(appt
+      ?'Moves the visit and jumps the calendar to the new date. A clash with another job on the same installer is flagged, not blocked.'
+      :'Puts this job on the calendar and jumps to the date. Leave the installer as Unassigned to decide later. A clash with another job on the same installer is flagged, not blocked.')
+    +'</div></div>';}
+/* The next half hour inside calendar hours -- the default start for a job
+   being scheduled today. */
+function ejrNextStart(){const n=new Date();
+  return Math.min(Math.max(Math.ceil((n.getHours()+n.getMinutes()/60)*2)/2,START_HOUR),END_HOUR);}
 
 /* Fills the reschedule controls from the appointment currently open.
    Unassigned is offered for a job and withheld for a Task: Q20 made an
    assignee mandatory on a Task, and the New Task form already refuses to
    save without one, so this must not be a back door around that. */
 function ejrFill(a){
-  if(EJ_MODE!=='appt'||!$('ejrDate'))return;
-  $('ejrDate').value=a.dateKey||dateKey(TODAY);
-  fillStartOptions($('ejrStart'),a.start);
-  fillDur($('ejrDurH'),$('ejrDurM'),Math.round((a.dur||2)*60));
+  if(!$('ejrDate'))return;
+  const appt=EJ_MODE==='appt';
+  /* Schedule defaults: today, the next half hour, the job's own estimate,
+     Unassigned. Reschedule fills from the visit as it always has. */
+  $('ejrDate').value=appt?(a.dateKey||dateKey(TODAY)):dateKey(TODAY);
+  fillStartOptions($('ejrStart'),appt?a.start:ejrNextStart());
+  fillDur($('ejrDurH'),$('ejrDurM'),appt?Math.round((a.dur||2)*60):(a.estMins||defaultMins(a.type)));
   /* Same list-building rule as the drawer: an installer already on this
      visit is kept even when archived, because dropping them would leave
      sel.value unmatched and the browser would silently fall back to option
      zero -- reassigning the job to whoever sorts first. */
   const sel=$('ejrInst');sel.innerHTML='';
-  const cur=a.installer||'un';
+  const cur=appt?(a.installer||'un'):'un';
   const opts=INSTALLERS.filter(i=>i.id!=='un'&&i.status!=='inactive');
   if(cur!=='un'&&!opts.some(i=>i.id===cur)){const c=INSTALLERS.find(i=>i.id===cur)||ALL_INSTALLERS.find(i=>i.id===cur);if(c)opts.push(c);}
   const list=isTask(a)?opts:opts.concat([UNASSIGNED]);
@@ -2943,13 +2995,31 @@ function ejrFill(a){
   $('ejrGo').onclick=ejrGo;}
 
 async function ejrGo(){
-  const a=currentItem();if(!a||EJ_MODE!=='appt')return;
+  const a=currentItem();if(!a)return;
+  const appt=EJ_MODE==='appt';
+  if(!appt&&EJ_MODE!=='queue')return;
   const key=$('ejrDate').value;
   if(!key){toast('Pick a date',true);return;}
   const start=+$('ejrStart').value;
-  const mins=Math.max(15,hmToMins($('ejrDurH').value,$('ejrDurM').value)||Math.round((a.dur||2)*60));
+  const mins=Math.max(15,hmToMins($('ejrDurH').value,$('ejrDurM').value)||Math.round((appt?(a.dur||2)*60:(a.estMins||defaultMins(a.type)))));
   const inst=$('ejrInst').value;
   if(isTask(a)&&(!inst||inst==='un')){toast('A task needs someone assigned',true);return;}
+  /* Queue mode: create the visit, then hand the drawer its new appointment id
+     -- openDrawer resolves an appointment first and a job id only as a
+     fallback, so reopening on the job id would find nothing. */
+  if(!appt){
+    const btn0=$('ejrGo');if(btn0){btn0.disabled=true;btn0.textContent='Scheduling…';}
+    const made=await scheduleJob(a,key,start,mins,inst);
+    if(btn0){btn0.disabled=false;btn0.textContent='Schedule this job';}
+    if(!made){toast('Could not schedule',true);return;}
+    ejClose();
+    toast(made._conflict?`Scheduled — <b>heads up:</b> installer double-booked`:`<b>${esc(jobTitle(a))}</b> scheduled`,made._conflict);
+    const [qy,qmo,qda]=key.split('-').map(Number);
+    gotoDate(new Date(qy,qmo-1,qda));
+    if(page==='toschedule')buildGeneric('toschedule');
+    if(page==='inventory')buildReceiving();
+    openDrawer(made.id);
+    return;}
   const wasUn=(a.installer||'un')==='un';
   const btn=$('ejrGo');if(btn){btn.disabled=true;btn.textContent='Moving…';}
   const id=a.id;
@@ -5432,9 +5502,35 @@ $('njType').addEventListener('click',e=>{const c=e.target.closest('.chip');if(!c
    njIsTask reads the live chip rather than a stored flag so there is one
    source of truth for which mode the modal is in. */
 function njIsTask(){const c=document.querySelector('#njType .chip.on');return !!c&&c.dataset.t==='Task';}
+/* v114: Schedule Now. Optional -- left alone the job flows into the queue
+   exactly as before. The fields reuse the same helpers the Task and Reschedule
+   controls use, and the installer defaults to Unassigned so it is never a
+   barrier: the amber banner chases an unassigned visit the same way it does
+   after a drag-drop. */
+function njIsSched(){const c=document.querySelector('#njSched .chip.on');return !!c&&c.dataset.s==='yes'&&!njIsTask();}
+function njSyncSched(){const on=njIsSched();
+  $('njSchedWrap').style.display=on?'':'none';
+  if(on&&!$('njSchedStart').options.length){
+    fillStartOptions($('njSchedStart'),ejrNextStart());
+    njFillSchedInstallers();}
+  /* The visit duration follows the estimate until someone changes it. */
+  if(on)fillDur($('njSchedDurH'),$('njSchedDurM'),hmToMins($('njDurH').value,$('njDurM').value)||defaultMins(document.querySelector('#njType .chip.on').dataset.t));}
+function njFillSchedInstallers(){const s=$('njSchedInst');if(!s)return;s.innerHTML='';
+  INSTALLERS.filter(i=>i.id!=='un'&&i.status!=='inactive').concat([UNASSIGNED])
+    .forEach(i=>{const o=document.createElement('option');o.value=i.id;o.textContent=i.name;s.appendChild(o);});
+  s.value='un';}
+/* The picked files are held here until the job id exists -- the storage path
+   is jobId/timestamp_name, so nothing can be uploaded before the insert. */
+var NJ_FILES=[];
+function njFileKind(f){return /\.pdf$/i.test(f.name)?'pdf':(/\.(png|jpe?g|gif|webp|heic|heif)$/i.test(f.name)?'photo':'pdf');}
 function njSyncTaskMode(){const t=njIsTask(),show=x=>t?'none':'',showT=x=>t?'block':'none';
   ['njCustFld','njAddrFld','njPhoneFld','njScopeFld','njProdFld'].forEach(f=>{if($(f))$(f).style.display=show();});
   ['njTaskTypeFld','njTaskDescFld','njWhenFld','njInstFld'].forEach(f=>{if($(f))$(f).style.display=showT();});
+  /* A Task is always scheduled at creation and carries its own When and
+     Assigned to, so Schedule Now has nothing to add and is hidden. */
+  if($('njSchedFld'))$('njSchedFld').style.display=show();
+  if($('njSchedWrap'))$('njSchedWrap').style.display=(t||!njIsSched())?'none':'';
+  if($('njFilesFld'))$('njFilesFld').style.display=show();
   if(!t)$('njMeetingTypeFld').style.display='none';
   $('njLinesWrap').style.display=t?'none':'';
   $('njNewCustWrap').style.display='none';$('njHist').style.display='none';
@@ -5472,6 +5568,11 @@ function njFillTaskInstallers(){const s=$('njInstaller');s.innerHTML='';
 $('njTaskType').addEventListener('change',njSyncTaskDealer);
 $('njMeetingType').addEventListener('change',njSyncTaskDealer);
 $('njProd').addEventListener('click',e=>{const c=e.target.closest('.chip');if(!c)return;document.querySelectorAll('#njProd .chip').forEach(x=>{x.classList.remove('on');x.style.background=''});c.classList.add('on');c.style.background='var(--sand)';});
+$('njSched').addEventListener('click',e=>{const c=e.target.closest('.chip');if(!c)return;document.querySelectorAll('#njSched .chip').forEach(x=>{x.classList.remove('on');x.style.background=''});c.classList.add('on');c.style.background='var(--sand)';njSyncSched();});
+$('njFiles').addEventListener('change',function(){NJ_FILES=[...(this.files||[])];
+  $('njFilesHint').textContent=NJ_FILES.length
+    ?NJ_FILES.length+(NJ_FILES.length===1?' file':' files')+' ready — they upload once the job has been created.'
+    :'PDFs and photos. They upload once the job has been created.';});
 // ---- Phase B: catalog-driven priced line items ----
 function fmtMoney(v){return '$'+Number(v||0).toFixed(2);}
 function jobPricing(item){const lis=item.lineItems||[];let subtotal=0,anyQuote=false;
@@ -6475,6 +6576,10 @@ $('newJobBtn').onclick=()=>{
   $('njNewCustWrap').style.display='none';$('njCustName').value='';$('njHist').style.display='none';
   document.querySelectorAll('#njType .chip').forEach((x,i)=>{x.classList.toggle('on',i===0);x.style.background=i===0?TYPES.Measure.c:''});
   document.querySelectorAll('#njProd .chip').forEach((x,i)=>{x.classList.toggle('on',i===0);x.style.background=i===0?'var(--sand)':''});
+  document.querySelectorAll('#njSched .chip').forEach((x,i)=>{x.classList.toggle('on',i===0);x.style.background=i===0?'var(--sand)':''});
+  $('njSchedStart').innerHTML='';$('njSchedDate').value=dateKey(TODAY);
+  NJ_FILES=[];$('njFiles').value='';$('njFilesHint').textContent='PDFs and photos. They upload once the job has been created.';
+  njSyncSched();
   $('njLines').innerHTML='';$('njScope').value='';
   $('njDiscWrap').style.display='none';$('njDisc').value='';njSetDiscount(0);
   fillSvcList();addLineRow();
@@ -6623,9 +6728,34 @@ $('njSave').onclick=async()=>{if(!IS_ADMIN)return;
      exactly like assignment having failed. */
   const assignedNo=(job&&job.job_number!=null)?job.job_number:null;
   if(assignedNo==null)toast('Job saved, but it did <b>not</b> get a job number — see the console',true);
-  queue.unshift({id:job.id,jobNo:assignedNo,type,customerId:custId,cust:custName,dealerId:dId,dealer,addr:addr||'—',phone,scope:scope||'—',estMins,awaitingProduct:awaiting,lineItems,override:false,dealerDiscount:njDiscount});
-  renderQueue();$('njBg').classList.remove('open');
-  toast(awaiting?`<b>${custName}</b> created — sent to Receiving`:`<b>${custName}</b> created — ready to schedule`);
+  const fresh={id:job.id,jobNo:assignedNo,type,customerId:custId,cust:custName,dealerId:dId,dealer,addr:addr||'—',phone,scope:scope||'—',estMins,awaitingProduct:awaiting,lineItems,override:false,dealerDiscount:njDiscount};
+  /* v114: Schedule Now sends the job STRAIGHT to the calendar through the one
+     create path -- it must not also be pushed into the queue, because the
+     queue is "every job with no appointment" and everything downstream (rail,
+     counts, To Schedule, Receiving badge, dashboard) derives from that.
+     A failed insert falls back to the queue rather than losing the job. */
+  let made=null;
+  if(njIsSched()){
+    const key=$('njSchedDate').value||dateKey(TODAY);
+    const mins=Math.max(15,hmToMins($('njSchedDurH').value,$('njSchedDurM').value)||estMins);
+    made=await scheduleJob(fresh,key,+$('njSchedStart').value,mins,$('njSchedInst').value);
+    if(!made){queue.unshift(fresh);renderQueue();}
+  }else{queue.unshift(fresh);renderQueue();}
+  $('njBg').classList.remove('open');
+  /* Files last: the job and its line items are already saved, so a failed
+     upload costs the files, never the job. */
+  let fOk=0,fBad=0;
+  if(NJ_FILES.length){
+    for(const f of NJ_FILES){
+      try{await uploadFile(job.id,f,njFileKind(f));fOk++;}
+      catch(err){console.error('new job attachment',f&&f.name,err);fBad++;}}
+    NJ_FILES=[];$('njFiles').value='';
+    if($('drawer').classList.contains('open')&&currentJobId()===job.id)refreshFiles();}
+  if(fBad&&!fOk)toast(`<b>${esc(custName)}</b> created, but the files did not attach. The job is saved — open it and add them again.`,true);
+  else if(fBad)toast(`<b>${esc(custName)}</b> created, but ${fBad} of ${fOk+fBad} files did not attach. The job is saved — open it and add the missing file again.`,true);
+  else if(fOk)toast(`<b>${esc(custName)}</b> created — ${fOk} file${fOk===1?'':'s'} attached`);
+  else if(made)toast(made._conflict?`Scheduled — <b>heads up:</b> installer double-booked`:`<b>${esc(custName)}</b> created — scheduled`,made._conflict);
+  else toast(awaiting?`<b>${custName}</b> created — sent to Receiving`:`<b>${custName}</b> created — ready to schedule`);
   if(page==='toschedule')buildGeneric('toschedule');if(page==='inventory')buildReceiving();};
 
 
