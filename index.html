@@ -176,6 +176,16 @@
   .gcard{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:16px 18px}
   .gcard h4{font-size:14.5px;font-weight:700;display:flex;align-items:center;gap:9px}
   .gcard .dot{width:11px;height:11px;border-radius:50%;flex-shrink:0}
+  /* v116: the role icon replaced the per-installer colour dot on the Users
+     tile. It is 14px, not 11px, and is NOT .dot. .gcard .dot below is now
+     unused and is left in place deliberately; the Reports margin table draws
+     its own swatch from the SEPARATE .gdot class and still reads
+     installers.color, which is why that column was not dropped. Do not delete
+     installers.color on the strength of this tile no longer reading it.
+     A user with no company_role renders an EMPTY .rico span: the h4 is a flex row, so the span holds the
+     14px and the gap, and every name in the grid stays on the same x. */
+  .gcard .rico{width:14px;height:14px;flex-shrink:0;display:inline-block}
+  .gcard .irole{margin-top:7px;font-size:10.5px;letter-spacing:1.1px;text-transform:uppercase;font-weight:800;color:var(--muted)}
   .gcard .gstat{display:flex;gap:18px;margin-top:13px}.gcard .gstat div{font-size:12px;color:var(--muted)}
   .gcard .gstat b{display:block;font-size:21px;font-weight:800;color:var(--ink)}
   .grow{display:flex;align-items:center;gap:14px;background:var(--card);border:1px solid var(--border);border-radius:12px;padding:13px 16px;margin-bottom:9px}
@@ -1432,7 +1442,7 @@ body.role-installer [data-admin]{display:none!important}
       <div class="day-nav" id="dayNav"><button id="navPrev">‹</button><button id="navToday" style="width:auto;padding:0 10px;font-size:12px;font-weight:600">Today</button><button id="navNext">›</button></div>
       <span id="rangeLbl"></span>
       <div class="spacer"></div>
-      <select id="instFilter" class="topfilter"><option value="all">All installers</option></select>
+      <select id="instFilter" class="topfilter"><option value="all">All users</option></select>
       <button class="btn" id="newJobBtn" data-admin>+ New Job</button>
     </div>
 
@@ -1459,7 +1469,7 @@ body.role-installer [data-admin]{display:none!important}
       <div class="fld" id="drMeetingTypeFld" style="display:none"><label>Meeting type</label><select id="drMeetingType"></select></div>
       <div class="fld" id="drTaskDoneFld" style="display:none"><label>Status</label><label class="tchk chkrow"><input type="checkbox" id="drTaskDone"><span>Done</span></label></div>
       <div class="fld" id="drStatusFld"><label>Status</label><select id="drStatus"></select></div>
-      <div class="fld"><label>Installer</label><select id="drInstaller"></select></div>
+      <div class="fld"><label>Assigned to</label><select id="drInstaller"></select></div>
       <div class="fld" id="drTaskDealerFld" style="display:none"><label>Dealer (optional)</label><div class="combo" id="drTaskDealerCombo"><input id="drTaskDealerInput" placeholder="Search dealers…" autocomplete="off"><div class="combo-list" id="drTaskDealerList"></div></div></div>
       <div class="fld" id="drTaskDescFld" style="display:none"><label>Description</label><textarea id="drTaskDesc" rows="7" placeholder="What needs doing…"></textarea></div>
       <div class="fld" id="drDealerFld"><label>Dealer (account)</label><div class="val" id="drDealer" style="cursor:pointer;text-decoration:underline;text-decoration-style:dotted;text-underline-offset:3px">—</div></div>
@@ -1595,7 +1605,7 @@ body.role-installer [data-admin]{display:none!important}
   </div></div>
 
   <div class="modal-bg" id="instBg" data-admin><div class="modal" style="width:600px">
-    <div class="modal-h"><div class="mi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 21v-1a6 6 0 0 1 6-6h4a6 6 0 0 1 6 6v1"/></svg></div><div><h3 id="instTitle">Installer profile</h3><div class="ms" id="instName">—</div></div><button class="x" onclick="$('instBg').classList.remove('open')">×</button></div>
+    <div class="modal-h"><div class="mi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 21v-1a6 6 0 0 1 6-6h4a6 6 0 0 1 6 6v1"/></svg></div><div><h3 id="instTitle">User profile</h3><div class="ms" id="instName">—</div></div><button class="x" onclick="$('instBg').classList.remove('open')">×</button></div>
     <div class="modal-tabs"><div class="seg ghost" id="ipTabs"><button class="on" onclick="ipTab('info')">Info</button><button onclick="ipTab('docs')">Documents</button><button onclick="ipTab('pay')">Pay</button></div></div>
     <div class="modal-b">
       <div id="ipInfo">
@@ -1620,6 +1630,13 @@ body.role-installer [data-admin]{display:none!important}
           <option value="subcontractor">Subcontractor</option>
           <option value="owner">Owner</option>
         </select></div>
+        <div class="fld"><label>Company role</label><select id="instRole">
+          <option value="">Not set</option>
+          <option value="Admin">Admin</option>
+          <option value="Manager">Manager</option>
+          <option value="Installer">Installer</option>
+        </select></div>
+        <div class="limeta" style="padding:0 2px;margin:-10px 0 16px">Job title only. It does not change what anyone can see or be assigned.</div>
         <div class="fld"><label>Employment status</label><select id="instEmpStatus" onchange="ipStatusHint()">
           <option value="active">Active</option>
           <option value="inactive">Inactive (archived)</option>
@@ -1769,7 +1786,10 @@ const STATUS_TEXT={rts:"#636971",hold:"#8A6742",scheduled:"#41627F",otw:"#8b6004
 const statusText=k=>STATUS_TEXT[k]||statusColor(k);
 const ICONS={phone:'<path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1.9.3 1.8.6 2.6a2 2 0 0 1-.5 2.1L8 9.6a16 16 0 0 0 6 6l1.2-1.2a2 2 0 0 1 2.1-.5c.8.3 1.7.5 2.6.6a2 2 0 0 1 1.7 2z"/>',chat:'<path d="M21 11.5a8.4 8.4 0 0 1-9 8.4 8.5 8.5 0 0 1-3.8-.9L3 21l1.9-5.7A8.4 8.4 0 0 1 4 11.5a8.5 8.5 0 0 1 17 0z"/>',ruler:'<path d="M3 11l8-8 10 10-8 8z"/><path d="M7 9l2 2M11 7l2 2M9 13l2 2"/>',send:'<path d="M22 2L11 13M22 2l-7 20-4-9-9-4z"/>',cam:'<path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/>',doc:'<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M9 13h6M9 17h6"/>',box:'<path d="M21 16V8a2 2 0 0 0-1-1.7l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.7l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><path d="M3.3 7L12 12l8.7-5M12 22V12"/>',check:'<path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>',link:'<path d="M10 13a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1.5 1.5"/><path d="M14 11a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1.5-1.5"/>',cr:'<path d="M9 11l3 3 5-6"/><path d="M21 12a9 9 0 1 1-6.2-8.6"/>',
   asr:'<path d="M9 2h6a2 2 0 0 1 2 2v1h1a2 2 0 0 1 2 2v13a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h1V4a2 2 0 0 1 2-2z"/><path d="M9 12h6M9 16h4"/>',
-  flag:'<path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><path d="M4 22v-7"/>',chart:'<path d="M3 3v18h18"/><path d="M7 14l4-4 3 3 5-6"/>'};
+  flag:'<path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><path d="M4 22v-7"/>',chart:'<path d="M3 3v18h18"/><path d="M7 14l4-4 3 3 5-6"/>',
+  roleAdmin:'<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M9 12l2 2 4-4"/>',
+  roleManager:'<rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/>',
+  roleInstaller:'<path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>'};
 /* RETURN TRIP WORKFLOW (v61). The return-trip tile reuses the Install
    components outright - openModal() dispatches on the action's `ic` alone and
    NOT on job type (woIsInstall() is the single type gate in the file, and it
@@ -1788,6 +1808,14 @@ const ICONS={phone:'<path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 
    Receiving bridge the Install tile opens: modalBodyFor, stockInit, the
    footer label and recvGoto are all keyed on ic alone, so nothing about it
    was re-implemented or forked for this job type. */
+/* v116: Company Role is a JOB TITLE and nothing else. This map exists only to
+   pick a glyph; it is never consulted to decide what anyone may do or be
+   assigned. A role this map does not know, and a null role, both fall through
+   to the empty spacer rather than to a default icon -- guessing a title is
+   worse than showing none. */
+const ROLE_ICONS={Admin:'roleAdmin',Manager:'roleManager',Installer:'roleInstaller'};
+function roleIco(r){const k=ROLE_ICONS[r];
+  return k?`<svg class="rico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">${ICONS[k]}</svg>`:'<span class="rico"></span>';}
 const WO={"Measure":{color:"#5b9bd5",actions:[{ic:"ruler",label:"Open Measure Sheet"},{ic:"cam",label:"Attach Photos"},{ic:"send",label:"Send to Dealer"}]},"Install":{color:"#3a6fb0",actions:[{ic:"doc",label:"Open Install Work Order"},{ic:"asr",label:"Additional Services Report"},{ic:"cam",label:"Attach Job Photos"},{ic:"cr",label:"Completion Report"},{ic:"check",label:"Capture Sign-off & Completion"},{ic:"send",label:"Send to Dealer"}]},"Return Trip":{color:"#d9605c",actions:[{ic:"link",label:"Open Previous Job Documents"},{ic:"asr",label:"Additional Services Report"},{ic:"cr",label:"Completion Report"},{ic:"check",label:"Capture Sign-off & Completion"},{ic:"send",label:"Send to Dealer"}]}};
 
 const DEALERS=[];
@@ -1914,8 +1942,26 @@ async function loadDealers(){try{const {data,error}=await sb.from('dealers').sel
   DEALERS.length=0;data.forEach(d=>DEALERS.push({id:d.id,name:d.name,discount:+d.discount_pct||0,phone:d.phone||''}));
   /* DEALERS fills after the first render; refresh if the user is already on the page. (v22) */
   if(page==='dealers')buildGeneric('dealers');}catch(e){console.error(e);toast('Could not reach database',true);}}
-const INST_COLS='id,name,color,pay_type,pay_rate,employment_status';
-const instMap=i=>({id:i.id,name:i.name,color:i.color||'#5b8def',payType:i.pay_type||'hourly',payRate:i.pay_rate!=null?+i.pay_rate:0,status:i.employment_status||'active'});
+const INST_COLS='id,name,color,pay_type,pay_rate,employment_status,company_role';
+/* companyRole (installers.company_role, v116) is DISPLAY ONLY. It is a job
+   title -- Admin, Manager, Installer -- and it governs nothing.
+   - It must NEVER appear in a .filter() on INSTALLERS or ALL_INSTALLERS.
+     Every one of the nine lists that offer people for work (the scheduler
+     filter, the drawer assignee, the drawer schedule-now, both New Job
+     pickers, the Reports filter, the two dashboard selects and the Users
+     grid) filters on id!==un and on status, and must keep filtering on
+     exactly those. Everyone is assignable to every job whatever their title
+     says: the Manager who does an install has to stay selectable everywhere.
+   - It must never reach cmEligible(), which keys on payType alone, or the
+     Reports grouping, which buckets on installer id. A title has no bearing
+     on commission eligibility or on which bucket a job's money lands in.
+   - Permissions are profiles.role and IS_ADMIN and are a separate system
+     that this does not read, write or shadow. The field is named companyRole
+     here, not role, precisely so it cannot be mistaken for PROFILE.role.
+   It rides in INST_COLS because a job title is not sensitive; the address and
+   date of birth on the same table deliberately do not, and are read one
+   person at a time inside editInstaller. */
+const instMap=i=>({id:i.id,name:i.name,color:i.color||'#5b8def',payType:i.pay_type||'hourly',payRate:i.pay_rate!=null?+i.pay_rate:0,status:i.employment_status||'active',companyRole:i.company_role||null});
 /* employment_status archives a person; the separate `active` column controls
    scheduling visibility. They are different concepts and neither is derived
    from the other. INSTALLERS stays filtered on active exactly as before; the
@@ -1926,7 +1972,7 @@ async function loadInstallers(){try{const {data,error}=await sb.from('installers
   const {data:all,error:ae}=await sb.from('installers').select(INST_COLS).order('name');
   if(ae)console.error(ae);else ALL_INSTALLERS=(all||[]).map(instMap);
   populateInstallerFilter();}catch(e){console.error(e)}}
-function populateInstallerFilter(){const s=$('instFilter');if(!s)return;s.innerHTML='<option value="all">All installers</option>';INSTALLERS.forEach(i=>{const o=document.createElement('option');o.value=i.id;o.textContent=i.name;s.appendChild(o)});const u=document.createElement('option');u.value='un';u.textContent='Unassigned';s.appendChild(u);s.value=instFilter;}
+function populateInstallerFilter(){const s=$('instFilter');if(!s)return;s.innerHTML='<option value="all">All users</option>';INSTALLERS.forEach(i=>{const o=document.createElement('option');o.value=i.id;o.textContent=i.name;s.appendChild(o)});const u=document.createElement('option');u.value='un';u.textContent='Unassigned';s.appendChild(u);s.value=instFilter;}
 const pad=n=>String(n).padStart(2,'0');
 function dateKey(d){return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`}
 function composeISO(key,hour){const [y,mo,da]=key.split('-').map(Number);const h=Math.floor(hour),min=Math.round((hour-h)*60);return new Date(y,mo-1,da,h,min,0).toISOString();}
@@ -2045,7 +2091,7 @@ async function rescheduleAppt(id,key,start,installer,mins){
 async function moveAppt(id,key,hour){const a=appts.find(x=>x.id===id);if(!a)return;
   const ok=await rescheduleAppt(id,key,hour,a.installer,Math.round((a.dur||2)*60));
   if(!ok)return;
-  toast(a._conflict?`Moved — <b>heads up:</b> installer double-booked`:`<b>${esc(jobTitle(a))}</b> moved`,a._conflict);}
+  toast(a._conflict?`Moved — <b>heads up:</b> double-booked`:`<b>${esc(jobTitle(a))}</b> moved`,a._conflict);}
 function timeCol(){const t=document.createElement('div');t.className='time-col';for(let h=START_HOUR;h<=END_HOUR;h++){const c=document.createElement('div');c.className='time-cell';const am=h<12,hr=h%12===0?12:h%12;c.textContent=`${hr}${am?'am':'pm'}`;t.appendChild(c)}return t}
 function dayCol(key){const col=document.createElement('div');col.className='day-col';col.dataset.key=key;
   for(let h=START_HOUR;h<=END_HOUR;h++){const slot=document.createElement('div');slot.className='slot';col.appendChild(slot)}
@@ -2147,7 +2193,7 @@ async function scheduleJob(j,key,start,mins,installer){
 async function dropJob(key,hour,e){const id=e.dataTransfer.getData('id');const j=queue.find(x=>x.id===id);if(!j)return;
   const a=await scheduleJob(j,key,hour,j.estMins||defaultMins(j.type),null);
   if(!a){toast('Could not schedule',true);return;}
-  toast(`<b>${j.cust}</b> booked — assign an installer`,true);}
+  toast(`<b>${j.cust}</b> booked — assign someone`,true);}
 
 function openDrawer(id){let a=appts.find(x=>x.id===id),mode='appt';if(!a){a=queue.find(x=>x.id===id);mode='queue';}if(!a)return;
   selectedId=id;drawerMode=mode;const tt=$('drTypeTag');
@@ -3016,7 +3062,7 @@ async function ejrGo(){
     if(btn0){btn0.disabled=false;btn0.textContent='Schedule this job';}
     if(!made){toast('Could not schedule',true);return;}
     ejClose();
-    toast(made._conflict?`Scheduled — <b>heads up:</b> installer double-booked`:`<b>${esc(jobTitle(a))}</b> scheduled`,made._conflict);
+    toast(made._conflict?`Scheduled — <b>heads up:</b> double-booked`:`<b>${esc(jobTitle(a))}</b> scheduled`,made._conflict);
     const [qy,qmo,qda]=key.split('-').map(Number);
     gotoDate(new Date(qy,qmo-1,qda));
     if(page==='toschedule')buildGeneric('toschedule');
@@ -3034,7 +3080,7 @@ async function ejrGo(){
      run inside rescheduleAppt, the flag drives the same red Conflict pill on
      both cards, and the toast is warn-styled with the same wording pattern.
      The save is never blocked. */
-  toast(a._conflict?`Rescheduled — <b>heads up:</b> installer double-booked`:`<b>${esc(jobTitle(a))}</b> rescheduled`,a._conflict);
+  toast(a._conflict?`Rescheduled — <b>heads up:</b> double-booked`:`<b>${esc(jobTitle(a))}</b> rescheduled`,a._conflict);
   /* Without this the visit silently vanishes whenever it lands outside the
      loaded range: buildWeek only creates columns for the seven visible days
      and appends each card behind an if(col) guard, so a card with no matching
@@ -5703,7 +5749,7 @@ function drRenderMargin(a){const fld=$('drMarginFld');if(!fld)return;if(!a){fld.
   const P=jobPricing(a);const rev=P.total;const inst=INSTALLERS.find(i=>i.id===$('drInstaller').value);
   const durH=Math.max(0,(hmToMins($('drDurH').value,$('drDurM').value)||0))/60;
   fld.style.display='block';const box=$('drMargin');
-  if(!inst){box.innerHTML='<div class="limeta">Assign an installer to see cost &amp; margin.</div>';return;}
+  if(!inst){box.innerHTML='<div class="limeta">Assign someone to see cost &amp; margin.</div>';return;}
   const rate=+inst.payRate||0;let cost,label;
   if(inst.payType==='sub_1099'){cost=rev*rate/100;label=`1099 · ${rate}% of price`;}
   else{cost=rate*durH;label=`${inst.payType==='salary'?'Salary':'Hourly'} · ${fmtMoney(rate)}/hr × ${durH.toFixed(2)}h`;}
@@ -5953,7 +5999,7 @@ async function editInstaller(id){if(!IS_ADMIN)return;const i=INSTALLERS.find(x=>
   $('instName').textContent=i.name;$('instNameEdit').value=i.name||'';
   $('instPayType').value=i.payType||'hourly';$('instRate').value=i.payRate!=null?i.payRate:'';instRateUI();
   ['instPhone','instEmail','instAddress','instDob','instStart'].forEach(k=>{$(k).value='';});
-  $('instEmpType').value='';$('instEmpStatus').value=i.status||'active';ipStatusHint();
+  $('instEmpType').value='';$('instRole').value='';$('instEmpStatus').value=i.status||'active';ipStatusHint();
   $('ipDocsInternal').innerHTML='';$('ipDocsMine').innerHTML='';
   $('instResetBtn').disabled=true;$('instResetMsg').textContent='';ipResetArm(false);
   ipTab('info');$('instBg').classList.add('open');
@@ -5961,13 +6007,14 @@ async function editInstaller(id){if(!IS_ADMIN)return;const i=INSTALLERS.find(x=>
      added to loadInstallers(). That query runs for every signed-in user on
      every load; date of birth and home address have no business being shipped
      to every browser just so the calendar can draw a name and a colour. */
-  const {data,error}=await sb.from('installers').select('phone,email,address,employment_type,dob,start_date,employment_status').eq('id',id).single();
+  const {data,error}=await sb.from('installers').select('phone,email,address,employment_type,dob,start_date,employment_status,company_role').eq('id',id).single();
   /* editingInst is re-checked because the admin can close this popup and open
      another installer while the request is still in flight. */
   if(error){console.error(error);toast('Could not load profile',true);}
   else if(data&&editingInst===id){
     $('instPhone').value=data.phone||'';$('instEmail').value=data.email||'';
     $('instAddress').value=data.address||'';$('instEmpType').value=data.employment_type||'';
+    $('instRole').value=data.company_role||'';
     $('instDob').value=ipDate(data.dob);$('instStart').value=ipDate(data.start_date);
     $('instEmpStatus').value=data.employment_status||'active';ipStatusHint();}
   await ipLoginCheck(id,(data&&data.email)||'');
@@ -5995,10 +6042,10 @@ async function ipLoginCheck(id,email){
      flight; a late answer must not light up the wrong installer's button. */
   if(editingInst!==id)return;
   if(error){console.error('installer_has_login',error);msg.textContent='Login check failed — the database error is in the browser console.';return;}
-  if(!data){msg.textContent='No login account for this installer.';return;}
+  if(!data){msg.textContent='No login account for this user.';return;}
   /* They have a login, but the link still needs somewhere to go and
      resetPasswordForEmail takes an address, not an id. */
-  if(!e){msg.textContent='This installer has a login, but no email address is saved here to send the link to.';return;}
+  if(!e){msg.textContent='This user has a login, but no email address is saved here to send the link to.';return;}
   btn.disabled=false;ipResetIdleMsg();}
 /* Emailing a staff member should not happen on one stray tap, so the button
    arms a Confirm/Cancel pair in place. Deliberately NOT a second .modal-bg:
@@ -6034,14 +6081,15 @@ async function saveInstaller(){if(!IS_ADMIN)return;if(!editingInst)return;
   const patch={name:nm,pay_type:payType,pay_rate:payRate,
     phone:ipNz($('instPhone').value),email:ipNz($('instEmail').value),address:ipNz($('instAddress').value),
     employment_type:$('instEmpType').value||null,
+    company_role:$('instRole').value||null,
     employment_status:$('instEmpStatus').value||'active',
     dob:$('instDob').value||null,start_date:$('instStart').value||null};
   const {error}=await sb.from('installers').update(patch).eq('id',editingInst);
   if(error){toast('Save failed',true);console.error(error);return;}
   /* Both caches are updated: INSTALLERS drives the cards and the assignment
      dropdown, ALL_INSTALLERS is what history resolves through. */
-  const st=$('instEmpStatus').value||'active';
-  [INSTALLERS,ALL_INSTALLERS].forEach(arr=>{const i=arr.find(x=>x.id===editingInst);if(i){i.name=nm;i.payType=payType;i.payRate=payRate;i.status=st;}});
+  const st=$('instEmpStatus').value||'active',cr=$('instRole').value||null;
+  [INSTALLERS,ALL_INSTALLERS].forEach(arr=>{const i=arr.find(x=>x.id===editingInst);if(i){i.name=nm;i.payType=payType;i.payRate=payRate;i.status=st;i.companyRole=cr;}});
   /* Every other surface resolves the name through instById at render time, so
      it picks the new one up on its next draw. The top installer filter is the
      exception - its <option> text is built once - so rebuild it here. */
@@ -6082,7 +6130,7 @@ function ipDocRow(d){const id=esc(d.id),p=esc(d.path);
    already returns a fresh array, so reverse() cannot disturb IP_DOCS. */
 function ipRenderDocs(){
   [['internal','ipDocsInternal','No internal documents yet.'],
-   ['installer','ipDocsMine','No installer-facing documents yet.']].forEach(function(g){
+   ['installer','ipDocsMine','No user-facing documents yet.']].forEach(function(g){
     const rows=IP_DOCS.filter(d=>d.group===g[0]).reverse();
     $(g[1]).innerHTML=rows.length?rows.map(ipDocRow).join(''):'<div class="fileempty">'+g[2]+'</div>';});}
 function ipPick(group){if(!editingInst)return;ipPendingGroup=group;const inp=$('ipFile');inp.value='';inp.click();}
@@ -6137,6 +6185,11 @@ function apptFinance(a){const inst=INSTALLERS.find(i=>i.id===a.installer)||ALL_I
   const P=jobPricing(a);const rev=P.total;
   let cost=null;if(inst){const rate=+inst.payRate||0;cost=inst.payType==='sub_1099'?rev*rate/100:rate*(a.dur||((a.estMins||120)/60));}
   const c=cost==null?0:cost;return {rev,cost:c,margin:rev-c,inst,assigned:!!inst};}
+/* v116: the By-<x> button label is no longer the grouping value itself. The
+   VALUE stays 'installer' everywhere -- reportGroup, setReportGroup, the
+   GROUP==='installer' tests and the bucket key are all unchanged; only the
+   word on the button moved. Renaming the value would repoint the grouping. */
+const GROUP_SEG_LABEL={dealer:'dealer',installer:'user'};
 let reportPeriod='month',reportGroup='dealer',reportStatus='all',reportInst='all',reportDealer='all';
 const _pad=n=>String(n).padStart(2,'0');
 const _ymd=d=>`${d.getFullYear()}-${_pad(d.getMonth()+1)}-${_pad(d.getDate())}`;
@@ -6268,7 +6321,7 @@ function reportData(opts){
     byDay:DAY?Object.keys(DAY).sort().map(k=>DAY[k]):null,
     detailName:singleInst?singleInst.name:singleDealer,
     otherLabel:singleInst?'Dealer':'Installer',costLabel:singleInst?'Installer pay':'Cost',
-    groupLabel:GROUP==='installer'?'Installer':'Dealer',
+    groupLabel:GROUP==='installer'?'User':'Dealer',
     who:singleInst?singleInst.name:(singleDealer||'All accounts'),
     title:singleInst?'Installer Performance Report':'Margin Report'};}
 
@@ -6361,7 +6414,7 @@ function repBuildPdf(D){
   /* Notes, the same three the screen prints, wrapped and kept off the footer. */
   const notes=[];
   if(D.detail&&D.singleInst)notes.push('Pay basis: '+repPayBasis(D.singleInst)+'.');
-  if(D.tUn)notes.push(`${D.tUn} job${D.tUn>1?'s':''} in this view ${D.tUn>1?'have':'has'} no installer assigned — cost isn't counted, so margin is overstated by that labor.`);
+  if(D.tUn)notes.push(`${D.tUn} job${D.tUn>1?'s':''} in this view ${D.tUn>1?'have':'has'} nobody assigned — cost isn't counted, so margin is overstated by that labor.`);
   notes.push("Revenue excludes quote-only lines. Cost uses each installer's pay setup (1099 = % of price; hourly/salary = rate × appointment duration).");
   let ny=doc.lastAutoTable.finalY+4;
   doc.setFont('helvetica','normal');doc.setFontSize(8.5);
@@ -6536,11 +6589,11 @@ function buildReports(){const g=$('genericView');
   const {fcRev,dnRev,dnCost,rows,tRev,tCost,tUn,tMargin,tPct,arr,periodTxt,dealerNames,singleInst,singleDealer}=D;
   const seg1=[['week','This week'],['month','This month'],['all','All time'],['range','Custom']].map(([p,l])=>`<button class="${reportPeriod===p?'on':''}" onclick="setReportPeriod('${p}')">${l}</button>`).join('');
   const rangeUI=reportPeriod==='range'?`<div class="rep-range"><input type="date" class="rep-sel" value="${reportFrom}" onchange="setReportRange('from',this.value)"><span class="rdash">→</span><input type="date" class="rep-sel" value="${reportTo}" onchange="setReportRange('to',this.value)"></div>`:'';
-  const seg2=['dealer','installer'].map(x=>`<button class="${reportGroup===x?'on':''}" onclick="setReportGroup('${x}')">By ${x}</button>`).join('');
+  const seg2=['dealer','installer'].map(x=>`<button class="${reportGroup===x?'on':''}" onclick="setReportGroup('${x}')">By ${GROUP_SEG_LABEL[x]}</button>`).join('');
   const seg3=[['all','All'],['sched','Forecast'],['done','Completed']].map(([v,l])=>`<button class="${reportStatus===v?'on':''}" onclick="setReportStatus('${v}')">${l}</button>`).join('');
   /* v105: every name below goes through esc(). Installer, dealer and customer
      names are user-entered text, and this is innerHTML. */
-  const instOpts=['<option value="all">All installers</option>'].concat(INSTALLERS.filter(i=>i.id!=='un').map(i=>`<option value="${i.id}" ${reportInst===i.id?'selected':''}>${esc(i.name)}</option>`)).join('');
+  const instOpts=['<option value="all">All users</option>'].concat(INSTALLERS.filter(i=>i.id!=='un').map(i=>`<option value="${i.id}" ${reportInst===i.id?'selected':''}>${esc(i.name)}</option>`)).join('');
   const dealerOpts=['<option value="all">All dealers</option>'].concat(dealerNames.map(d=>`<option value="${esc(d)}" ${reportDealer===d?'selected':''}>${esc(d)}</option>`)).join('');
   const body=arr.length?arr.map(r=>`<tr><td class="nm">${r.color?`<span class="gdot" style="background:${r.color}"></span>`:''}${esc(r.name)}${r.un?` <span style="color:#a8791a;font-size:11px">· ${r.un} unassigned</span>`:''}</td><td class="r">${r.jobs}</td><td class="r">${fmtMoney(r.rev)}</td><td class="r">${fmtMoney(r.cost)}</td><td class="r" style="color:${r.margin>=0?'#4d7010':'#a3211d'};font-weight:700">${fmtMoney(r.margin)}</td><td class="r">${r.pct.toFixed(0)}%</td></tr>`).join(''):`<tr><td colspan="6" style="text-align:center;color:var(--muted);padding:26px">No jobs match these filters.</td></tr>`;
   // Per-job detail when a single installer or dealer is isolated (commission / account statement).
@@ -6561,9 +6614,9 @@ function buildReports(){const g=$('genericView');
       <div class="rep-exp"><button class="btn-exp" onclick="exportReportPDF()">Export PDF</button>${cmEligible(singleInst)?'<button class="btn-exp alt" onclick="exportCommissionPDF()">Commission Report</button>':''}</div></div>
     <div class="inv-bar"><div class="inv-stat"><b style="color:#5D84A5">${fmtMoney(fcRev)}</b><span>Forecast revenue</span></div><div class="inv-stat hl"><b style="color:#4d7010">${fmtMoney(dnRev)}</b><span>Completed revenue</span></div><div class="inv-stat"><b>${fmtMoney(dnRev-dnCost)}</b><span>Completed margin</span></div></div>
     <div class="inv-bar"><div class="inv-stat"><b>${fmtMoney(tRev)}</b><span>Revenue (filtered)</span></div><div class="inv-stat"><b>${fmtMoney(tCost)}</b><span>Installer cost</span></div><div class="inv-stat"><b style="color:${tMargin>=0?'#4d7010':'#a3211d'}">${fmtMoney(tMargin)}</b><span>Margin</span></div><div class="inv-stat"><b>${tPct.toFixed(0)}%</b><span>Margin</span></div><div class="inv-stat"><b>${rows.length}</b><span>Jobs</span></div></div>
-    <table class="rep-table"><thead><tr><th>${reportGroup==='installer'?'Installer':'Dealer'}</th><th class="r">Jobs</th><th class="r">Revenue</th><th class="r">Cost</th><th class="r">Margin</th><th class="r">Margin %</th></tr></thead><tbody>${body}</tbody></table>
+    <table class="rep-table"><thead><tr><th>${reportGroup==='installer'?'User':'Dealer'}</th><th class="r">Jobs</th><th class="r">Revenue</th><th class="r">Cost</th><th class="r">Margin</th><th class="r">Margin %</th></tr></thead><tbody>${body}</tbody></table>
     ${detail}
-    ${tUn?`<div class="rep-note">⚠ ${tUn} job${tUn>1?'s':''} in this view ${tUn>1?'have':'has'} no installer assigned — cost isn't counted, so margin is overstated by that labor.</div>`:''}
+    ${tUn?`<div class="rep-note">⚠ ${tUn} job${tUn>1?'s':''} in this view ${tUn>1?'have':'has'} nobody assigned — cost isn't counted, so margin is overstated by that labor.</div>`:''}
     <div class="rep-note">Revenue excludes quote-only lines. Cost uses each installer's pay setup (1099 = % of price; hourly/salary = rate × appointment duration).</div>`;}
 async function njFillCustomers(){const dId=njDealerId;const sel=$('njCustomer');sel.innerHTML='';
   if(!dId){const o=document.createElement('option');o.textContent='Select a dealer first';o.disabled=true;o.selected=true;sel.appendChild(o);$('njHist').style.display='none';$('njAddr').value='';$('njPhone').value='';return;}
@@ -6786,7 +6839,7 @@ $('njSave').onclick=async()=>{if(!IS_ADMIN)return;
   if(fBad&&!fOk)toast(`<b>${esc(custName)}</b> created, but the files did not attach. The job is saved — open it and add them again.`,true);
   else if(fBad)toast(`<b>${esc(custName)}</b> created, but ${fBad} of ${fOk+fBad} files did not attach. The job is saved — open it and add the missing file again.`,true);
   else if(fOk)toast(`<b>${esc(custName)}</b> created — ${fOk} file${fOk===1?'':'s'} attached`);
-  else if(made)toast(made._conflict?`Scheduled — <b>heads up:</b> installer double-booked`:`<b>${esc(custName)}</b> created — scheduled`,made._conflict);
+  else if(made)toast(made._conflict?`Scheduled — <b>heads up:</b> double-booked`:`<b>${esc(custName)}</b> created — scheduled`,made._conflict);
   else toast(awaiting?`<b>${custName}</b> created — sent to Receiving`:`<b>${custName}</b> created — ready to schedule`);
   if(page==='toschedule')buildGeneric('toschedule');if(page==='inventory')buildReceiving();};
 
@@ -7385,7 +7438,7 @@ function dbRefresh(){if(page!=='dashboard')return;
   /* Today's unassigned work is an ALERT, above everything, not another tile. */
   const todayUn=IS_ADMIN?unassignedAppts().filter(a=>a.dateKey===_ymd(TODAY)).length:0;
   set('dbAlert',todayUn?'<div class="db-alert" role="alert" onclick="dbGoUnassignedToday()">'+DB_ICONS.alert
-    +todayUn+' job'+(todayUn>1?'s':'')+' today '+(todayUn>1?'have':'has')+' no installer — assign now</div>':'');
+    +todayUn+' job'+(todayUn>1?'s':'')+' today '+(todayUn>1?'have':'has')+' nobody assigned — assign now</div>':'');
   if($('dbxTiles'))set('dbxTiles',IS_ADMIN?dbxTilesHtml():'');
   if($('dbxCharts')){set('dbxCharts',IS_ADMIN?dbxChartsHtml():'');
     /* after layout, so clientWidth/clientHeight are real */
@@ -7682,7 +7735,7 @@ function dbPanelHtml(){
   if(DB.panel==='docs'){
     let body;
     if(DB.docsState==='loading')body='<div class="db-empty">Loading…</div>';
-    else if(DB.docsState==='nolink')body='<div class="db-empty">Your login is not linked to an installer, so there are no documents to show.</div>';
+    else if(DB.docsState==='nolink')body='<div class="db-empty">Your login is not linked to a user profile, so there are no documents to show.</div>';
     else body=DB_DOCS.length?DB_DOCS.slice().reverse().map(dbDocRow).join(''):'<div class="db-empty">No documents yet.</div>';
     return '<div class="db-card"><h3>My Docs</h3><div class="gmeta" style="margin:2px 0 10px">View and download</div>'+body+'</div>';}
   return '';}
@@ -7742,7 +7795,7 @@ function miniCal(){const m=monthAnchor(0),offset=(m.getDay()+6)%7,dim=daysInMont
 function buildGeneric(p){const g=$('genericView');
   if(p==='toschedule'){const ready=queue.filter(readyToSchedule);const awaiting=queue.filter(stillAwaiting).length;
     g.innerHTML=`<div class="ts-wrap"><div class="ts-main"><div class="gp-head">To Schedule</div><div class="gp-sub">${ready.length} jobs ready to book.${awaiting?` ${awaiting} more awaiting product in Receiving.`:''}</div>${ready.map(j=>{const aw=partialAwaiting(j)?`<span class="awtag light">⏳ awaiting product</span>`:'';return `<div class="grow" style="cursor:pointer" onclick="openDrawer('${j.id}')"><span class="gt" style="background:rgba(216,198,160,.28);color:#7a6c45">${j.type}</span><div style="flex:1"><div class="gname">${j.cust} ${aw}</div><div class="gmeta">${j.scope} · ${j.addr}</div></div><div class="gmeta">${j.dealer}</div></div>`}).join('')||'<div class="empty"><h3>Queue is clear</h3><p>No jobs ready to schedule.</p></div>'}</div><div class="ts-side">${miniCal()}</div></div>`;return}
-  if(p==='installers'){markConflicts();g.innerHTML=`<div class="gp-head">Users</div><div class="gp-sub">Crew load &amp; pay setup. Pay type drives cost and margin.</div><div class="gcards">${INSTALLERS.filter(i=>i.id!=='un').map(i=>{const inact=i.status==='inactive';const jobs=appts.filter(a=>a.installer===i.id);const conf=jobs.filter(a=>a._conflict).length;const pay=i.payType==='sub_1099'?`1099 · ${i.payRate||0}% of price`:`${i.payType==='salary'?'Salary':'Hourly'} · ${fmtMoney(i.payRate||0)}/hr`;return `<div class="gcard${inact?' ginactive':''}"><h4><span class="dot" style="background:${i.color}"></span>${i.name}${inact?'<span class="ibadge">Inactive</span>':''}<button class="pedit" onclick="editInstaller('${i.id}')">Profile</button></h4><div class="gstat"><div><b>${jobs.length}</b>jobs this week</div><div><b style="color:${conf?'#d9605c':'var(--ink)'}">${conf}</b>conflicts</div></div><div class="ipay">${pay}</div></div>`}).join('')}</div>`;return}
+  if(p==='installers'){markConflicts();g.innerHTML=`<div class="gp-head">Users</div><div class="gp-sub">Team load &amp; pay setup. Pay type drives cost and margin.</div><div class="gcards">${INSTALLERS.filter(i=>i.id!=='un').map(i=>{const inact=i.status==='inactive';const jobs=appts.filter(a=>a.installer===i.id);const conf=jobs.filter(a=>a._conflict).length;const pay=i.payType==='sub_1099'?`1099 · ${i.payRate||0}% of price`:`${i.payType==='salary'?'Salary':'Hourly'} · ${fmtMoney(i.payRate||0)}/hr`;return `<div class="gcard${inact?' ginactive':''}"><h4>${roleIco(i.companyRole)}${i.name}${inact?'<span class="ibadge">Inactive</span>':''}<button class="pedit" onclick="editInstaller('${i.id}')">Profile</button></h4>${i.companyRole?'<div class="irole">'+esc(i.companyRole)+'</div>':''}<div class="gstat"><div><b>${jobs.length}</b>jobs this week</div><div><b style="color:${conf?'#d9605c':'var(--ink)'}">${conf}</b>conflicts</div></div><div class="ipay">${pay}</div></div>`}).join('')}</div>`;return}
   if(p==='dealers'){buildDealers();return}
   if(p==='customers'){buildCustomers();return}
   if(p==='inventory'){RECV_NOTE_N=null;buildReceiving();return}
