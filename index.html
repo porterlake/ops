@@ -451,6 +451,18 @@
   .liprice.locked{opacity:.75;cursor:not-allowed}
   .lilt{width:82px;text-align:right;font-weight:600;color:var(--sand-ink);font-size:13px;white-space:nowrap}
   .limeta{font-size:11px;color:var(--muted);padding-left:2px;min-height:0}
+  /* v119: the per-line discount control lives on the .limeta line, not in
+     .litop. .litop is already four controls plus a delete button and has to
+     survive a phone; .limeta is where a line already says it is custom, a
+     quote, or below its minimum, so "this line is discounted differently"
+     belongs with them. peRecalc writes the meta text to .limetatext so it
+     cannot wipe the select. */
+  .lidctl{display:inline-flex;align-items:center;gap:5px;margin-right:8px;vertical-align:middle}
+  .lidctl select,.lidctl input{font:inherit;font-size:10.5px;font-weight:600;padding:2px 6px;border-radius:6px;background:var(--side-3);border:1px solid var(--side-border);color:var(--sand-ink);outline:none;cursor:pointer}
+  .lidctl input{width:54px;cursor:text}
+  .pejobdisc{display:flex;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap}
+  .pejobdisc input{width:72px;font:inherit;font-size:12.5px;padding:5px 8px;border-radius:7px;background:var(--side-3);border:1px solid var(--side-border);color:var(--sand-ink);outline:none}
+  .lidctl select:hover,.lidctl input:focus{border-color:var(--accent-line)}
   .limeta .warnmin{color:#caa017}
   .limeta .cust{color:#8fa8c4}
   .limeta .quote{color:#caa017}
@@ -1182,11 +1194,13 @@ body.role-installer [data-admin]{display:none!important}
      that can lose characters harmlessly, and it already ellipsises on mobile;
      without this the seg buttons and day-nav get crushed instead. */
   .page-title{min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  .fld select,.durrow select{
+  .fld select,.durrow select,.lidctl select{
     -webkit-appearance:none;-moz-appearance:none;appearance:none;
     background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23a99c7e' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
     background-repeat:no-repeat;background-position:right 10px center;background-size:12px;
     padding-right:30px;cursor:pointer}
+  /* the line control is small; it needs a tighter chevron than a .fld select */
+  .lidctl select{background-position:right 6px center;background-size:10px;padding-right:20px}
   .fld select:hover,.durrow select:hover{border-color:var(--accent-line)}
   .fld select option,.durrow select option{background:var(--side-2);color:var(--sand-ink)}
 
@@ -1196,7 +1210,7 @@ body.role-installer [data-admin]{display:none!important}
     /* v117: nowrap on every base-select control, defensively. These five are
        fine today only because nothing squeezes them; put any of them in a
        shrinking flex row and they reproduce the .topfilter bug exactly. */
-    .fld select,.durrow select{appearance:base-select;background-image:none;padding-right:11px;white-space:nowrap}
+    .fld select,.durrow select,.lidctl select{appearance:base-select;background-image:none;padding-right:11px;white-space:nowrap}
     .fld select::picker-icon,.durrow select::picker-icon{color:var(--sand-dim);transition:transform .16s}
     .fld select:open::picker-icon,.durrow select:open::picker-icon{transform:rotate(180deg)}
     .fld select::picker(select),.durrow select::picker(select){
@@ -1509,6 +1523,7 @@ body.role-installer [data-admin]{display:none!important}
       <div class="fld" id="drPricingFld" data-admin style="display:none"><label>Pricing</label>
         <div id="drPricing"></div>
         <div id="drPriceEdit" style="display:none">
+          <div class="pejobdisc"><span class="dlbl">Job discount</span><input id="drJobDisc" type="number" min="0" max="100" step="0.5" placeholder="0"><span class="dlbl">% off, seeded from the dealer when the job was created</span></div>
           <div id="drPriceLines"></div>
           <button class="liadd" id="drAddLineBtn" type="button">+ Add line / fee</button>
           <div id="drPriceTotals"></div>
@@ -1924,9 +1939,9 @@ function mapJob(j){return {id:j.id,type:j.type,taskType:j.task_type||null,meetin
   cust:j.customers?j.customers.name:'—',dealer:j.dealers?j.dealers.name:'—',
   addr:j.site_address||'—',phone:j.customers?(j.customers.phone||''):'',scope:j.scope||'—',
   awaitingProduct:j.awaiting_product,override:j.override_schedule||false,
-  lineItems:(j.line_items||[]).map(li=>({id:li.id,desc:li.description,qty:li.qty,delivered:li.delivered,qtyRecv:li.qty_received||0,by:li.delivered_by||'',serviceId:li.service_id||null,unitPrice:li.unit_price,minCharge:li.min_charge,isCustom:!!li.is_custom})),dealerDiscount:j.dealers?(+j.dealers.discount_pct||0):0};}
+  lineItems:(j.line_items||[]).map(li=>({id:li.id,desc:li.description,qty:li.qty,delivered:li.delivered,qtyRecv:li.qty_received||0,by:li.delivered_by||'',serviceId:li.service_id||null,unitPrice:li.unit_price,minCharge:li.min_charge,isCustom:!!li.is_custom,discountMode:li.discount_mode||'inherit',discountPct:li.discount_pct==null?null:+li.discount_pct})),jobDiscount:+j.discount_pct||0};}
 async function loadJobs(){try{const {data,error}=await sb.from('jobs')
-    .select('id,customer_id,dealer_id,type,task_type,meeting_type,task_done,site_address,scope,estimated_minutes,awaiting_product,override_schedule,completed_at,closed_at,job_number,customers(name,phone),dealers(name,discount_pct),line_items(id,description,qty,delivered,delivered_by,qty_received,service_id,unit_price,min_charge,is_custom)')
+    .select('id,customer_id,dealer_id,type,task_type,meeting_type,task_done,site_address,scope,estimated_minutes,awaiting_product,override_schedule,completed_at,closed_at,job_number,discount_pct,customers(name,phone),dealers(name),line_items(id,description,qty,delivered,delivered_by,qty_received,service_id,unit_price,min_charge,is_custom,discount_mode,discount_pct)')
     .order('created_at',{ascending:true});
   if(error){console.error(error);toast('Could not load jobs',true);return;}
   const scheduled=new Set(appts.map(a=>a.jobId));
@@ -2044,9 +2059,9 @@ function mapAppt(r){const j=r.jobs||{};const d=new Date(r.start_time);return {id
   phone:j.customers?(j.customers.phone||''):'',scope:j.scope||'—',customerId:j.customer_id,dealerId:j.dealer_id,estMins:j.estimated_minutes||120,
   awaitingProduct:j.awaiting_product,override:j.override_schedule||false,
   completedAt:j.completed_at||null,closedAt:j.closed_at||null,jobNo:j.job_number||null,
-  lineItems:(j.line_items||[]).map(li=>({id:li.id,desc:li.description,qty:li.qty,delivered:li.delivered,qtyRecv:li.qty_received||0,by:li.delivered_by||'',serviceId:li.service_id||null,unitPrice:li.unit_price,minCharge:li.min_charge,isCustom:!!li.is_custom})),dealerDiscount:j.dealers?(+j.dealers.discount_pct||0):0,files:[]};}
+  lineItems:(j.line_items||[]).map(li=>({id:li.id,desc:li.description,qty:li.qty,delivered:li.delivered,qtyRecv:li.qty_received||0,by:li.delivered_by||'',serviceId:li.service_id||null,unitPrice:li.unit_price,minCharge:li.min_charge,isCustom:!!li.is_custom,discountMode:li.discount_mode||'inherit',discountPct:li.discount_pct==null?null:+li.discount_pct})),jobDiscount:+j.discount_pct||0,files:[]};}
 async function loadAppointments(){try{const {data,error}=await sb.from('appointments')
-    .select('id,job_id,installer_id,status,start_time,duration_minutes,notes,jobs(type,task_type,meeting_type,task_done,site_address,scope,estimated_minutes,awaiting_product,override_schedule,completed_at,closed_at,job_number,customer_id,dealer_id,customers(name,phone),dealers(name,discount_pct),line_items(id,description,qty,delivered,delivered_by,qty_received,service_id,unit_price,min_charge,is_custom))')
+    .select('id,job_id,installer_id,status,start_time,duration_minutes,notes,jobs(type,task_type,meeting_type,task_done,site_address,scope,estimated_minutes,awaiting_product,override_schedule,completed_at,closed_at,job_number,discount_pct,customer_id,dealer_id,customers(name,phone),dealers(name),line_items(id,description,qty,delivered,delivered_by,qty_received,service_id,unit_price,min_charge,is_custom,discount_mode,discount_pct))')
     .order('start_time',{ascending:true});
   if(error){console.error(error);toast('Could not load appointments',true);return;}
   appts=(data||[]).map(mapAppt);markConflicts();render();}catch(e){console.error(e)}}
@@ -2244,7 +2259,7 @@ async function scheduleJob(j,key,start,mins,installer){
   const inst=(installer&&installer!=='un')?installer:null;
   const {data:appt,error}=await sb.from('appointments').insert({job_id:j.id,installer_id:inst,status:'scheduled',start_time:composeISO(key,s),duration_minutes:m}).select('id').single();
   if(error){console.error('scheduleJob',error);return null;}
-  const a={id:appt.id,jobId:j.id,installer:inst||'un',status:'scheduled',dateKey:key,start:s,dur,notes:'',type:j.type,cust:j.cust,dealer:j.dealer,addr:j.addr,phone:j.phone,scope:j.scope,customerId:j.customerId,dealerId:j.dealerId,estMins:m,awaitingProduct:j.awaitingProduct,override:j.override,lineItems:j.lineItems,dealerDiscount:j.dealerDiscount||0,files:j.files||[]};
+  const a={id:appt.id,jobId:j.id,installer:inst||'un',status:'scheduled',dateKey:key,start:s,dur,notes:'',type:j.type,cust:j.cust,dealer:j.dealer,addr:j.addr,phone:j.phone,scope:j.scope,customerId:j.customerId,dealerId:j.dealerId,estMins:m,awaitingProduct:j.awaitingProduct,override:j.override,lineItems:j.lineItems,jobDiscount:j.jobDiscount||0,files:j.files||[]};
   appts.push(a);
   queue=queue.filter(x=>x.id!==j.id);renderQueue();markConflicts();render();
   return a;}
@@ -2579,7 +2594,7 @@ async function saveTaskDrawer(a){
   a.taskType=tt;a.meetingType=mt;a.taskDone=done;a.scope=desc||'—';a.installer=inst;a.dur=mins/60;a.estMins=mins;
   a.dealerId=dealerId;
   const d=dealerId?DEALERS.find(x=>x.id===dealerId):null;
-  a.dealer=d?d.name:'—';a.dealerDiscount=d?(+d.discount||0):0;
+  a.dealer=d?d.name:'—';
   markConflicts();render();toast('Saved');closeDrawer();}
 
 async function saveDrawer(){const inQ=drawerMode==='queue';const a=(inQ?queue:appts).find(x=>x.id===selectedId);if(!a)return;
@@ -2638,7 +2653,7 @@ async function unschedule(){const a=appts.find(x=>x.id===selectedId);if(!a)retur
       toast('Can\'t unschedule — a <b>completion report</b> has been filled in for this visit. Delete that report first if this really needs to come off the calendar.',true);
     else toast('Could not unschedule',true);
     return;}
-  queue.unshift({id:a.jobId,type:a.type,customerId:a.customerId,cust:a.cust,dealerId:a.dealerId,dealer:a.dealer,addr:a.addr,phone:a.phone,scope:a.scope,awaitingProduct:a.awaitingProduct,override:a.override,lineItems:a.lineItems||[],dealerDiscount:a.dealerDiscount||0,files:a.files||[]});
+  queue.unshift({id:a.jobId,type:a.type,customerId:a.customerId,cust:a.cust,dealerId:a.dealerId,dealer:a.dealer,addr:a.addr,phone:a.phone,scope:a.scope,awaitingProduct:a.awaitingProduct,override:a.override,lineItems:a.lineItems||[],jobDiscount:a.jobDiscount||0,files:a.files||[]});
   appts=appts.filter(x=>x.id!==selectedId);renderQueue();render();toast(`<b>${a.cust}</b> returned to queue`);closeDrawer();}
 function logResolution(){const a=appts.find(x=>x.id===selectedId);if(!a)return;a.status='done';$('drStatus').value='done';$('issueBanner').classList.remove('show');render();toast('Resolution logged — marked completed');}
 /* Appointment type is display-only until Edit is tapped (v42). The three
@@ -3305,9 +3320,13 @@ async function ejSave(){
     if(custId&&x.customerId===custId){
       if(addrChanged)x.addr=addr||'\u2014';
       if(phoneChanged)x.phone=phone;}
+    /* v119: the job's discount is the JOB's now. Re-pointing it at the new
+       dealer here would silently reprice a job because someone corrected an
+       account, which is the bug this version removes. The name follows the
+       dealer; the money does not. */
     if(dealerChanged&&(x.jobId||x.id)===jobId){
       x.dealerId=dealerId;
-      if(d){x.dealer=d.name;x.dealerDiscount=+d.discount||0;}}});
+      if(d){x.dealer=d.name;}}});
 
   if(btn){btn.disabled=false;btn.textContent='Save changes';}
   ejClose();
@@ -5714,12 +5733,54 @@ $('njFiles').addEventListener('change',function(){njFileAdd(this);});
 $('njFilesImg').addEventListener('change',function(){njFileAdd(this);});
 // ---- Phase B: catalog-driven priced line items ----
 function fmtMoney(v){return '$'+Number(v||0).toFixed(2);}
-function jobPricing(item){const lis=item.lineItems||[];let subtotal=0,anyQuote=false;
-  const lines=lis.map(li=>{const unit=li.unitPrice==null?0:+li.unitPrice;const qty=+li.qty||1;let lt=unit*qty;const min=li.minCharge!=null?+li.minCharge:0;let minApplied=false;if(min&&lt<min){lt=min;minApplied=true;}
-    const quote=li.unitPrice==null;if(quote)anyQuote=true;else subtotal+=lt;
-    return {desc:li.desc,qty,unit,total:lt,quote,custom:!!li.isCustom,minApplied};});
-  const disc=+item.dealerDiscount||0,discAmt=subtotal*disc/100,total=subtotal-discAmt;
-  return {lines,subtotal,disc,discAmt,total,anyQuote};}
+/* ===== Q38 discounts (v119) ============================================
+   discFor() is THE resolver and the only place the three states are read.
+   jobPricing() (saved rows) and peRecalc() (the live editor, from the DOM)
+   both call it, which is what stops the drawer and the editor drifting
+   apart -- they used to duplicate one job-wide percentage and would have
+   disagreed the moment a line carried its own.
+
+   A line REPLACES the job percentage, it never stacks on it:
+     inherit   take the job's discount_pct
+     override  take the line's own discount_pct
+     exclude   zero, and deliberately NOT the same fact as override 0
+   The database refuses the ambiguous row (line_items_discount_shape_chk),
+   so a percentage only exists where it means something. */
+function discFor(mode,linePct,jobPct){
+  if(mode==='exclude')return 0;
+  if(mode==='override')return Math.max(0,Math.min(100,+linePct||0));
+  return Math.max(0,Math.min(100,+jobPct||0));}
+/* Order is load-bearing: the MINIMUM CHARGE is applied first and the
+   discount comes off the result. Discount first and a min-charge line
+   settles below its own floor, which is the one thing a minimum exists to
+   prevent. Quote-only lines (unitPrice null) stay out of the subtotal
+   entirely and take no discount -- there is no price to discount yet. */
+function jobPricing(item){const lis=item.lineItems||[];
+  const jobPct=Math.max(0,Math.min(100,+item.jobDiscount||0));
+  let subtotal=0,discAmt=0,anyQuote=false;const pcts=[];
+  const lines=lis.map(li=>{
+    const unit=li.unitPrice==null?0:+li.unitPrice;const qty=+li.qty||1;
+    let lt=unit*qty;const min=li.minCharge!=null?+li.minCharge:0;
+    let minApplied=false;if(min&&lt<min){lt=min;minApplied=true;}
+    const quote=li.unitPrice==null;
+    let dPct=0,dAmt=0,net=null,src=null;
+    if(quote){anyQuote=true;}
+    else{
+      const mode=li.discountMode||'inherit';
+      dPct=discFor(mode,li.discountPct,jobPct);
+      dAmt=lt*dPct/100;net=lt-dAmt;
+      src=mode==='exclude'?'excluded':(mode==='override'?'line':'job');
+      subtotal+=lt;discAmt+=dAmt;pcts.push(dPct);}
+    return {desc:li.desc,qty,unit,total:lt,quote,custom:!!li.isCustom,minApplied,
+      discPct:dPct,discAmt:dAmt,net:net,discSource:src};});
+  const total=subtotal-discAmt;
+  /* disc is the single percentage ONLY when every priced line shares one.
+     Mixed lines make a job-wide percentage a lie, so it becomes null and
+     callers fall back to the summed amount. */
+  const uniq=[];pcts.forEach(function(p){if(uniq.indexOf(p)<0)uniq.push(p);});
+  const mixed=uniq.length>1;
+  const disc=mixed?null:(uniq.length?uniq[0]:0);
+  return {lines,subtotal,disc,discAmt,total,anyQuote,mixed,jobPct};}
 function svcByName(name){const n=(name||'').trim().toLowerCase();if(!n)return null;return SERVICES.find(s=>s.active!==false&&s.name.toLowerCase()===n)||null;}
 function fillSvcList(){const dl=$('njSvcList');if(!dl)return;dl.innerHTML='';SERVICES.filter(s=>s.active!==false).forEach(s=>{const o=document.createElement('option');o.value=s.name;o.label=(s.price==null?'Quote':'$'+Number(s.price).toFixed(2))+(s.unit?' · '+s.unit:'');dl.appendChild(o);});}
 let njDiscount=0;
@@ -5729,53 +5790,126 @@ function resolveRow(row,opt){opt=opt||{};const descEl=row.querySelector('.lidesc
   if(svc&&svc.price!=null){row.dataset.serviceId=svc.id;row.dataset.min=svc.min_charge!=null?svc.min_charge:'';row.dataset.custom='0';row.dataset.quote='0';row.dataset.unit=svc.unit||'';if(opt.autofill)priceEl.value=Number(svc.price).toFixed(2);if(opt.lock){priceEl.readOnly=true;priceEl.classList.add('locked');}else{priceEl.readOnly=false;priceEl.classList.remove('locked');}}
   else if(svc&&svc.price==null){row.dataset.serviceId=svc.id;row.dataset.min=svc.min_charge!=null?svc.min_charge:'';row.dataset.custom='0';row.dataset.quote='1';row.dataset.unit=svc.unit||'';priceEl.readOnly=false;priceEl.classList.remove('locked');}
   else{row.dataset.serviceId='';row.dataset.min='';row.dataset.quote='0';row.dataset.unit='';row.dataset.custom=descEl.value.trim()?'1':'0';priceEl.readOnly=false;priceEl.classList.remove('locked');}}
-function peRecalc(linesEl,totalsEl,disc){let subtotal=0;
-  [...linesEl.querySelectorAll('.lirow')].forEach(row=>{const descEl=row.querySelector('.lidesc'),priceEl=row.querySelector('.liprice'),ltEl=row.querySelector('.lilt'),metaEl=row.querySelector('.limeta');
-    const has=descEl.value.trim();const qty=Math.max(1,+row.querySelector('.liqty').value||1);const unit=+priceEl.value||0;
-    let lt=unit*qty;const min=+row.dataset.min||0;let minApplied=false;if(has&&min&&lt<min){lt=min;minApplied=true;}
+/* The live editor's arithmetic. It reads the DOM rather than saved rows, so
+   it is a second implementation by necessity -- but every discount decision
+   goes through discFor(), the same function jobPricing() uses, and a row is
+   treated as quote-only on the same test the save path uses (empty price on
+   a quote service saves as NULL). Change one, change the other.
+   .limeta now holds a control, so the meta TEXT is written to an inner
+   .limetatext span; writing metaEl.innerHTML here would delete the select. */
+function peRecalc(linesEl,totalsEl,jobPct){
+  const jp=Math.max(0,Math.min(100,+jobPct||0));
+  let subtotal=0,discAmt=0;const pcts=[];
+  [...linesEl.querySelectorAll('.lirow')].forEach(row=>{
+    const descEl=row.querySelector('.lidesc'),priceEl=row.querySelector('.liprice'),
+          ltEl=row.querySelector('.lilt'),metaEl=row.querySelector('.limetatext'),
+          modeEl=row.querySelector('.lidmode'),pctEl=row.querySelector('.lidpct');
+    const has=descEl.value.trim();const qty=Math.max(1,+row.querySelector('.liqty').value||1);
+    const unit=+priceEl.value||0;
+    let lt=unit*qty;const min=+row.dataset.min||0;let minApplied=false;
+    if(has&&min&&lt<min){lt=min;minApplied=true;}
+    const quote=row.dataset.quote==='1'&&priceEl.value.trim()==='';
+    if(modeEl){modeEl.options[0].textContent='Job discount ('+jp+'%)';
+      if(pctEl)pctEl.hidden=(modeEl.value!=='override');
+      modeEl.parentNode.hidden=!has||quote;}
+    let dPct=0;
+    if(has&&!quote){
+      dPct=discFor(modeEl?modeEl.value:'inherit',pctEl?pctEl.value:null,jp);
+      subtotal+=lt;discAmt+=lt*dPct/100;pcts.push(dPct);}
     ltEl.textContent=has?fmtMoney(lt):'';let meta='';
-    if(has){if(row.dataset.quote==='1'&&unit===0)meta='<span class="quote">Quote — enter price</span>';else if(row.dataset.custom==='1')meta='<span class="cust">Custom line</span>';else if(row.dataset.unit)meta=row.dataset.unit;
+    if(has){if(quote)meta='<span class="quote">Quote — enter price</span>';else if(row.dataset.custom==='1')meta='<span class="cust">Custom line</span>';else if(row.dataset.unit)meta=row.dataset.unit;
       if(minApplied)meta+=(meta?' · ':'')+`<span class="warnmin">min ${fmtMoney(min)} applied</span>`;}
-    metaEl.innerHTML=meta;if(has)subtotal+=lt;});
-  const d=+disc||0,discAmt=subtotal*d/100,total=subtotal-discAmt;
+    if(metaEl)metaEl.innerHTML=meta;});
+  const total=subtotal-discAmt;
+  const uniq=[];pcts.forEach(function(p){if(uniq.indexOf(p)<0)uniq.push(p);});
+  const mixed=uniq.length>1;const single=mixed?null:(uniq.length?uniq[0]:0);
   let h=`<div class="trow"><span>Subtotal</span><span>${fmtMoney(subtotal)}</span></div>`;
-  if(d>0)h+=`<div class="trow"><span>Dealer discount (${d}%)</span><span>−${fmtMoney(discAmt)}</span></div>`;
+  if(discAmt>0)h+=`<div class="trow"><span>${mixed?'Discount':'Discount ('+single+'%)'}</span><span>−${fmtMoney(discAmt)}</span></div>`;
   h+=`<div class="trow tot"><span>Job total</span><span>${fmtMoney(total)}</span></div>`;totalsEl.innerHTML=h;}
 function njRecalc(){peRecalc($('njLines'),$('njTotals'),njDiscount);}
 function wireLineRow(row){const descEl=row.querySelector('.lidesc');
   descEl.addEventListener('input',()=>{resolveRow(row,{lock:true,autofill:true});njRecalc();});descEl.addEventListener('change',()=>{resolveRow(row,{lock:true,autofill:true});njRecalc();});
   row.querySelector('.liqty').addEventListener('input',njRecalc);row.querySelector('.liprice').addEventListener('input',njRecalc);
+  const nm=row.querySelector('.lidmode'),np=row.querySelector('.lidpct');
+  if(nm)nm.addEventListener('change',()=>{if(np){np.hidden=(nm.value!=='override');if(nm.value==='override'&&!np.value)np.value='0';}njRecalc();});
+  if(np)np.addEventListener('input',njRecalc);
   row.querySelector('.lidel').onclick=()=>{row.remove();njRecalc();};}
+/* One definition, used by the New Job rows and the drawer editor rows, so the
+   two pickers cannot drift. The first option's label is rewritten by
+   peRecalc on every recalc so it always names the current job percentage. */
+function liDiscCtl(){return '<span class="lidctl"><select class="lidmode">'+
+  '<option value="inherit">Job discount</option>'+
+  '<option value="override">Custom %</option>'+
+  '<option value="exclude">No discount</option>'+
+  '</select><input class="lidpct" type="number" min="0" max="100" step="0.5" placeholder="%" hidden></span>';}
+/* Reads a saved line back into the control. A row the database says is
+   inherit with a NULL percentage -- which is every line that existed before
+   v119 -- lands on the default and renders exactly as it always did. */
+function liDiscSet(row,li){
+  const m=row.querySelector('.lidmode'),p=row.querySelector('.lidpct');
+  if(!m)return;
+  const mode=(li&&li.discountMode)||'inherit';
+  m.value=(mode==='override'||mode==='exclude')?mode:'inherit';
+  if(p){p.value=(li&&li.discountPct!=null)?li.discountPct:'';p.hidden=(m.value!=='override');}}
+/* Reads the control back out in the shape the two columns want. */
+function liDiscGet(row){
+  const m=row.querySelector('.lidmode'),p=row.querySelector('.lidpct');
+  const mode=m?m.value:'inherit';
+  if(mode!=='override')return {discount_mode:mode,discount_pct:null};
+  const v=Math.max(0,Math.min(100,+(p?p.value:0)||0));
+  return {discount_mode:'override',discount_pct:v};}
 function addLineRow(desc='',qty=1,price=''){const row=document.createElement('div');row.className='lirow';
-  row.innerHTML=`<div class="litop"><input class="lidesc" list="njSvcList" placeholder="Search catalog or type custom…" value="${desc}"><input class="liqty" type="number" min="1" value="${qty}"><input class="liprice" type="number" min="0" step="0.01" placeholder="0.00" value="${price}"><span class="lilt"></span><button class="lidel">×</button></div><div class="limeta"></div>`;
+  row.innerHTML=`<div class="litop"><input class="lidesc" list="njSvcList" placeholder="Search catalog or type custom…" value="${desc}"><input class="liqty" type="number" min="1" value="${qty}"><input class="liprice" type="number" min="0" step="0.01" placeholder="0.00" value="${price}"><span class="lilt"></span><button class="lidel">×</button></div><div class="limeta">${liDiscCtl()}<span class="limetatext"></span></div>`;
   $('njLines').appendChild(row);wireLineRow(row);resolveRow(row,{lock:true,autofill:true});njRecalc();return row;}
 $('njAddLine').onclick=()=>addLineRow();
 $('njDisc').addEventListener('input',e=>{njSetDiscount(e.target.value);njRecalc();});
-$('njDisc').addEventListener('change',async e=>{njSetDiscount(e.target.value);if(njDealerId&&njDealerId!=='new'){const {error}=await sb.from('dealers').update({discount_pct:njDiscount}).eq('id',njDealerId);if(error)console.error(error);else{const d=DEALERS.find(x=>x.id===njDealerId);if(d)d.discount=njDiscount;}}njRecalc();});
+/* v119: this box is the JOB's discount and writes nowhere but the job it is
+   creating. It used to UPDATE dealers.discount_pct, so typing a one-off
+   number here changed that dealer's standing rate and repriced every other
+   open job they had. It still SEEDS from the dealer's current rate when a
+   dealer is picked (njShowDiscount, called from selectDealer) -- it just
+   never writes back. The standing rate is edited on the dealer page and
+   nowhere else. */
+$('njDisc').addEventListener('change',e=>{njSetDiscount(e.target.value);njRecalc();});
 // ---- Drawer pricing editor (admin-side edits to a saved job) ----
 let drPriceDisc=0,drPriceOrig=[],drPriceJobId=null;
 function renderDrPricing(a){const P=jobPricing(a);const box=$('drPricing');$('drPricingFld').style.display='block';
   if(!P.lines.length){box.innerHTML='<div class="limeta">No line items yet \u2014 open <b>Edit Job</b> and choose <b>Edit Job Rates</b>.</div>';return;}
-  let rows=P.lines.map(l=>`<tr><td>${l.desc}${l.custom?' <span class="pcust">·custom</span>':''}${l.quote?' <span class="pcust">·quote</span>':''}</td><td class="r">×${l.qty}</td><td class="r">${l.quote?'—':fmtMoney(l.total)}</td></tr>`).join('');
+  /* A line says how it was discounted only when that differs from the job,
+     so an ordinary job reads exactly as it did before v119. */
+  const tag=function(l){if(l.quote||!l.discSource)return '';
+    if(l.discSource==='excluded')return ' <span class="pcust">·no disc</span>';
+    if(l.discSource==='line')return ' <span class="pcust">·'+l.discPct+'%</span>';
+    return '';};
+  let rows=P.lines.map(l=>`<tr><td>${l.desc}${l.custom?' <span class="pcust">·custom</span>':''}${l.quote?' <span class="pcust">·quote</span>':''}${tag(l)}</td><td class="r">×${l.qty}</td><td class="r">${l.quote?'—':fmtMoney(l.total)}</td></tr>`).join('');
   rows+=`<tr class="sub"><td>Subtotal</td><td></td><td class="r">${fmtMoney(P.subtotal)}</td></tr>`;
-  if(P.disc>0)rows+=`<tr class="sub"><td>Discount (${P.disc}%)</td><td></td><td class="r">−${fmtMoney(P.discAmt)}</td></tr>`;
+  /* Keyed on the AMOUNT, not on a percentage: once lines differ there is no
+     single percentage to print, and P.disc is null. Nothing renders when
+     nothing is discounted, which is the >0 guard this has always had. */
+  if(P.discAmt>0)rows+=`<tr class="sub"><td>${P.mixed?'Discount':'Discount ('+P.disc+'%)'}</td><td></td><td class="r">−${fmtMoney(P.discAmt)}</td></tr>`;
   rows+=`<tr class="tot"><td>Total${P.anyQuote?' *':''}</td><td></td><td class="r">${fmtMoney(P.total)}</td></tr>`;
   box.innerHTML=`<table>${rows}</table>${P.anyQuote?'<div class="limeta" style="margin-top:5px">* excludes quote-only lines</div>':''}`;}
 function drCancelEdit(){$('drPriceEdit').style.display='none';$('drPricing').style.display='block';}
-function drRecalc(){peRecalc($('drPriceLines'),$('drPriceTotals'),drPriceDisc);}
+function drRecalc(){drPriceDisc=$('drJobDisc')?Math.max(0,Math.min(100,+$('drJobDisc').value||0)):drPriceDisc;
+  peRecalc($('drPriceLines'),$('drPriceTotals'),drPriceDisc);}
 function drWireRow(row){const d=row.querySelector('.lidesc');
   d.addEventListener('input',()=>{resolveRow(row,{autofill:true});drRecalc();});d.addEventListener('change',()=>{resolveRow(row,{autofill:true});drRecalc();});
   row.querySelector('.liqty').addEventListener('input',drRecalc);row.querySelector('.liprice').addEventListener('input',drRecalc);
+  const dm=row.querySelector('.lidmode'),dp=row.querySelector('.lidpct');
+  if(dm)dm.addEventListener('change',()=>{if(dp){dp.hidden=(dm.value!=='override');if(dm.value==='override'&&!dp.value)dp.value='0';}drRecalc();});
+  if(dp)dp.addEventListener('input',drRecalc);
   row.querySelector('.lidel').onclick=()=>{row.remove();drRecalc();};}
 function drAddRow(li){const row=document.createElement('div');row.className='lirow';
   const desc=li?(li.desc||''):'';const qty=li?li.qty:1;const price=(li&&li.unitPrice!=null)?Number(li.unitPrice).toFixed(2):'';
-  row.innerHTML=`<div class="litop"><input class="lidesc" list="njSvcList" placeholder="Search catalog or type custom…" value="${desc.replace(/"/g,'&quot;')}"><input class="liqty" type="number" min="1" value="${qty}"><input class="liprice" type="number" min="0" step="0.01" placeholder="0.00" value="${price}"><span class="lilt"></span><button class="lidel">×</button></div><div class="limeta"></div>`;
+  row.innerHTML=`<div class="litop"><input class="lidesc" list="njSvcList" placeholder="Search catalog or type custom…" value="${desc.replace(/"/g,'&quot;')}"><input class="liqty" type="number" min="1" value="${qty}"><input class="liprice" type="number" min="0" step="0.01" placeholder="0.00" value="${price}"><span class="lilt"></span><button class="lidel">×</button></div><div class="limeta">${liDiscCtl()}<span class="limetatext"></span></div>`;
   $('drPriceLines').appendChild(row);drWireRow(row);
+  liDiscSet(row,li);
   if(li){row.dataset.lineId=li.id||'';row.dataset.serviceId=li.serviceId||'';row.dataset.min=li.minCharge!=null?li.minCharge:'';row.dataset.custom=li.isCustom?'1':'0';row.dataset.quote=(li.unitPrice==null&&li.serviceId)?'1':'0';const svc=li.serviceId?SERVICES.find(s=>s.id===li.serviceId):null;row.dataset.unit=svc?(svc.unit||''):'';}
   else{row.dataset.lineId='';resolveRow(row,{autofill:true});}
   drRecalc();return row;}
-function drEnterEdit(a){if(!IS_ADMIN)return;if(!a)return;drPriceDisc=+a.dealerDiscount||0;drPriceJobId=currentJobId();
-  drPriceOrig=(a.lineItems||[]).map(l=>({id:l.id,desc:l.desc,qty:l.qty,unitPrice:l.unitPrice,serviceId:l.serviceId||null,minCharge:l.minCharge,isCustom:!!l.isCustom}));
+function drEnterEdit(a){if(!IS_ADMIN)return;if(!a)return;drPriceDisc=+a.jobDiscount||0;drPriceJobId=currentJobId();
+  if($('drJobDisc'))$('drJobDisc').value=drPriceDisc||'';
+  drPriceOrig=(a.lineItems||[]).map(l=>({id:l.id,desc:l.desc,qty:l.qty,unitPrice:l.unitPrice,serviceId:l.serviceId||null,minCharge:l.minCharge,isCustom:!!l.isCustom,discountMode:l.discountMode||'inherit',discountPct:l.discountPct==null?null:+l.discountPct}));
   fillSvcList();$('drPriceLines').innerHTML='';
   if(drPriceOrig.length)drPriceOrig.forEach(l=>drAddRow(l));else drAddRow();
   $('drPricing').style.display='none';$('drPriceEdit').style.display='block';drRecalc();}
@@ -5784,24 +5918,35 @@ async function drSavePricing(a){if(!IS_ADMIN)return;if(!a)return;const jobId=drP
   for(const row of [...$('drPriceLines').querySelectorAll('.lirow')]){const desc=row.querySelector('.lidesc').value.trim();if(!desc)continue;
     const qty=Math.max(1,+row.querySelector('.liqty').value||1);const priceStr=row.querySelector('.liprice').value.trim();const isQuote=row.dataset.quote==='1';
     if(priceStr===''&&!isQuote){toast(`Enter a price for "${desc}"`,true);return;}
-    desired.push({lineId:row.dataset.lineId||null,desc,qty,serviceId:row.dataset.serviceId||null,minCharge:row.dataset.min!==''?Number(row.dataset.min):null,isCustom:row.dataset.custom==='1',unitPrice:priceStr===''?null:Number(priceStr)});}
+    const dsc=liDiscGet(row);
+    desired.push({lineId:row.dataset.lineId||null,desc,qty,serviceId:row.dataset.serviceId||null,minCharge:row.dataset.min!==''?Number(row.dataset.min):null,isCustom:row.dataset.custom==='1',unitPrice:priceStr===''?null:Number(priceStr),discountMode:dsc.discount_mode,discountPct:dsc.discount_pct});}
   const btn=$('drPriceSave');btn.disabled=true;btn.textContent='Saving…';
   try{
     const keptIds=desired.filter(d=>d.lineId).map(d=>d.lineId);
     const toDelete=drPriceOrig.filter(o=>!keptIds.includes(o.id)).map(o=>o.id);
     if(toDelete.length){const {error}=await sb.from('line_items').delete().in('id',toDelete);if(error)throw error;}
     for(const d of desired.filter(x=>x.lineId)){const o=drPriceOrig.find(x=>x.id===d.lineId);
-      if(o&&(o.desc!==d.desc||(+o.qty)!==(+d.qty)||o.unitPrice!==d.unitPrice||(o.serviceId||null)!==(d.serviceId||null)||o.minCharge!==d.minCharge||!!o.isCustom!==d.isCustom)){
-        const {error}=await sb.from('line_items').update({description:d.desc,qty:d.qty,unit_price:d.unitPrice,service_id:d.serviceId,min_charge:d.minCharge,is_custom:d.isCustom}).eq('id',d.lineId);if(error)throw error;}}
+      if(o&&(o.desc!==d.desc||(+o.qty)!==(+d.qty)||o.unitPrice!==d.unitPrice||(o.serviceId||null)!==(d.serviceId||null)||o.minCharge!==d.minCharge||!!o.isCustom!==d.isCustom||(o.discountMode||'inherit')!==d.discountMode||(o.discountPct==null?null:+o.discountPct)!==d.discountPct)){
+        const {error}=await sb.from('line_items').update({description:d.desc,qty:d.qty,unit_price:d.unitPrice,service_id:d.serviceId,min_charge:d.minCharge,is_custom:d.isCustom,discount_mode:d.discountMode,discount_pct:d.discountPct}).eq('id',d.lineId);if(error)throw error;}}
     const toInsert=desired.filter(x=>!x.lineId);
-    if(toInsert.length){const {error}=await sb.from('line_items').insert(toInsert.map(d=>({job_id:jobId,description:d.desc,qty:d.qty,delivered:true,service_id:d.serviceId,unit_price:d.unitPrice,min_charge:d.minCharge,is_custom:d.isCustom})));if(error)throw error;}
-    const {data:fresh,error:fe}=await sb.from('line_items').select('id,description,qty,delivered,delivered_by,service_id,unit_price,min_charge,is_custom').eq('job_id',jobId);
+    if(toInsert.length){const {error}=await sb.from('line_items').insert(toInsert.map(d=>({job_id:jobId,description:d.desc,qty:d.qty,delivered:true,service_id:d.serviceId,unit_price:d.unitPrice,min_charge:d.minCharge,is_custom:d.isCustom,discount_mode:d.discountMode,discount_pct:d.discountPct})));if(error)throw error;}
+    /* The job's own percentage is saved from the same button. It is the
+       job's number now -- writing it never touches the dealer record. */
+    const jd=$('drJobDisc')?Math.max(0,Math.min(100,+$('drJobDisc').value||0)):(+a.jobDiscount||0);
+    if((+a.jobDiscount||0)!==jd){
+      const {error:jde}=await sb.from('jobs').update({discount_pct:jd}).eq('id',jobId);
+      if(jde)throw jde;
+      a.jobDiscount=jd;drPriceDisc=jd;
+      const twin=[...appts,...queue].find(x=>(x.jobId||x.id)===jobId);
+      if(twin&&twin!==a)twin.jobDiscount=jd;}
+    const {data:fresh,error:fe}=await sb.from('line_items').select('id,description,qty,delivered,delivered_by,service_id,unit_price,min_charge,is_custom,discount_mode,discount_pct').eq('job_id',jobId);
     if(fe)throw fe;
-    a.lineItems=(fresh||[]).map(li=>({id:li.id,desc:li.description,qty:li.qty,delivered:li.delivered,by:li.delivered_by||'',serviceId:li.service_id||null,unitPrice:li.unit_price,minCharge:li.min_charge,isCustom:!!li.is_custom}));
+    a.lineItems=(fresh||[]).map(li=>({id:li.id,desc:li.description,qty:li.qty,delivered:li.delivered,by:li.delivered_by||'',serviceId:li.service_id||null,unitPrice:li.unit_price,minCharge:li.min_charge,discountMode:li.discount_mode||'inherit',discountPct:li.discount_pct==null?null:+li.discount_pct,isCustom:!!li.is_custom}));
     drCancelEdit();renderDrPricing(a);drRenderMargin(a);toast('Pricing updated');
     if(page==='inventory')buildReceiving();
   }catch(e){console.error(e);toast('Could not save pricing',true);}
   btn.disabled=false;btn.textContent='Save pricing';}
+if($('drJobDisc'))$('drJobDisc').addEventListener('input',drRecalc);
 $('drAddLineBtn').onclick=()=>drAddRow();
 $('drPriceCancel').onclick=()=>{drCancelEdit();renderDrPricing(currentItem());};
 $('drPriceSave').onclick=()=>drSavePricing(currentItem());
@@ -5854,6 +5999,17 @@ function biRound(v){return Math.round((Number(v)||0)*100)/100;}
    min_charge: a dealer reading this does not need our catalog internals, and
    what is not written cannot leak. min_applied is kept only so the PDF can
    explain a line whose total is not qty x unit price. */
+/* v119 adds four price-derived fields per line and one job-level flag. Every
+   one of them comes out of jobPricing(), whose return value has NO cost key
+   -- installer pay reaches money only through apptFinance() and
+   drRenderMargin(), and neither is reachable from here. discount_pct,
+   discount_amt, net_total and discount_source are arithmetic on unit_price,
+   qty, min_charge and a percentage. Nothing here can leak a pay rate, a pay
+   type or a margin, and line_total stays GROSS so subtotal is still the sum
+   of the lines above it, exactly as before.
+   discount_mixed doubles as the version marker: a document issued before
+   v119 has no such key, and biBuildPdf uses its absence to render that
+   document precisely as it was issued. */
 function biSnapshot(a){
   const P=jobPricing(a);
   const lines=P.lines.map(function(l,i){
@@ -5863,11 +6019,16 @@ function biSnapshot(a){
       unit_price:l.quote?null:biRound(l.unit),
       line_total:l.quote?null:biRound(l.total),
       is_quote:!!l.quote,
-      min_applied:!!l.minApplied};});
+      min_applied:!!l.minApplied,
+      discount_pct:l.quote?null:biRound(l.discPct),
+      discount_amt:l.quote?null:biRound(l.discAmt),
+      net_total:l.quote?null:biRound(l.net),
+      discount_source:l.quote?null:l.discSource};});
   return {lines:lines,
     subtotal:biRound(P.subtotal),
-    discount_pct:biRound(P.disc),
+    discount_pct:biRound(P.disc||0),
     discount_amt:biRound(P.discAmt),
+    discount_mixed:!!P.mixed,
     total:biRound(P.total),
     has_quote_lines:!!P.anyQuote};}
 
@@ -5915,25 +6076,44 @@ function biBuildPdf(docType,snap,ctxInfo,number){
   push('Dealer',ctxInfo.dealer);
   push('Job address',ctxInfo.address);
   const startY=pdfContext(doc,PW,M,ctx);
+  /* A document issued before v119 has no discount_mixed key and no per-line
+     discount data. It renders through the ORIGINAL five-column path with the
+     original widths and the original wording, so every quote and invoice
+     already issued is byte-identical to the day it was issued. */
+  const v119=snap.discount_mixed!==undefined;
+  const showDisc=v119&&+snap.discount_amt>0;
+  const dCell=function(l){
+    if(l.is_quote)return '\u2014';
+    if(l.discount_source==='excluded')return 'None';
+    if(!+l.discount_pct)return '\u2014';
+    return (+l.discount_pct)+'%';};
+  /* Both column budgets total 187.9mm, the width the header and the page
+     margins were measured for. Description gives up the room. */
+  const cols=showDisc
+    ?{0:{cellWidth:10,halign:'right'},1:{cellWidth:73.9},2:{cellWidth:14,halign:'right'},
+      3:{cellWidth:30,halign:'right'},4:{cellWidth:22,halign:'right'},5:{cellWidth:38,halign:'right'}}
+    :{0:{cellWidth:10,halign:'right'},1:{cellWidth:89.9},2:{cellWidth:16,halign:'right'},
+      3:{cellWidth:34,halign:'right'},4:{cellWidth:38,halign:'right'}};
   const body=snap.lines.map(function(l){
     return [l.n,
       (l.description||'\u2014')+(l.min_applied?'\n(minimum charge applied)':''),
       String(l.qty),
       l.is_quote?'Quote':biMoney(l.unit_price),
       l.is_quote?'\u2014':biMoney(l.line_total)];});
+  if(showDisc)body.forEach(function(r,i){r.splice(4,0,dCell(snap.lines[i]));});
   doc.autoTable({startY:startY,
-    head:[['#','Description','Qty','Unit price','Line total']],
+    head:[showDisc?['#','Description','Qty','Unit price','Discount','Line total']
+                  :['#','Description','Qty','Unit price','Line total']],
     body:body,theme:'grid',
     styles:{font:'helvetica',fontSize:9.5,cellPadding:2.4,textColor:INK,lineColor:LINE,lineWidth:0.15,overflow:'linebreak',valign:'top'},
     headStyles:{fillColor:SAND,textColor:INK,fontStyle:'bold',fontSize:8.5},
     alternateRowStyles:{fillColor:ALT},
-    columnStyles:{0:{cellWidth:10,halign:'right'},1:{cellWidth:89.9},2:{cellWidth:16,halign:'right'},
-      3:{cellWidth:34,halign:'right'},4:{cellWidth:38,halign:'right'}},
+    columnStyles:cols,
     margin:{left:M,right:M,top:57,bottom:PDF_TABLE_BOTTOM},
     didDrawPage:drawHeader});
   /* Totals block height from its top (4mm above the first baseline): 12.5
      base, +6 for a discount row, +7 for the quote-lines note. */
-  const tailH=12.5+(snap.discount_pct>0?6:0)+(snap.has_quote_lines?7:0);
+  const tailH=12.5+((v119?+snap.discount_amt>0:snap.discount_pct>0)?6:0)+(snap.has_quote_lines?7:0);
   let y=pdfTail(doc,(doc.lastAutoTable?doc.lastAutoTable.finalY:startY)+5,tailH,PH,drawHeader)+4;
   const lx=PW-M-46,vx=PW-M;
   const trow=function(label,val,bold,size){
@@ -5943,7 +6123,9 @@ function biBuildPdf(docType,snap,ctxInfo,number){
     doc.setTextColor(INK[0],INK[1],INK[2]);
     doc.text(val,vx,y,{align:'right'});y+=6;};
   trow('Subtotal',biMoney(snap.subtotal));
-  if(snap.discount_pct>0)trow('Dealer discount ('+snap.discount_pct+'%)','-'+biMoney(snap.discount_amt));
+  /* Legacy wording preserved exactly for pre-v119 documents. */
+  if(!v119){if(snap.discount_pct>0)trow('Dealer discount ('+snap.discount_pct+'%)','-'+biMoney(snap.discount_amt));}
+  else if(+snap.discount_amt>0)trow(snap.discount_mixed?'Discount':'Discount ('+snap.discount_pct+'%)','-'+biMoney(snap.discount_amt));
   doc.setDrawColor(SAND[0],SAND[1],SAND[2]);doc.setLineWidth(0.5);doc.line(lx-34,y-4.2,vx,y-4.2);
   y+=1.5;trow('Total',biMoney(snap.total),true,12.5);
   if(snap.has_quote_lines){
@@ -6844,7 +7026,7 @@ async function createTask(t){
   appts.push({id:appt.id,jobId:job.id,type:'Task',taskType:t.taskType,meetingType:mt,taskDone:false,installer:t.installerId,status:'scheduled',
     dateKey:t.dateKey,start:t.start,dur:mins/60,estMins:mins,notes:'',
     cust:'—',dealer:d?d.name:'—',dealerId:dId,customerId:null,addr:'—',phone:'',scope:t.desc,
-    jobNo:null,awaitingProduct:false,override:false,lineItems:[],dealerDiscount:d?(+d.discount||0):0,files:[]});
+    jobNo:null,awaitingProduct:false,override:false,lineItems:[],jobDiscount:0,files:[]});
   markConflicts();render();
   return {error:null,apptId:appt.id};}
 
@@ -6890,9 +7072,10 @@ $('njSave').onclick=async()=>{if(!IS_ADMIN)return;
     const price=r.querySelector('.liprice').value.trim();
     const isCustom=r.dataset.custom==='1',isQuote=r.dataset.quote==='1';
     if((isCustom||isQuote)&&(price===''||+price<=0)){toast(`Enter a price for "${desc}"`,true);return;}
-    formLines.push({desc,qty,serviceId:r.dataset.serviceId||null,unitPrice:price===''?null:Number(price),minCharge:r.dataset.min!==''?Number(r.dataset.min):null,isCustom});
+    const dsc=liDiscGet(r);
+    formLines.push({desc,qty,serviceId:r.dataset.serviceId||null,unitPrice:price===''?null:Number(price),minCharge:r.dataset.min!==''?Number(r.dataset.min):null,isCustom,discountMode:dsc.discount_mode,discountPct:dsc.discount_pct});
   }
-  if(awaiting&&!formLines.length)formLines=[{desc:'Product on order',qty:1,serviceId:null,unitPrice:null,minCharge:null,isCustom:false}];
+  if(awaiting&&!formLines.length)formLines=[{desc:'Product on order',qty:1,serviceId:null,unitPrice:null,minCharge:null,isCustom:false,discountMode:'inherit',discountPct:null}];
   const estMins=Math.max(15,hmToMins($('njDurH').value,$('njDurM').value)||defaultMins(type));
   /* next_job_number() does the increment and the read in ONE statement, so two
      people creating a job at the same moment cannot be handed the same number.
@@ -6909,10 +7092,10 @@ $('njSave').onclick=async()=>{if(!IS_ADMIN)return;
     else if(nn==null)console.error('next_job_number returned NULL - does this tenant have a job_number_counter row?');
     else jobNo=nn;}
   catch(err){console.error('next_job_number threw',err);}
-  const {data:job,error:je}=await sb.from('jobs').insert({customer_id:custId,dealer_id:dId,type,site_address:addr||null,scope:scope||null,estimated_minutes:estMins,awaiting_product:awaiting,override_schedule:false,job_number:jobNo}).select('id,job_number').single();
+  const {data:job,error:je}=await sb.from('jobs').insert({customer_id:custId,dealer_id:dId,type,site_address:addr||null,scope:scope||null,estimated_minutes:estMins,awaiting_product:awaiting,override_schedule:false,job_number:jobNo,discount_pct:njDiscount}).select('id,job_number').single();
   if(je){toast('Could not save job',true);console.error(je);return;}
   let lineItems=[];
-  if(formLines.length){const {data:liData,error:le}=await sb.from('line_items').insert(formLines.map(l=>({job_id:job.id,description:l.desc,qty:l.qty,delivered:false,service_id:l.serviceId,unit_price:l.unitPrice,min_charge:l.minCharge,is_custom:l.isCustom}))).select();
+  if(formLines.length){const {data:liData,error:le}=await sb.from('line_items').insert(formLines.map(l=>({job_id:job.id,description:l.desc,qty:l.qty,delivered:false,service_id:l.serviceId,unit_price:l.unitPrice,min_charge:l.minCharge,is_custom:l.isCustom,discount_mode:l.discountMode||'inherit',discount_pct:l.discountPct==null?null:l.discountPct}))).select();
     if(le)console.error(le);else lineItems=(liData||[]).map(li=>({id:li.id,desc:li.description,qty:li.qty,delivered:false,by:'',serviceId:li.service_id||null,unitPrice:li.unit_price,minCharge:li.min_charge,isCustom:!!li.is_custom}));}
   /* job.job_number is read back from the INSERT, so this is the number the
      database actually stored rather than what we hoped to send. Without it the
@@ -6921,7 +7104,7 @@ $('njSave').onclick=async()=>{if(!IS_ADMIN)return;
      exactly like assignment having failed. */
   const assignedNo=(job&&job.job_number!=null)?job.job_number:null;
   if(assignedNo==null)toast('Job saved, but it did <b>not</b> get a job number — see the console',true);
-  const fresh={id:job.id,jobNo:assignedNo,type,customerId:custId,cust:custName,dealerId:dId,dealer,addr:addr||'—',phone,scope:scope||'—',estMins,awaitingProduct:awaiting,lineItems,override:false,dealerDiscount:njDiscount};
+  const fresh={id:job.id,jobNo:assignedNo,type,customerId:custId,cust:custName,dealerId:dId,dealer,addr:addr||'—',phone,scope:scope||'—',estMins,awaitingProduct:awaiting,lineItems,override:false,jobDiscount:njDiscount};
   /* v114: Schedule Now sends the job STRAIGHT to the calendar through the one
      create path -- it must not also be pushed into the queue, because the
      queue is "every job with no appointment" and everything downstream (rail,
@@ -7976,7 +8159,12 @@ async function dlSaveInfo(){if(!IS_ADMIN||!dealerSel)return;
   /* DEALERS drives the left list, the job drawer label and pricing, so the
      cached copy has to move with the write. */
   const d=DEALERS.find(x=>x.id===dealerSel);if(d){d.name=nm;d.discount=disc;d.phone=patch.phone||'';}
-  appts.concat(queue).forEach(j=>{if(j.dealerId===dealerSel){j.dealer=nm;j.dealerDiscount=disc;}});
+  /* v119: THE BUG. This used to rewrite jobDiscount on every job for this
+     dealer, so editing an account's standing rate silently repriced their
+     whole open book. Each job now carries its own jobs.discount_pct, set
+     when the job was created. Only the NAME follows the dealer. Never put
+     a discount write back in this loop. */
+  appts.concat(queue).forEach(j=>{if(j.dealerId===dealerSel){j.dealer=nm;}});
   dealerEdit=false;renderDealerRows();renderDealerDetail();toast('Dealer saved');}
 function dealerJobs(id){return [...appts,...queue].filter(x=>x.dealerId===id);}
 /* v98: an Existing Dealer Meeting is linked to the account and SHOWS in its job
