@@ -1565,9 +1565,12 @@ body.role-installer [data-admin]{display:none!important}
         <datalist id="njSvcList"></datalist>
         <div id="njTotals"></div>
       </div>
-      <div class="fld" id="njFilesFld"><label>Attach files (optional)</label>
-        <input id="njFiles" type="file" multiple accept="application/pdf,image/*">
-        <div id="njFilesHint" style="font-size:11.5px;color:var(--sand-dim);margin-top:6px">PDFs and photos. They upload once the job has been created.</div>
+      <div class="fld" id="njFilesFld"><label>Documents &amp; photos</label>
+        <div class="fileadd"><button type="button" id="njAddPhotos">+ Photos</button><button type="button" id="njAddPdf">+ PDF</button></div>
+        <input id="njFilesImg" type="file" multiple accept="image/*" hidden>
+        <input id="njFiles" type="file" multiple accept="application/pdf" hidden>
+        <div id="njFileList"></div>
+        <div id="njFilesHint" class="fileempty"></div>
       </div>
     </div>
     <div class="modal-f"><button class="btn ghost" id="njCancel">Cancel</button><button class="btn" id="njSave">Create job</button></div>
@@ -5523,6 +5526,35 @@ function njFillSchedInstallers(){const s=$('njSchedInst');if(!s)return;s.innerHT
    is jobId/timestamp_name, so nothing can be uploaded before the insert. */
 var NJ_FILES=[];
 function njFileKind(f){return /\.pdf$/i.test(f.name)?'pdf':(/\.(png|jpe?g|gif|webp|heic|heif)$/i.test(f.name)?'photo':'pdf');}
+/* v115: the picker matches the drawer's Documents & photos block -- the same
+   .fileadd row with "+ Photos" and "+ PDF", each filtering to its own types,
+   and the same .filepdf rows underneath. The one thing the drawer never needs
+   is a STAGED list: nothing has been uploaded yet, so what has been picked has
+   to be visible and removable before the job is saved. Each row carries the
+   drawer's own .filedel x, which drops that file from NJ_FILES.
+   Rows are not clickable here (there is nothing to open yet), hence the
+   cursor override on an otherwise borrowed class. */
+function njFileRows(){const l=$('njFileList');if(!l)return;
+  l.innerHTML=NJ_FILES.map(function(f,i){const photo=njFileKind(f)==='photo';
+    /* .filepdf paints its icon PDF-red; a photo row borrows the class but not
+       that meaning, so its icon is tinted back to the muted sand. */
+    return '<div class="filepdf" style="cursor:default">'
+      +(photo?viewerIcon('photo').replace('<svg ','<svg style="color:var(--sand-dim)" '):viewerIcon('pdf'))
+      +'<span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(f.name)+'</span>'
+      +'<span class="docmeta">'+(photo?'Photo':'PDF')+'</span>'
+      +'<span class="filedel" title="Remove" onclick="njFileRemove('+i+')">\u00d7</span></div>';}).join('');
+  $('njFilesHint').textContent=NJ_FILES.length
+    ?NJ_FILES.length+(NJ_FILES.length===1?' file':' files')+' staged — they upload once the job has been created.'
+    :'Nothing attached yet. Anything you add uploads once the job has been created.';}
+function njFileRemove(i){NJ_FILES.splice(i,1);njFileRows();}
+/* Picking again ADDS to the staging list rather than replacing it, so photos
+   and PDFs can both be attached; the input is cleared each time so the same
+   file can be picked again after being removed. */
+function njFileAdd(input){const picked=[...(input.files||[])];
+  /* Same name and size = the same file picked twice; staging it twice would
+     upload it twice. */
+  picked.forEach(function(f){if(!NJ_FILES.some(x=>x.name===f.name&&x.size===f.size))NJ_FILES.push(f);});
+  input.value='';njFileRows();}
 function njSyncTaskMode(){const t=njIsTask(),show=x=>t?'none':'',showT=x=>t?'block':'none';
   ['njCustFld','njAddrFld','njPhoneFld','njScopeFld','njProdFld'].forEach(f=>{if($(f))$(f).style.display=show();});
   ['njTaskTypeFld','njTaskDescFld','njWhenFld','njInstFld'].forEach(f=>{if($(f))$(f).style.display=showT();});
@@ -5569,10 +5601,10 @@ $('njTaskType').addEventListener('change',njSyncTaskDealer);
 $('njMeetingType').addEventListener('change',njSyncTaskDealer);
 $('njProd').addEventListener('click',e=>{const c=e.target.closest('.chip');if(!c)return;document.querySelectorAll('#njProd .chip').forEach(x=>{x.classList.remove('on');x.style.background=''});c.classList.add('on');c.style.background='var(--sand)';});
 $('njSched').addEventListener('click',e=>{const c=e.target.closest('.chip');if(!c)return;document.querySelectorAll('#njSched .chip').forEach(x=>{x.classList.remove('on');x.style.background=''});c.classList.add('on');c.style.background='var(--sand)';njSyncSched();});
-$('njFiles').addEventListener('change',function(){NJ_FILES=[...(this.files||[])];
-  $('njFilesHint').textContent=NJ_FILES.length
-    ?NJ_FILES.length+(NJ_FILES.length===1?' file':' files')+' ready — they upload once the job has been created.'
-    :'PDFs and photos. They upload once the job has been created.';});
+$('njAddPhotos').onclick=function(){$('njFilesImg').click();};
+$('njAddPdf').onclick=function(){$('njFiles').click();};
+$('njFiles').addEventListener('change',function(){njFileAdd(this);});
+$('njFilesImg').addEventListener('change',function(){njFileAdd(this);});
 // ---- Phase B: catalog-driven priced line items ----
 function fmtMoney(v){return '$'+Number(v||0).toFixed(2);}
 function jobPricing(item){const lis=item.lineItems||[];let subtotal=0,anyQuote=false;
@@ -6578,7 +6610,7 @@ $('newJobBtn').onclick=()=>{
   document.querySelectorAll('#njProd .chip').forEach((x,i)=>{x.classList.toggle('on',i===0);x.style.background=i===0?'var(--sand)':''});
   document.querySelectorAll('#njSched .chip').forEach((x,i)=>{x.classList.toggle('on',i===0);x.style.background=i===0?'var(--sand)':''});
   $('njSchedStart').innerHTML='';$('njSchedDate').value=dateKey(TODAY);
-  NJ_FILES=[];$('njFiles').value='';$('njFilesHint').textContent='PDFs and photos. They upload once the job has been created.';
+  NJ_FILES=[];$('njFiles').value='';$('njFilesImg').value='';njFileRows();
   njSyncSched();
   $('njLines').innerHTML='';$('njScope').value='';
   $('njDiscWrap').style.display='none';$('njDisc').value='';njSetDiscount(0);
@@ -6749,7 +6781,7 @@ $('njSave').onclick=async()=>{if(!IS_ADMIN)return;
     for(const f of NJ_FILES){
       try{await uploadFile(job.id,f,njFileKind(f));fOk++;}
       catch(err){console.error('new job attachment',f&&f.name,err);fBad++;}}
-    NJ_FILES=[];$('njFiles').value='';
+    NJ_FILES=[];$('njFiles').value='';$('njFilesImg').value='';njFileRows();
     if($('drawer').classList.contains('open')&&currentJobId()===job.id)refreshFiles();}
   if(fBad&&!fOk)toast(`<b>${esc(custName)}</b> created, but the files did not attach. The job is saved — open it and add them again.`,true);
   else if(fBad)toast(`<b>${esc(custName)}</b> created, but ${fBad} of ${fOk+fBad} files did not attach. The job is saved — open it and add the missing file again.`,true);
