@@ -88,6 +88,13 @@
   .seg.ghost button.on{background:rgba(255,255,255,.1);color:var(--sand-ink)}
   .spacer{flex:1}
   .btn{background:var(--accent);color:var(--accent-ink);border:none;font:inherit;font-weight:700;font-size:13px;padding:9px 16px;border-radius:9px;cursor:pointer;transition:.14s;display:inline-flex;align-items:center;gap:7px}
+  /* v121: the [hidden] partner for every .btn. display:inline-flex above
+     beats the UA sheet's [hidden]{display:none}, so a button hidden by
+     attribute stayed on screen - #instResetBtn did, above the Send reset
+     link / Cancel row it is meant to give way to (ipResetArm). Found by the
+     Q44 sweep. Nothing else in the file sets display on a .btn, so this
+     (0,2,0) rule wins everywhere. */
+  .btn[hidden]{display:none}
   .btn:hover{filter:brightness(1.06)}
   .btn.ghost{background:rgba(255,255,255,.06);color:var(--sand-ink);border:1px solid var(--side-border)}.btn.ghost:hover{border-color:var(--accent-line)}
   .accent-swap{display:flex;align-items:center;gap:6px;padding-right:2px}
@@ -458,6 +465,12 @@
      belongs with them. peRecalc writes the meta text to .limetatext so it
      cannot wipe the select. */
   .lidctl{display:inline-flex;align-items:center;gap:5px;margin-right:8px;vertical-align:middle}
+  /* Q44 (v121): required, not decorative. display:inline-flex above beats the
+     UA sheet's [hidden]{display:none}, so peRecalc setting .lidctl hidden on
+     quote-only and blank lines did nothing and the discount select showed on
+     lines it cannot apply to. Same partner-rule pattern as .vwnav, .ipconfirm
+     and .btn. */
+  .lidctl[hidden]{display:none}
   .lidctl select,.lidctl input{font:inherit;font-size:10.5px;font-weight:600;padding:2px 6px;border-radius:6px;background:var(--side-3);border:1px solid var(--side-border);color:var(--sand-ink);outline:none;cursor:pointer}
   .lidctl input{width:54px;cursor:text}
   .pejobdisc{display:flex;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap}
@@ -3204,6 +3217,20 @@ async function ejrGo(){
      Reopen it on the saved values rather than leave it lying. */
   if(selectedId)openDrawer(selectedId);}
 
+/* Q40 (v121): the destructive action at the foot of Edit Job, built in ONE
+   place. From v98 the Task branch and the dealer-job branch below each wrote
+   this block out, so the ejDanger id appeared twice in the SOURCE. It was never
+   twice in the DOM: each branch replaces #ejBody wholesale and then wires the
+   button it just built, and ejDanger() itself branches on isTask/EJ_MODE, so
+   both copies were live and neither was dead. Two copies of one control is
+   how they drift, so both branches now call this. The HTML it returns is
+   byte-identical to what each branch used to build. */
+function ejDangerBlock(heading,label,note){
+  return '<div style="border-top:1px solid var(--side-border);margin-top:6px;padding-top:14px">'
+    +'<div style="font-size:10.5px;letter-spacing:1.2px;text-transform:uppercase;color:var(--sand-dim);margin-bottom:9px">'+heading+'</div>'
+    +'<button type="button" class="btn del" id="ejDanger" style="width:100%">'+label+'</button>'
+    +'<div style="'+EJ_DIM+';margin-top:8px">'+note+'</div></div>';}
+
 function ejOpen(){
   const a=currentItem();if(!a){toast('No job open',true);return;}
   EJ_MODE=drawerMode;
@@ -3219,10 +3246,8 @@ function ejOpen(){
     $('ejSub').textContent=taskLabel(a);
     $('ejBody').innerHTML='<p style="'+EJ_DIM+';margin-bottom:14px">Task type, description and dealer are edited in the drawer behind this popup.</p>'
       +ejrBlock()
-      +'<div style="border-top:1px solid var(--side-border);margin-top:6px;padding-top:14px">'
-      +'<div style="font-size:10.5px;letter-spacing:1.2px;text-transform:uppercase;color:var(--sand-dim);margin-bottom:9px">This task</div>'
-      +'<button type="button" class="btn del" id="ejDanger" style="width:100%">Delete this task</button>'
-      +'<div style="'+EJ_DIM+';margin-top:8px">Removes it from the calendar permanently. Its notes go with it. Nothing else on the schedule is affected.</div></div>';
+      +ejDangerBlock('This task','Delete this task',
+        'Removes it from the calendar permanently. Its notes go with it. Nothing else on the schedule is affected.');
     $('ejDanger').onclick=ejDanger;
     ejrFill(a);
     $('ejBg').classList.add('open');return;}
@@ -3253,16 +3278,11 @@ function ejOpen(){
     +'<div style="'+EJ_DIM+';margin-top:8px">Both are built from this job\u2019s <b>current</b> rates and frozen as issued. Editing rates afterwards never changes a document already issued.</div></div>';
   const appt=EJ_MODE==='appt';
   h+=ejrBlock();
-  h+='<div style="border-top:1px solid var(--side-border);margin-top:6px;padding-top:14px">'
-    +'<div style="font-size:10.5px;letter-spacing:1.2px;text-transform:uppercase;color:var(--sand-dim);margin-bottom:9px">'
-    +(appt?'Scheduling':'This job')+'</div>'
-    +'<button type="button" class="btn del" id="ejDanger" style="width:100%">'
-    +(appt?'Unschedule this visit':'Remove this job')+'</button>'
-    +'<div style="'+EJ_DIM+';margin-top:8px">'
-    +(appt
+  h+=ejDangerBlock(appt?'Scheduling':'This job',
+    appt?'Unschedule this visit':'Remove this job',
+    appt
       ?'Takes the visit off the calendar and returns the job to the queue. Line items, documents and photos are kept.'
-      :'Permanently deletes this job and its line items. It has never been scheduled.')
-    +'</div></div>';
+      :'Permanently deletes this job and its line items. It has never been scheduled.');
   $('ejBody').innerHTML=h;
   $('ejDanger').onclick=ejDanger;
   /* The rates editor lives INSIDE the drawer (#drPriceEdit), not in this
@@ -4786,7 +4806,7 @@ async function invokeFn(name,body){
 /* Every error code the function can return, in installer language. Anything
    unmapped falls back to the function's own message rather than a shrug. */
 const SD_ERRORS={
-  DEALER_EMAIL_MISSING:'This dealer has no email on file. Add one to the dealer record \u2014 an additional recipient is copied in alongside the dealer, not instead of them.',
+  DEALER_EMAIL_MISSING:'This dealer has no email on file. Add one to the dealer record, or type an address in \u201cSend to a different email\u201d to send it there instead.',
   DEALER_MISSING:'This job has no dealer, so there is nobody to send it to.',
   JOB_NOT_FOUND:'Could not find this job. Refresh and try again.',
   FILE_NOT_ON_JOB:'One of the attachments is no longer on this job. Close the drawer, reopen it and try again.',
@@ -5248,21 +5268,23 @@ async function sdInit(){
       +'<div id="sdPhotoNote" style="'+dim+';margin-top:9px">Preparing photos\u2026</div></div>';
   }
 
-  /* ADDITIONAL RECIPIENT (v65). The Edge Function has always accepted a cc
-     array, and it is ALREADY DEPLOYED - but it rejects cc from a non-admin
-     with FORBIDDEN_OVERRIDE, while to_override is deliberately open to
-     everyone so an installer can mail a sheet to a second contact without
-     an admin. So the one field means different things by role, and says so
-     rather than letting an installer discover it through a 403:
-       admin      -> cc, dealer stays the primary recipient (one email)
-       installer  -> to_override, exactly the behaviour this field had. */
-  const ccMode=!!IS_ADMIN;
-  html+='<div class="fld"><label>'+(ccMode?'Additional recipient (optional)':'Send to a different email (optional)')+'</label>'
+  /* RECIPIENT (v121, Q39). One field with one meaning for every role: an
+     address typed here goes out as to_override and REPLACES the dealer's
+     on-file address. From v65 to v120 an admin's entry went out as cc
+     instead, which kept the dealer as the main recipient. So with no dealer
+     email on file an admin hit DEALER_EMAIL_MISSING and could not send at
+     all, while an installer could: the more privileged role had less
+     capability. The Edge Function needed no change. to_override has always
+     been open to every allowlisted user, and only cc and subject_override
+     are admin-gated; the app now sends neither. If copying someone in
+     alongside the dealer is wanted again, it belongs in its own, explicitly
+     labelled admin-only field (the function still accepts cc from an
+     admin), never in this field under a second meaning. The text below is
+     exactly what an installer has always seen. */
+  html+='<div class="fld"><label>Send to a different email (optional)</label>'
     +'<input id="sdTo" type="email" inputmode="email" autocomplete="off" autocapitalize="off" '
-    +'spellcheck="false" placeholder="'+(ccMode?'Copy a manager or accounts team':'Leave blank to use the dealer\'s email')+'">'
-    +'<div style="'+dim+';margin-top:6px">'+(ccMode
-      ?'The dealer stays the main recipient. This address is copied in (CC) on the <b>same</b> email, with the same attachments.'
-      :'Sends to that address <b>instead of</b> the dealer\u2019s on-file address.')+'</div></div>';
+    +'spellcheck="false" placeholder="Leave blank to use the dealer\'s email">'
+    +'<div style="'+dim+';margin-top:6px">Sends to that address <b>instead of</b> the dealer\u2019s on-file address.</div></div>';
   box.innerHTML=html;
 
   if(!photos.length){
@@ -5387,8 +5409,8 @@ async function sdSend(){
   const body={job_id:jobId,file_ids:ids,document_type:sdDocumentType(sel)};
   const msg=sdMessage(sel);
   if(msg)body.message=msg;
-  /* Same box, two payloads - see the ccMode note in sdInit. */
-  if(override){if(IS_ADMIN)body.cc=[override];else body.to_override=override;}
+  /* One payload for every role - see the Q39 note in sdInit. */
+  if(override)body.to_override=override;
   const res=await invokeFn('send-documents',body);
   SD_BUSY=false;
   if(res.ok){
@@ -5397,7 +5419,6 @@ async function sdSend(){
     if(sel.docs.length)parts.push(sel.docs.length+(sel.docs.length===1?' document':' documents'));
     if(sel.photos.length)parts.push(sel.photos.length+(sel.photos.length===1?' photo':' photos'));
     let line='Sent to <b>'+esc(to)+'</b> \u2014 '+parts.join(' and ');
-    if(IS_ADMIN&&override)line+=', copied to <b>'+esc(override)+'</b>';
     toast(line);
     refreshFiles();closeModal();return;}
   sdSyncButton();
