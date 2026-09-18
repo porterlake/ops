@@ -894,6 +894,14 @@
   .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(20px);background:var(--side);color:var(--sand-ink);padding:11px 20px;border-radius:11px;font-size:13px;font-weight:600;opacity:0;transition:.25s;z-index:99;box-shadow:0 10px 30px rgba(0,0,0,.5);border:1px solid var(--side-border)}
   .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}.toast b{color:var(--sand)}
   .toast.warn{border-color:rgba(217,96,92,.5)}.toast.warn b{color:#e89490}
+  /* v120: a faded toast is opacity:0, not gone. It stays where it was, at
+     z-index 99 and as wide as its last message, and it swallowed clicks: on a
+     phone, after ANY toast, 44-55% of both drawer footer buttons (Edit Job and
+     Save changes) stopped responding, and on a laptop a long toast covered
+     part of Edit Job. No toast carries a link or a button, so nothing inside
+     one needs a click. If one ever does, give .toast.show pointer-events:auto
+     rather than removing this. */
+  .toast{pointer-events:none}
 /* ===== Auth gate (v20) — light-through-blinds ===== */
 .gate{position:fixed;inset:0;z-index:9999;background:#12100d;display:flex;align-items:center;justify-content:center;color:#efe9df;overflow:hidden}
 .gate.hidden{display:none}
@@ -1178,6 +1186,29 @@ body.role-installer [data-admin]{display:none!important}
      off the right edge (translateX(100%)) and its 60px blur used to bleed a dark
      strip into every desktop page. The phone drawer is full width with no shadow. */
   .drawer.open{box-shadow:-24px 0 60px rgba(0,0,0,.5)}
+  /* v120: wider on desktop. 38vw, floored at v119's 386px and capped at
+     640px. The floor means every viewport up to 1015px renders exactly as
+     v119; the cap is a third of a 1920 screen. In the Edit Job Rates row only
+     .lidesc (flex:1) grows - qty, price, total and delete are fixed px - so
+     the description gets every extra pixel: 36px wide at 386, 169 at 1366,
+     290 at the cap. ONE width:clamp() here, and never min-width/max-width on
+     the base .drawer rule: the phone rule resets max-width but NOT min-width,
+     so a base min-width would push the phone drawer wider than the screen.
+     translateX(100%) is a percentage of the drawer's own width, so the closed
+     drawer stays exactly off-screen at any width, and the v109 shadow above
+     is still open-only. */
+  .drawer{width:clamp(386px,38vw,640px)}
+  /* v120: drawer photos auto-fill instead of a fixed 4 columns, so a wider
+     drawer adds columns instead of growing every thumbnail (a fixed 4 made
+     5 photos 290px tall at 640px, against 162 at 386). The track minimum is
+     the larger of 77px and a sixth of the row. 77px keeps the 386px drawer at
+     exactly v119's four columns; the sixth caps a row at six. The 36px is
+     the five 7px gaps plus 1px of slack, so six always fit and seven never
+     do, with no sub-pixel coin flip. auto-fill, not auto-fit, so two photos
+     stay thumbnail-sized instead of stretching across the row. Scoped to
+     #drFiles because the previous-job popup also uses .filegrid and is not
+     part of this change. Phones keep their own 3 columns (mobile block). */
+  #drFiles .filegrid{grid-template-columns:repeat(auto-fill,minmax(max(77px,calc((100% - 36px)/6)),1fr))}
   /* v117: appearance:base-select (below) turns a select into a flex box whose
      label is ORDINARY TEXT, and ordinary text wraps. .topbar is a flex row,
      .spacer is flex:1, and .topfilter set no flex control, so once the spacer
