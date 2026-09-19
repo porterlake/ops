@@ -2049,7 +2049,7 @@ let appts=[
 /* selectedDay is today's index within BASE_MON's week (0=Mon). Math.round
    rather than a raw divide so a DST boundary cannot land it on 5.96. */
 let view="week", selectedDay=Math.round((TODAY-BASE_MON)/86400000), weekOffset=0, monthOffset=0, selectedId=null, page="scheduler", drawerMode="appt", instFilter="all";
-let currentModalIc=null, modalPdf=null;
+let currentModalIc=null;
 const fid=()=>'f'+Date.now()+Math.floor(Math.random()*999);
 function currentItem(){return (drawerMode==='queue'?queue:appts).find(x=>x.id===selectedId)}
 function visibleAppts(){return appts.filter(a=>instFilter==='all'||a.installer===instFilter)}
@@ -2421,7 +2421,8 @@ function currentJobId(){if(!selectedId)return null;if(drawerMode==='queue')retur
    Every caller already catches and toasts an upload failure. Existing rows
    that say 'M. Lake' are left as written. */
 function fileWho(){const e=PROFILE&&PROFILE.email;
-  if(!e)throw new Error('No signed-in profile - upload refused rather than written unattributed');
+  if(!e){const er=new Error('No signed-in profile - upload refused rather than written unattributed');
+    er.noProfile=true;throw er;}   /* v122: read by uploadBatch */
   return noteWho(e);}
 async function uploadFile(jobId,file,kind){const by=fileWho();const safe=file.name.replace(/[^\w.\-]/g,'_');const path=`${jobId}/${Date.now()}_${safe}`;
   const {error:ue}=await sb.storage.from('job-files').upload(path,file);if(ue)throw ue;
@@ -3428,7 +3429,7 @@ function modalBodyFor(ic){const a=appts.find(x=>x.id===selectedId)||{};
     +'<div class="fld" style="margin-top:14px"><label>Customer notes</label>'
     +'<textarea class="sg-notes" placeholder="Anything the customer would like noted (optional)"></textarea></div>';
   if(ic==='cam')return `<p style="font-size:12.5px;color:var(--sand-dim);margin-bottom:6px">Choose several at once — the picker allows multi-select, and Take Photo still works for a single shot. Tap a chosen photo to remove it.</p><p id="camCount" style="font-size:12.5px;color:var(--sand-dim);margin-bottom:12px">No photos chosen yet.</p><input type="file" id="camInput" accept="image/*" multiple hidden><div class="photogrid" id="camGrid"></div>`;
-  if(ic==='upload')return `<label class="pdfdrop"><input type="file" accept="application/pdf" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12"/></svg><div>Tap to choose a PDF</div><div class="pdfname">No file chosen</div></label>`;
+  if(ic==='upload')return `<p style="font-size:12.5px;color:var(--sand-dim);margin-bottom:12px">Choose several at once — they upload one after another when you tap Save. Tap × to drop one before uploading.</p><input type="file" id="upInput" accept="application/pdf" multiple hidden><label class="pdfdrop" for="upInput"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12"/></svg><div>Tap to choose PDFs</div><div class="pdfname">No PDFs chosen</div></label><div id="upList" style="margin-top:10px"></div>`;
   if(ic==='link')return '<div id="pjBody"><p style="font-size:12.5px;color:var(--sand-dim)">Loading previous jobs\u2026</p></div>';
   if(ic==='send')return '<div id="sdBody"><p style="font-size:12.5px;color:var(--sand-dim)">Loading documents and photos…</p></div>';
   return '<p>—</p>';}
@@ -4732,9 +4733,8 @@ function camRender(){
   });
 }
 
-/* Called from openModal AFTER the generic file-input wiring, so this handler
-   replaces the single-file preview one for the photo input only. The PDF
-   ('upload') modal keeps the generic handler untouched. */
+/* Called from openModal. Until v122 this ran AFTER a generic single-file
+   change handler and replaced it; that handler is gone (see upInit). */
 function camInit(){
   camReset();
   const inp=$('camInput');
@@ -4746,6 +4746,78 @@ function camInit(){
     e.target.value='';
     camRender();};
   camRender();
+}
+
+/* ===== Upload documents — multi-select (v122, Q34) ======================
+   The drawer's "+ PDF" now works the way "+ Photos" has since v38: picked
+   files are STAGED here as removable name rows and uploaded one at a time by
+   uploadBatch() on Save. Picking again ADDS to the list; the same name and
+   size is the same file picked twice and is skipped, as New Job's njFileAdd
+   does. No FileReader: a File is all uploadFile needs.
+   ======================================================================== */
+let UP_SEL=[];   /* [File] — chosen on this device, not yet uploaded */
+
+function upReset(){UP_SEL=[];}
+
+function upRender(){
+  const l=$('upList');if(!l)return;
+  l.innerHTML=UP_SEL.map(function(f,i){
+    return '<div class="filepdf" style="cursor:default">'+viewerIcon('pdf')
+      +'<span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(f.name)+'</span>'
+      +'<span class="filedel" title="Remove" data-i="'+i+'">\u00d7</span></div>';
+  }).join('');
+  l.querySelectorAll('.filedel[data-i]').forEach(function(x){
+    x.onclick=function(){UP_SEL.splice(+x.dataset.i,1);upRender();};});
+  const n=UP_SEL.length,dz=document.querySelector('#modalBody .pdfdrop');
+  if(dz){dz.classList.toggle('has',n>0);
+    dz.querySelector('.pdfname').textContent=n?n+(n===1?' PDF':' PDFs')+' ready to upload · tap to add more':'No PDFs chosen';}
+}
+
+function upInit(){
+  upReset();
+  const inp=$('upInput');
+  if(inp)inp.onchange=function(e){
+    [...(e.target.files||[])].forEach(function(f){
+      if(!UP_SEL.some(function(x){return x.name===f.name&&x.size===f.size;}))UP_SEL.push(f);});
+    /* Cleared so a removed file can be picked again. */
+    e.target.value='';
+    upRender();};
+  upRender();
+}
+
+/* ONE upload loop for the drawer's "+ Photos" and "+ PDF" (v122), lifted
+   from the v38 photo loop so the two cannot drift.
+   SEQUENTIAL ON PURPOSE - never Promise.all. Each upload and its files-row
+   insert finish before the next Date.now() is taken, which is what keeps the
+   jobId/timestamp_name paths apart; uploadFile passes no upsert, so a clash
+   would error rather than overwrite. Each file is caught on its own:
+   survivors land, nothing is rolled back, failures are NAMED. */
+async function uploadBatch(jobId,files,kind,btn){
+  let ok=0,signedOut=false;const failed=[];
+  btn.disabled=true;
+  for(let i=0;i<files.length;i++){
+    btn.textContent='Uploading '+(i+1)+'/'+files.length+'…';
+    try{await uploadFile(jobId,files[i],kind);ok++;}
+    catch(err){console.error(kind+' upload',files[i].name,err);failed.push(files[i].name);
+      if(err&&err.noProfile)signedOut=true;}
+  }
+  btn.textContent='Save';btn.disabled=false;
+  return {ok:ok,failed:failed,signedOut:signedOut};
+}
+
+/* The failure toast stays up 8s rather than 2.4s: it now carries the names
+   to retry, and a list nobody can finish reading tells them nothing. A
+   signed-out refusal says so, because the fix is signing in, not retrying. */
+function batchToast(r,noun){
+  const pl=function(n){return n+' '+noun+(n===1?'':'s');};
+  if(!r.failed.length){toast(pl(r.ok)+' uploaded');return;}
+  const nf=r.failed.length,
+    names=r.failed.slice(0,5).map(function(n){return '<b>'+esc(n)+'</b>';}).join(', ')
+      +(nf>5?' and '+(nf-5)+' more':'');
+  if(r.signedOut)toast((r.ok?pl(r.ok)+' uploaded · ':'')+'Not uploaded: '+names
+    +' — you are signed out. Sign in again, then add '+(nf===1?'it':'them')+' again.',true,8000);
+  else if(r.ok)toast(pl(r.ok)+' uploaded · failed: '+names+' — try '+(nf===1?'it':'those')+' again',true,8000);
+  else toast('Could not upload '+names,true,8000);
 }
 
 /* ===== Send to Dealer (v37) =============================================
@@ -5566,7 +5638,7 @@ function pjPanelHtml(t,files){
       +'</div>';}
   return h;}
 
-function openModal(ic,label){currentModalIc=ic;modalPdf=null;const a=currentItem()||{};$('modalIcon').innerHTML=`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">${ICONS[ic]||ICONS.doc}</svg>`;$('modalTitle').textContent=label;$('modalSub').textContent=isTask(a)?taskLabel(a):`${a.cust||''} · ${a.type||''}`;$('modalBody').innerHTML=modalBodyFor(ic);
+function openModal(ic,label){currentModalIc=ic;const a=currentItem()||{};$('modalIcon').innerHTML=`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">${ICONS[ic]||ICONS.doc}</svg>`;$('modalTitle').textContent=label;$('modalSub').textContent=isTask(a)?taskLabel(a):`${a.cust||''} · ${a.type||''}`;$('modalBody').innerHTML=modalBodyFor(ic);
   /* The additional services report is the same light working surface as the
      measure sheet, so it takes the same class and inherits every .mslight
      rule rather than growing a second stylesheet. */
@@ -5594,11 +5666,12 @@ function openModal(ic,label){currentModalIc=ic;modalPdf=null;const a=currentItem
      job's files via SEND_DOC_TYPES, so it needs no per-caller configuration. */
   if(ic==='send')sdInit();
   if(ic==='box')stockInit();
-  $('modalBody').querySelectorAll('input[type=file]').forEach(inp=>inp.onchange=e=>{const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=ev=>{
-    if(f.type==='application/pdf'){modalPdf={name:f.name,url:ev.target.result};const dz=inp.closest('.pdfdrop');if(dz){dz.classList.add('has');dz.querySelector('.pdfname').textContent=f.name}}
-    else{const tile=inp.closest('.phototile');if(tile){tile.style.backgroundImage=`url(${ev.target.result})`;tile.classList.add('has')}}
-  };r.readAsDataURL(f)});
+  /* v122: the shared single-file change handler that used to sit here is
+     gone. Only two modal bodies carry a file input - 'cam' and 'upload' - and
+     each now wires its own multi-select input. For PDFs it had read the whole
+     file into a base64 string (modalPdf) that nothing ever read. */
   if(ic==='cam')camInit();
+  if(ic==='upload')upInit();
   $('modalBg').classList.add('open');}
 function closeModal(){$('modalBg').classList.remove('open')}
 $('modalClose').onclick=closeModal;$('modalCancel').onclick=closeModal;
@@ -5645,32 +5718,21 @@ $('modalSave').onclick=async()=>{
     if(!jobId){toast('Save the job first',true);return;}
     const btn=$('modalSave');
     if(currentModalIc==='cam'){
-      const picked=CAM_SEL.slice();
+      const picked=CAM_SEL.map(function(p){return p.file;});
       if(!picked.length){toast('No photos selected');closeModal();return;}
-      btn.disabled=true;
-      /* Each upload is caught on its own: one bad file or one dropped packet
-         must not cost the whole batch. Survivors land, failures are named. */
-      let ok=0;const failed=[];
-      for(let i=0;i<picked.length;i++){
-        btn.textContent='Uploading '+(i+1)+'/'+picked.length+'…';
-        try{await uploadFile(jobId,picked[i].file,'photo');ok++;}
-        catch(err){console.error('photo upload',picked[i].file.name,err);failed.push(picked[i].file.name);}
-      }
-      btn.textContent='Save';btn.disabled=false;
+      const r=await uploadBatch(jobId,picked,'photo',btn);
       camReset();
       await refreshFiles();
-      if(!failed.length)toast(ok+' photo'+(ok===1?'':'s')+' uploaded');
-      else if(ok)toast(ok+' uploaded · '+failed.length+' failed, try those again',true);
-      else toast('Could not upload the photos',true);
+      batchToast(r,'photo');
       closeModal();return;}
-    try{
-      const inp=document.querySelector('#modalBody input[type=file]');
-      if(!inp||!inp.files[0]){toast('No file chosen');return;}
-      btn.textContent='Uploading…';btn.disabled=true;
-      await uploadFile(jobId,inp.files[0],'pdf');toast('Document uploaded');
-      await refreshFiles();
-    }catch(err){console.error(err);toast('Upload failed',true);}
-    btn.textContent='Save';btn.disabled=false;closeModal();return;}
+    const picked=UP_SEL.slice();
+    if(!picked.length){toast('No PDFs chosen');return;}
+    const r=await uploadBatch(jobId,picked,'pdf',btn);
+    upReset();
+    /* One refresh after the whole batch, never per file. */
+    await refreshFiles();
+    batchToast(r,'PDF');
+    closeModal();return;}
   toast('Saved to work order');closeModal();};
 $('modalBg').addEventListener('click',e=>{if(e.target.id==='modalBg')closeModal()});
 
@@ -9094,7 +9156,7 @@ instSel.onchange=()=>{instFilter=instSel.value;render()};
 
 const menu=$('settingsMenu');$('whoBtn').addEventListener('click',e=>{e.stopPropagation();menu.classList.toggle('open')});document.addEventListener('click',()=>menu.classList.remove('open'));
 menu.querySelectorAll('.si').forEach(i=>i.onclick=e=>{e.stopPropagation();toast(i.textContent.trim()+' →');menu.classList.remove('open')});
-let toastT;function toast(msg,warn){const t=$('toast');t.innerHTML=msg;t.className='toast show'+(warn?' warn':'');clearTimeout(toastT);toastT=setTimeout(()=>t.className='toast',2400)}
+let toastT;function toast(msg,warn,ms){const t=$('toast');t.innerHTML=msg;t.className='toast show'+(warn?' warn':'');clearTimeout(toastT);toastT=setTimeout(()=>t.className='toast',ms||2400)}
 
 $('svcBg').addEventListener('click',e=>{if(e.target.id==='svcBg')$('svcBg').classList.remove('open')});
 let _rsz;window.addEventListener('resize',()=>{clearTimeout(_rsz);_rsz=setTimeout(()=>{if(page==='scheduler')render();},120)});
