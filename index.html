@@ -308,6 +308,16 @@
   .db-stats{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-bottom:16px}
   .db-stats:empty{display:none}
   .db-head>span[data-admin],.db-qa>span[data-admin]{display:contents}
+  /* v125, phone agenda head only — these two classes are written by the phone
+     branch of buildDashboard and by nothing else, so the desk layout cannot
+     see them. .db-who is on the SELECT, not its wrapper: the wrapper is
+     display:contents above, so margin-left:auto has to live on the flex item
+     itself. */
+  .db-who{margin-left:auto}
+  .db-per{flex:1 1 100%;display:flex;align-items:center;gap:8px;min-width:0;flex-wrap:wrap}
+  .db-per select{flex:1 1 auto;min-width:0}
+  .db-per .rep-range{flex:1 1 100%}
+  .db-per .rep-range input{flex:1 1 0;min-width:0}
   .db-todo .db-main{cursor:default}
   .db-todo .db-del{margin-left:auto;padding:0 4px;color:var(--muted);cursor:pointer;font-size:16px;line-height:1}
   .db-todo .db-del:hover{color:#a3211d}
@@ -2100,7 +2110,11 @@ async function loadDealers(){try{const {data,error}=await sb.from('dealers').sel
   DEALERS.length=0;data.forEach(d=>DEALERS.push({id:d.id,name:d.name,discount:+d.discount_pct||0,phone:d.phone||''}));
   /* DEALERS fills after the first render; refresh if the user is already on the page. (v22) */
   if(page==='dealers')buildGeneric('dealers');}catch(e){console.error(e);toast('Could not reach database',true);}}
-const INST_COLS='id,name,color,pay_type,pay_rate,employment_status,company_role';
+/* v125: email rides along so a to-do can say WHO added it by name. It is the
+   work email the installer profile popup already reads from this same table,
+   so this is no more exposure than the table's RLS already allows — it just
+   saves a second query. */
+const INST_COLS='id,name,color,pay_type,pay_rate,employment_status,company_role,email';
 /* companyRole (installers.company_role, v116) is DISPLAY ONLY. It is a job
    title -- Admin, Manager, Installer -- and it governs nothing.
    - It must NEVER appear in a .filter() on INSTALLERS or ALL_INSTALLERS.
@@ -2119,7 +2133,7 @@ const INST_COLS='id,name,color,pay_type,pay_rate,employment_status,company_role'
    It rides in INST_COLS because a job title is not sensitive; the address and
    date of birth on the same table deliberately do not, and are read one
    person at a time inside editInstaller. */
-const instMap=i=>({id:i.id,name:i.name,color:i.color||'#5b8def',payType:i.pay_type||'hourly',payRate:i.pay_rate!=null?+i.pay_rate:0,status:i.employment_status||'active',companyRole:i.company_role||null});
+const instMap=i=>({id:i.id,name:i.name,email:i.email||'',color:i.color||'#5b8def',payType:i.pay_type||'hourly',payRate:i.pay_rate!=null?+i.pay_rate:0,status:i.employment_status||'active',companyRole:i.company_role||null});
 /* employment_status archives a person; the separate `active` column controls
    scheduling visibility. They are different concepts and neither is derived
    from the other. INSTALLERS stays filtered on active exactly as before; the
@@ -8006,8 +8020,16 @@ function buildDashboard(){const g=$('genericView');const desk=dbIsDesk();DB.layo
            column at 390px, and it is the desk's, not to be edited. The
            container is data-admin, which is the whole installer view. */
         +'<div class="db-stats" id="dbStats" data-admin></div>'
-        +'<section class="db-card" style="margin-bottom:16px"><div class="db-head"><h3>Agenda</h3><div class="db-fill"></div>'+dbxFilterHtml('ag',true)
-        +'<span data-admin><select class="db-sel" id="dbAgInst" onchange="dbSetAgendaInst(this.value)" aria-label="Whose agenda"></select></span></div>'
+        /* v125: on a phone the two person pickers — whose agenda you are
+           viewing, and whose list a new to-do lands on — sat either side of
+           the text box with nothing to tell them apart. The viewing one now
+           comes FIRST and is pushed to the right edge beside the heading
+           (.db-who), and the period filter drops onto its own full-width row
+           below it (.db-per). Desk markup is untouched: both classes exist
+           only in this branch. */
+        +'<section class="db-card" style="margin-bottom:16px"><div class="db-head"><h3>Agenda</h3><div class="db-fill"></div>'
+        +'<span data-admin><select class="db-sel db-who" id="dbAgInst" onchange="dbSetAgendaInst(this.value)" aria-label="Whose agenda"></select></span>'
+        +'<span class="db-per">'+dbxFilterHtml('ag',true)+'</span></div>'
         +'<div class="db-qa"><input id="dbQaText" maxlength="200" placeholder="Add a to-do…" aria-label="New to-do">'
         +'<span data-admin><select class="db-sel" id="dbQaWho" onchange="DB.qaWho=this.value" aria-label="Assign to"></select></span>'
         +'<button type="button" class="btn" id="dbQaGo" onclick="dbQuickAdd()">Add to-do</button></div>'
@@ -8123,12 +8145,33 @@ function dbTodosFor(inst,P){
   const mine=TODOS.filter(t=>inst==='all'||t.owner===inst);
   const cut=new Date(TODAY);cut.setDate(cut.getDate()-DB_TODO_DONE_DAYS);const cutKey=_ymd(cut);
   const doneKey=function(t){return t.doneAt?_ymd(new Date(t.doneAt)):null;};
-  return {open:mine.filter(t=>!t.done).sort((a,b)=>String(a.createdAt||'').localeCompare(String(b.createdAt||''))),
+  /* v125: NEWEST FIRST, both lists and both surfaces. The open list was
+     oldest-first, which buried what you just typed under everything you have
+     been putting off. Completed was already newest-first by done_at and
+     stays that way — the most recent thing you ticked is the one you are
+     most likely to be looking for. */
+  return {open:mine.filter(t=>!t.done).sort((a,b)=>String(b.createdAt||'').localeCompare(String(a.createdAt||''))||String(b.id).localeCompare(String(a.id))),
     done:mine.filter(function(t){const k=doneKey(t);return t.done&&k&&k>=cutKey&&inPeriodFor(k,P);})
       .sort((a,b)=>String(b.doneAt||'').localeCompare(String(a.doneAt||'')))};}
+/* v125: todos records created_by_email (a database default) and no name, so
+   the name is resolved HERE against the roster that is already in memory —
+   ALL_INSTALLERS holds every installer, active or not, and INST_COLS now
+   carries their email. No join, no extra query.
+   Three outcomes, and none of them is blank or "undefined":
+     1. the email matches an installer  -> their name;
+     2. it matches nobody (no profile row, a deleted installer, a row written
+        straight into the SQL editor) -> noteWho(), the capitalised local part
+        the notes feed and the user chip already show: brian@x -> "Brian";
+     3. there is no email at all (NULL) -> '' and the caller drops the whole
+        "added by" clause rather than printing a dangling label. */
+function todoWho(email){const e=String(email||'').trim().toLowerCase();
+  if(!e)return '';
+  const hit=ALL_INSTALLERS.find(x=>String(x.email||'').toLowerCase()===e)
+    ||INSTALLERS.find(x=>String(x.email||'').toLowerCase()===e);
+  return (hit&&hit.name)||noteWho(email);}
 function dbTodoRow(t,withWho){
   const meta=[];if(withWho)meta.push(instById(t.owner).name);
-  if(t.by)meta.push('added by '+t.by);
+  const by=todoWho(t.by);if(by)meta.push('added by '+by);
   return '<div class="db-row db-task db-todo'+(t.done?' done':'')+'">'
     +'<input type="checkbox" aria-label="Done"'+(t.done?' checked':'')+' onchange="todoSetDone(\''+esc(t.id)+'\',this.checked)">'
     +'<div class="db-main"><div class="gname">'+esc(t.body)+'</div>'
