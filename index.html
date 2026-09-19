@@ -1116,6 +1116,25 @@ body.role-installer [data-admin]{display:none!important}
 .cal-wrap .appt.task .pill{background:var(--task-ink);color:#fff;letter-spacing:.5px}
 .cal-wrap .appt.task .at{color:var(--task-ink);font-weight:600;font-size:12px}
 .cal-wrap .appt.task .srow{color:var(--task-ink)}
+/* v123 (Q29): new selectors only - no base tile rule is edited, and per
+   golden rule 6 nothing here sets --row-h.
+   .tagstack: Conflict and product, when BOTH apply, stacked in the corner
+   they each used to take alone (they drew on top of each other until v123).
+   .calmore: the "+N" pill; .hasmore moves an issue "!" left to make room.
+   .calmore-pop: the group list, fixed to the body. */
+.appt .tagstack{position:absolute;bottom:7px;right:9px;display:flex;flex-direction:column;align-items:flex-end;gap:3px}
+.appt .tagstack .cflag{position:static}
+.appt .calmore{position:absolute;top:6px;right:6px;min-width:24px;padding:0 6px;border-radius:9px;background:var(--ink);color:#fff;font-size:10px;font-weight:800;line-height:17px;text-align:center;cursor:pointer}
+.appt.hasmore .bang{right:36px}
+.calmore-pop{position:fixed;z-index:45;min-width:230px;max-width:min(340px,calc(100vw - 16px));max-height:60vh;overflow:auto;background:var(--card,#fff);border:1px solid var(--border);border-radius:10px;box-shadow:0 12px 30px rgba(0,0,0,.18);padding:6px;color:var(--ink);font-size:12px}
+.calmore-pop .cm-h{font-size:10px;font-weight:800;letter-spacing:.5px;text-transform:uppercase;color:var(--muted);padding:4px 8px 6px}
+.calmore-pop .cm-row{display:grid;grid-template-columns:8px auto 1fr;column-gap:8px;align-items:center;padding:7px 8px;border-radius:7px;cursor:pointer}
+.calmore-pop .cm-row:hover{background:var(--border)}
+.calmore-pop .cm-row i{width:8px;height:8px;border-radius:50%;grid-row:span 2}
+.calmore-pop .cm-t{font-weight:700;white-space:nowrap}
+.calmore-pop .cm-n{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.calmore-pop .cm-m{grid-column:2 / 4;color:var(--muted);font-size:11px}
+body.dragging .calmore-pop{pointer-events:none}
 .cal-wrap .mchip.task{background:var(--task-bg);border-color:var(--task-line);color:var(--task-ink);font-weight:600}
 /* Today + hover + drag target */
 .cal-wrap .dh:hover{background:rgba(0,0,0,.03)}
@@ -2121,10 +2140,83 @@ const isBaseWeek=()=>weekOffset===0, isBaseMonth=()=>monthOffset===0;
    job-vs-job pair is tested exactly as before. */
 function markConflicts(){appts.forEach(a=>a._conflict=false);for(let i=0;i<appts.length;i++)for(let j=i+1;j<appts.length;j++){const A=appts[i],B=appts[j];if(isTask(A)||isTask(B))continue;if(A.installer!=="un"&&A.installer===B.installer&&A.dateKey===B.dateKey&&A.start<B.start+B.dur&&B.start<A.start+A.dur){A._conflict=true;B._conflict=true}}}
 
-function apptCard(a){const s=STATUS[a.status],sc=statusColor(a.status),st=statusText(a.status),inst=instById(a.installer);const unassigned=(a.installer==='un'||!a.installer);
+/* ===== v123 (Q29) — one day column's layout ============================
+   DEFAULT IS UNCHANGED: tiles overlap at full width. What is new is that the
+   paint order is now a RULE - longest first, so the longest paints behind
+   and the shortest in front. Until v123 it was the appts array's order,
+   which is start order only as loaded; a job scheduled or created later was
+   pushed last and painted over everything, so an 8h job dropped on a day
+   with a 12pm 3h job hid the 3h tile completely until reload. DOM order,
+   NOT inline z-index: an inline z-index would beat .appt:hover{z-index:4}.
+
+   HIDDEN TEST, in TIME not pixels (so a resize never reflows the layout): a
+   tile is hidden when a tile painted in front of it covers any part of its
+   FIRST HOUR. The measured header (type pill + customer name) is 47.9px;
+   starts are half-hour steps, and half an hour is at most 39px (ROW 78), so
+   a half-hour offset buries the name and divides; a full hour (44px+) does
+   not. Tiles linked by that test form a group that goes side by side in
+   equal shares, capped at cap (week 2, day 3); the rest are listed by the
+   "+N" pill on the last shown tile. A 9am 8h job and a 12pm 3h job are not
+   linked, so they overlap exactly as before.
+
+   Pure: reads a.start, a.dur and a.id only, writes nothing onto appts.
+   Returns [{a, lay}] in paint order, overflow left out; lay is null for an
+   undivided tile, which apptCard then leaves entirely to the CSS. */
+function layoutCol(list,cap){
+  const ord=list.slice().sort(function(a,b){return b.dur-a.dur||a.start-b.start||String(a.id).localeCompare(String(b.id));});
+  const n=ord.length,link=ord.map(function(){return [];});
+  for(let i=0;i<n;i++)for(let j=i+1;j<n;j++){const B=ord[i],F=ord[j];
+    if(F.start<B.start+Math.min(1,B.dur)&&F.start+F.dur>B.start){link[i].push(j);link[j].push(i);}}
+  const lay=new Array(n).fill(null),skip=new Array(n).fill(false),seen=new Array(n).fill(false);
+  for(let s0=0;s0<n;s0++){if(seen[s0]||!link[s0].length)continue;
+    const comp=[],st=[s0];seen[s0]=true;
+    while(st.length){const k=st.pop();comp.push(k);link[k].forEach(function(m){if(!seen[m]){seen[m]=true;st.push(m);}});}
+    comp.sort(function(x,y){const X=ord[x],Y=ord[y];return X.start-Y.start||Y.dur-X.dur||String(X.id).localeCompare(String(Y.id));});
+    const shown=Math.min(comp.length,cap),group=comp.map(function(k){return ord[k];});
+    comp.forEach(function(k,c){
+      if(c<shown)lay[k]={i:c,n:shown,more:c===shown-1?comp.length-shown:0,group:group};
+      else skip[k]=true;});}
+  const out=[];for(let i=0;i<n;i++)if(!skip[i])out.push({a:ord[i],lay:lay[i]});
+  return out;}
+
+/* "+N more": every tile in the group - time, name, installer, status - and a
+   row opens that drawer. Fixed to the body, outside every .day-col, and
+   closed by ANY dragstart (capture), so it can never sit in a drop's way.
+   Also closed by render(), Escape, an outside press, resize and scroll. */
+function calMoreClose(){const p=$('calMore');if(p)p.remove();}
+function calMoreOpen(anchor,group){calMoreClose();
+  const p=document.createElement('div');p.id='calMore';p.className='calmore-pop';
+  p.innerHTML='<div class="cm-h">'+group.length+' at this time</div>'+group.map(function(a){
+    const task=isTask(a),un=(a.installer==='un'||!a.installer);
+    const dot=task?(a.taskDone?'#4d7010':'var(--task-ink)'):statusColor(a.status);
+    const st=task?(a.taskDone?'Done':'To do'):(STATUS[a.status]?STATUS[a.status].short:'');
+    return '<div class="cm-row" data-id="'+esc(a.id)+'"><i style="background:'+dot+'"></i>'
+      +'<span class="cm-t">'+fmt(a.start)+'–'+fmt(a.start+a.dur)+'</span>'
+      +'<span class="cm-n">'+esc(task?taskTileTitle(a):a.cust)+'</span>'
+      +'<span class="cm-m">'+esc(un?'Unassigned':instById(a.installer).name)+' · '+esc(st)+'</span></div>';}).join('');
+  document.body.appendChild(p);
+  const r=anchor.getBoundingClientRect(),w=p.offsetWidth,h=p.offsetHeight;
+  p.style.left=Math.max(8,Math.min(innerWidth-w-8,r.right-w))+'px';
+  p.style.top=(r.bottom+6+h>innerHeight-8?Math.max(8,r.top-6-h):r.bottom+6)+'px';
+  p.querySelectorAll('.cm-row').forEach(function(row){
+    row.onclick=function(){const id=row.dataset.id;calMoreClose();openDrawer(id);};});}
+document.addEventListener('dragstart',calMoreClose,true);
+document.addEventListener('mousedown',function(e){const p=$('calMore');
+  if(p&&!p.contains(e.target)&&!(e.target.closest&&e.target.closest('.calmore')))calMoreClose();},true);
+document.addEventListener('keydown',function(e){if(e.key==='Escape')calMoreClose();});
+document.addEventListener('scroll',function(e){const p=$('calMore');if(p&&!p.contains(e.target))calMoreClose();},true);
+window.addEventListener('resize',calMoreClose);
+
+function apptCard(a,lay){const s=STATUS[a.status],sc=statusColor(a.status),st=statusText(a.status),inst=instById(a.installer);const unassigned=(a.installer==='un'||!a.installer);
   const task=isTask(a);
-  const el=document.createElement('div');el.className='appt'+(task?' task':'')+(a.id===selectedId?' sel':'')+(a._conflict?' conflict':'')+(unassigned?' unassigned':'')+((task?a.taskDone:isClosed(a))?' closed':'');
+  const el=document.createElement('div');el.className='appt'+(task?' task':'')+(lay&&lay.more?' hasmore':'')+(a.id===selectedId?' sel':'')+(a._conflict?' conflict':'')+(unassigned?' unassigned':'')+((task?a.taskDone:isClosed(a))?' closed':'');
   el.style.top=(a.start-START_HOUR)*ROW+2+'px';el.style.height=(a.dur*ROW-6)+'px';
+  /* v123 (Q29): left/width ONLY on a divided tile, as a percentage of the
+     column so it follows the column with no JS measuring. Equal shares
+     inside the CSS 5px gutters, 4px between neighbours. An undivided tile
+     gets nothing here and keeps .appt{left:5px;right:5px}. No ROW. */
+  if(lay&&lay.n>1){el.style.left=`calc(5px + (100% - 10px) * ${lay.i} / ${lay.n})`;el.style.right='auto';
+    el.style.width=`calc((100% - 10px) / ${lay.n} - ${lay.i<lay.n-1?4:0}px)`;}
   /* v27: background, border-color and box-shadow are NO LONGER written inline. The
      status-tinted gradient, the 90%-opacity status outline and the status glow are all
      gone -- the card is a flat white panel with one neutral hairline, styled entirely by
@@ -2146,10 +2238,12 @@ function apptCard(a){const s=STATUS[a.status],sc=statusColor(a.status),st=status
     <div class="at">${a.cust}</div>
     <div class="ai"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="3.5"/><path d="M5 20a7 7 0 0 1 14 0"/></svg>${a.jobNo?`<span class="jno">#${a.jobNo}</span> · `:''}${instLabel} · ${fmt(a.start)}–${fmt(a.start+a.dur)}</div>
     <div class="srow" style="color:${st}"><i style="background:${sc}"></i>${s.short}</div>
-    ${a.status==='issue'?'<span class="bang">!</span>':''}${a._conflict?'<span class="cflag">Conflict</span>':''}${partialAwaiting(a)?'<span class="awtag" style="position:absolute;bottom:7px;right:9px;margin:0">⏳ product</span>':''}`;
+    ${a.status==='issue'?'<span class="bang">!</span>':''}${(a._conflict&&partialAwaiting(a))?'<span class="tagstack"><span class="cflag">Conflict</span><span class="awtag" style="margin:0">⏳ product</span></span>':(a._conflict?'<span class="cflag">Conflict</span>':'')+(partialAwaiting(a)?'<span class="awtag" style="position:absolute;bottom:7px;right:9px;margin:0">⏳ product</span>':'')}${lay&&lay.more?'<span class="calmore" title="Show all '+lay.group.length+'">+'+lay.more+'</span>':''}`;
+  const mp=el.querySelector('.calmore');
+  if(mp)mp.onclick=ev=>{ev.stopPropagation();calMoreOpen(mp,lay.group);};
   el.draggable=true;
-  el.addEventListener('dragstart',e=>{e.dataTransfer.setData('appt',a.id);el.classList.add('dragging');document.body.classList.add('dragging')});
-  el.addEventListener('dragend',()=>{el.classList.remove('dragging');document.body.classList.remove('dragging')});
+  el.addEventListener('dragstart',e=>{e.dataTransfer.setData('appt',a.id);DRAG_DY=e.clientY-el.getBoundingClientRect().top;el.classList.add('dragging');document.body.classList.add('dragging')});
+  el.addEventListener('dragend',()=>{DRAG_DY=0;el.classList.remove('dragging');document.body.classList.remove('dragging')});
   el.onclick=()=>openDrawer(a.id);return el;}
 /* Start-time options, shared by the New Task form and the reschedule picker.
    HALF-HOUR STEPS, and that ceiling is not arbitrary: fmt() renders the
@@ -2213,21 +2307,31 @@ async function moveAppt(id,key,hour){const a=appts.find(x=>x.id===id);if(!a)retu
   if(!ok)return;
   toast(a._conflict?`Moved — <b>heads up:</b> double-booked`:`<b>${esc(jobTitle(a))}</b> moved`,a._conflict);}
 function timeCol(){const t=document.createElement('div');t.className='time-col';for(let h=START_HOUR;h<=END_HOUR;h++){const c=document.createElement('div');c.className='time-cell';const am=h<12,hr=h%12===0?12:h%12;c.textContent=`${hr}${am?'am':'pm'}`;t.appendChild(c)}return t}
+/* v123 (Q29): where the dragged tile was grabbed, in px below its top edge.
+   The drop hour is taken from the tile's TOP EDGE (cursor minus this), not
+   from the cursor, and rounded to the NEAREST hour line - so a tile released
+   with its top 2px above 9am lands on 9am. Set by both drag sources
+   (apptCard and the queue rail), read once and zeroed by the drop, zeroed
+   again on dragend. A drag from anywhere else leaves it 0, which is the old
+   cursor behaviour. The drop's column is still whichever .day-col receives
+   the event: x plays no part in the hour, so a divided tile drops exactly
+   as a full-width one. ROW is only read here, never written. */
+let DRAG_DY=0;
 function dayCol(key){const col=document.createElement('div');col.className='day-col';col.dataset.key=key;
   for(let h=START_HOUR;h<=END_HOUR;h++){const slot=document.createElement('div');slot.className='slot';col.appendChild(slot)}
   col.addEventListener('dragover',e=>{e.preventDefault();col.classList.add('coldrop')});
   col.addEventListener('dragleave',e=>{if(!col.contains(e.relatedTarget))col.classList.remove('coldrop')});
-  col.addEventListener('drop',e=>{e.preventDefault();col.classList.remove('coldrop');const rect=col.getBoundingClientRect();let hour=START_HOUR+Math.floor((e.clientY-rect.top)/ROW);hour=Math.max(START_HOUR,Math.min(END_HOUR,hour));const mv=e.dataTransfer.getData('appt');if(mv)moveAppt(mv,key,hour);else dropJob(key,hour,e)});return col;}
+  col.addEventListener('drop',e=>{e.preventDefault();col.classList.remove('coldrop');const rect=col.getBoundingClientRect();let hour=START_HOUR+Math.round((e.clientY-DRAG_DY-rect.top)/ROW);DRAG_DY=0;hour=Math.max(START_HOUR,Math.min(END_HOUR,hour));const mv=e.dataTransfer.getData('appt');if(mv)moveAppt(mv,key,hour);else dropJob(key,hour,e)});return col;}
 
 function buildWeek(){const cal=$('cal');const days=weekDays(weekOffset);
   const head=document.createElement('div');head.className='cal-head';head.style.gridTemplateColumns=`var(--time-col) repeat(7,1fr)`;head.innerHTML='<div class="corner"></div>';
   days.forEach((d,i)=>{const el=document.createElement('div');el.className='dh'+(d.today?' today':'');el.innerHTML=`<div class="dow">${d.dow}</div><div class="dnum">${d.num}</div>`;el.onclick=()=>{selectedDay=i;setView('day')};head.appendChild(el)});cal.appendChild(head);
   const grid=document.createElement('div');grid.className='grid';grid.style.gridTemplateColumns=`var(--time-col) repeat(7,1fr)`;grid.appendChild(timeCol());days.forEach(d=>grid.appendChild(dayCol(d.key)));cal.appendChild(grid);
-  visibleAppts().forEach(a=>{const col=grid.querySelector(`.day-col[data-key="${a.dateKey}"]`);if(col)col.appendChild(apptCard(a))});}
+  days.forEach(d=>{const col=grid.querySelector(`.day-col[data-key="${d.key}"]`);if(col)layoutCol(visibleAppts().filter(a=>a.dateKey===d.key),2).forEach(t=>col.appendChild(apptCard(t.a,t.lay)))});}
 function buildDay(){const cal=$('cal');cal.style.minWidth='min(520px,100%)';const d=weekDays(weekOffset)[selectedDay];
   const head=document.createElement('div');head.className='cal-head';head.style.gridTemplateColumns=`var(--time-col) 1fr`;head.innerHTML=`<div class="corner"></div><div class="dh${d.today?' today':''}"><div class="dow">${d.dow}</div><div class="dnum">${d.num}</div></div>`;cal.appendChild(head);
   const grid=document.createElement('div');grid.className='grid';grid.style.gridTemplateColumns=`var(--time-col) 1fr`;grid.appendChild(timeCol());grid.appendChild(dayCol(d.key));cal.appendChild(grid);
-  visibleAppts().filter(a=>a.dateKey===d.key).forEach(a=>grid.querySelector('.day-col').appendChild(apptCard(a)));}
+  const dc=grid.querySelector('.day-col');layoutCol(visibleAppts().filter(a=>a.dateKey===d.key),3).forEach(t=>dc.appendChild(apptCard(t.a,t.lay)));}
 function buildMonth(){const cal=$('cal');cal.style.minWidth='880px';const m=monthAnchor(monthOffset);
   const grid=document.createElement('div');grid.className='mgrid';DOW.forEach(d=>{const h=document.createElement('div');h.className='mdow';h.textContent=d;grid.appendChild(h)});
   const offset=(m.getDay()+6)%7,dim=daysInMonth(m);
@@ -2246,7 +2350,7 @@ function buildMonth(){const cal=$('cal');cal.style.minWidth='880px';const m=mont
       chip.onclick=ev=>{ev.stopPropagation();openDrawer(a.id)};c.appendChild(chip)});
     grid.appendChild(c)}
   for(let i=offset+dim;i%7!==0;i++)grid.appendChild(Object.assign(document.createElement('div'),{className:'mcell out'}));cal.appendChild(grid);}
-function render(){sizeCalendar();markConflicts();const cal=$('cal');cal.innerHTML='';cal.style.minWidth='';
+function render(){calMoreClose();sizeCalendar();markConflicts();const cal=$('cal');cal.innerHTML='';cal.style.minWidth='';
   if(view==='week')buildWeek();else if(view==='day')buildDay();else buildMonth();
   const days=weekDays(weekOffset);
   $('rangeLbl').textContent=view==='month'?monthLabel(monthOffset):view==='day'?`${days[selectedDay].dow} ${MONTHN[days[selectedDay].date.getMonth()].slice(0,3)} ${days[selectedDay].num}, ${days[selectedDay].date.getFullYear()}`:weekLabel(days);
@@ -2273,8 +2377,8 @@ function renderQueue(){const list=$('queueList');list.innerHTML='';
     const aw=partialAwaiting(j)?`<span class="awtag light">⏳ awaiting product</span>`:'';
     el.innerHTML=`<span class="jspine" style="background:${sc}"></span><span class="tag">${j.type}</span>${j.jobNo?`<span class="jno">#${j.jobNo}</span>`:''}<span class="rts" style="color:${sc}">RTS</span>${aw}
       <div class="cust">${j.cust}</div><div class="meta">${j.scope}<br>${j.addr}</div><div class="dealer">${j.dealer}</div>`;
-    el.addEventListener('dragstart',e=>{e.dataTransfer.setData('id',j.id);el.classList.add('dragging');document.body.classList.add('dragging')});
-    el.addEventListener('dragend',()=>{el.classList.remove('dragging');document.body.classList.remove('dragging')});
+    el.addEventListener('dragstart',e=>{e.dataTransfer.setData('id',j.id);DRAG_DY=e.clientY-el.getBoundingClientRect().top;el.classList.add('dragging');document.body.classList.add('dragging')});
+    el.addEventListener('dragend',()=>{DRAG_DY=0;el.classList.remove('dragging');document.body.classList.remove('dragging')});
     el.addEventListener('click',()=>openDrawer(j.id));list.appendChild(el)});
   $('queueCount').textContent=ready.length;$('navCount').textContent=ready.length;
   $('navRecv').textContent=awaitingQueue().length;
