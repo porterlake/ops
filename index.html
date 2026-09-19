@@ -297,6 +297,25 @@
   .db-tile{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:16px 14px;cursor:pointer;display:flex;flex-direction:column;gap:10px;font-weight:700;min-height:92px;color:var(--ink)}
   .db-tile svg{width:22px;height:22px}
   .db-tile.on{border-color:var(--ink);box-shadow:inset 0 0 0 1px var(--ink)}
+  /* v124 (Q46): NEW SELECTORS ONLY. .db-card, .db-row, .db-sub, .db-money and
+     .db-count are shared with the desk layout and the two work-queue pages and
+     are not touched here; neither is .dbx-tiles, which is the desk's grid and
+     collapses to one column at phone width — hence .db-stats below.
+     The data-admin wrappers are display:contents so the select stays a flex
+     item of .db-qa / .db-head; [data-admin]{display:none!important} still wins
+     for an installer, which is what delivers that view. */
+  .db-tile.wide{grid-column:span 2}
+  .db-stats{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-bottom:16px}
+  .db-stats:empty{display:none}
+  .db-head>span[data-admin],.db-qa>span[data-admin]{display:contents}
+  .db-todo .db-main{cursor:default}
+  .db-todo .db-del{margin-left:auto;padding:0 4px;color:var(--muted);cursor:pointer;font-size:16px;line-height:1}
+  .db-todo .db-del:hover{color:#a3211d}
+  .db-del-ask{margin-left:auto;display:flex;align-items:center;gap:6px;font-size:11.5px;color:var(--muted);white-space:nowrap}
+  .db-del-ask button{font:inherit;font-size:11.5px;font-weight:700;padding:2px 8px;border-radius:7px;border:1px solid var(--border);background:var(--card);color:var(--ink);cursor:pointer}
+  .db-del-ask .yes{border-color:#a3211d;color:#a3211d}
+  .db-todo-more{font-size:11.5px;font-weight:700;color:var(--muted);cursor:pointer;padding:7px 2px;margin-bottom:4px}
+  .db-todo-more:hover{color:var(--ink)}
   .db-doc{display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid var(--border-soft);border-radius:10px;margin-bottom:6px;background:var(--raised);cursor:pointer;font-size:13px}
   .db-doc svg{width:18px;height:18px;flex-shrink:0}
   .db-doc .nm{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -2128,16 +2147,65 @@ async function loadAppointments(){try{const {data,error}=await sb.from('appointm
     .order('start_time',{ascending:true});
   if(error){console.error(error);toast('Could not load appointments',true);return;}
   appts=(data||[]).map(mapAppt);markConflicts();render();}catch(e){console.error(e)}}
-async function loadAll(){await loadDealers();await loadInstallers();await loadAppointments();await loadJobs();}
+async function loadAll(){await loadDealers();await loadInstallers();await loadAppointments();await loadJobs();await loadTodos();}
+
+/* ===== v124 (Q46) — TO-DOS ==============================================
+   A to-do is NOT a Task. A Task is a job of type 'Task' WITH an appointment:
+   date, time, duration, installer, calendar tile. A to-do has none of those
+   and never appears on the calendar. They cannot be the same record — a Task
+   with no appointment would be an orphan in jobs, and every "is this job
+   scheduled" test derives from an appointment existing.
+
+   tenant_id, created_by and created_by_email are DATABASE DEFAULTS and are
+   never sent from here (the job_notes pattern), so nobody can file a row as
+   someone else. owner_id is whose list it sits on; created_by_email is who
+   put it there, which is what makes "Brian added this to Matthew's list"
+   legible after the fact.
+
+   Checking off is not destruction: done + done_at, still readable under
+   Completed. Delete is a separate, explicit DELETE. */
+const TODO_COLS='id,body,owner_id,created_by_email,done,done_at,created_at';
+var TODOS=[];
+function mapTodo(r){return {id:r.id,body:r.body||'',owner:r.owner_id,by:r.created_by_email||'',
+  done:!!r.done,doneAt:r.done_at||null,createdAt:r.created_at||null};}
+async function loadTodos(){try{const {data,error}=await sb.from('todos').select(TODO_COLS).order('created_at',{ascending:true});
+  if(error){console.error('loadTodos',error);return;}
+  TODOS=(data||[]).map(mapTodo);}catch(e){console.error(e);}}
+async function todoAdd(body,ownerId){
+  const {data,error}=await sb.from('todos').insert({body:body,owner_id:ownerId}).select(TODO_COLS).single();
+  if(error){console.error('todoAdd',error);return null;}
+  const t=mapTodo(data);TODOS.push(t);return t;}
+/* Optimistic, and reverted if the write fails — the same contract as
+   setTaskDone. done_at is written with done so todos_done_shape_chk holds. */
+async function todoSetDone(id,done){const t=TODOS.find(x=>x.id===id);if(!t)return;
+  const prev={done:t.done,doneAt:t.doneAt};
+  t.done=!!done;t.doneAt=done?new Date().toISOString():null;dbSchedule();
+  const {error}=await sb.from('todos').update({done:t.done,done_at:t.doneAt,done_by:done?AUTH_UID:null}).eq('id',id);
+  if(error){console.error('todoSetDone',error);t.done=prev.done;t.doneAt=prev.doneAt;dbSchedule();
+    toast('Could not update that to-do',true);}}
+async function todoDelete(id){const i=TODOS.findIndex(t=>t.id===id);if(i<0)return;
+  const prev=TODOS[i];TODOS.splice(i,1);dbSchedule();
+  const {error}=await sb.from('todos').delete().eq('id',id);
+  if(error){console.error('todoDelete',error);TODOS.splice(i,0,prev);dbSchedule();
+    toast('Could not delete that to-do',true);return;}
+  toast('To-do deleted');}
+/* Delete asks first, inline in the row rather than through a modal: the x is
+   replaced by Delete? Yes/No, and No simply redraws the agenda. */
+function todoAskDelete(el,id){const row=el.closest('.db-todo');if(!row)return;
+  const w=document.createElement('span');w.className='db-del-ask';
+  w.innerHTML='Delete? <button type="button" class="yes">Yes</button><button type="button" class="no">No</button>';
+  el.replaceWith(w);
+  w.querySelector('.no').onclick=function(){dbRefresh();};
+  w.querySelector('.yes').onclick=function(){todoDelete(id);};}
 function hexA(hex,a){const n=parseInt(hex.slice(1),16);return `rgba(${n>>16&255},${n>>8&255},${n&255},${a})`}
 const fmt=h=>{const hh=Math.floor(h),mm=h%1?':30':'';const am=hh<12;return `${hh%12===0?12:hh%12}${mm}${am?'a':'p'}`};
 function weekDays(off){return [...Array(7)].map((_,i)=>{const d=new Date(BASE_MON);d.setDate(d.getDate()+off*7+i);return{date:d,dow:DOW[i],num:d.getDate(),key:dateKey(d),today:d.toDateString()===TODAY.toDateString()}})}
 const isBaseWeek=()=>weekOffset===0, isBaseMonth=()=>monthOffset===0;
 /* v107: Tasks never take part in conflict detection, on either side of a pair.
-   A meeting or an errand overlapping an install is not a double-booking, and
-   quick-added to-dos land at a default time that would otherwise flag real
-   jobs as conflicting. A Task is never flagged and never flags anything; every
-   job-vs-job pair is tested exactly as before. */
+   A meeting or an errand overlapping an install is not a double-booking, so a
+   Task is never flagged and never flags anything; every job-vs-job pair is
+   tested exactly as before. (Until v124 quick-add also made Tasks, landing
+   them at a default time; to-dos have no time and never reach this code.) */
 function markConflicts(){appts.forEach(a=>a._conflict=false);for(let i=0;i<appts.length;i++)for(let j=i+1;j<appts.length;j++){const A=appts[i],B=appts[j];if(isTask(A)||isTask(B))continue;if(A.installer!=="un"&&A.installer===B.installer&&A.dateKey===B.dateKey&&A.start<B.start+B.dur&&B.start<A.start+A.dur){A._conflict=true;B._conflict=true}}}
 
 /* ===== v123 (Q29) — one day column's layout ============================
@@ -7218,8 +7286,9 @@ async function njSaveTask(){
   $('njBg').classList.remove('open');
   toast(`<b>${esc(tt)}</b> added to the calendar`);}
 
-/* v107: THE Task insert, shared by the New Job modal (njSaveTask) and the
-   dashboard's quick-add. There is one way a Task gets created.
+/* v107: THE Task insert. Until v124 it was shared with the dashboard's
+   quick-add; that now writes a TO-DO (public.todos) instead, so this is the
+   New Job modal's path (njSaveTask) and the only way a Task gets created.
    Q20 rules enforced HERE, not by callers:
    - an installer is required (the database would accept a NULL assignee;
      this does not);
@@ -7859,14 +7928,16 @@ document.addEventListener('change',function(e){
    documents. Nothing here enforces "own documents only". That is Q17, and it
    must land before any non-admin login exists. */
 /* v109: the desk layout keeps its OWN period state -- chP/chFrom/chTo for the
-   two charts, agP/agFrom/agTo for the Agenda -- separate from moneyPeriod,
-   which belongs to the phone's Today/Week/Month buttons. A desk "This Qtr"
-   can therefore never leave the phone with no button selected. */
-var DB={agendaInst:null,moneyPeriod:'week',panel:null,qaWho:null,qaBusy:false,docsState:'idle',layout:null,
+   two charts, agP/agFrom/agTo for the Agenda.
+   v124: moneyPeriod went with the phone's Booked work card. Both layouts now
+   share agP, so buildDashboard coerces it into DB_PHONE_PERIODS on the phone
+   -- a desk "This Qtr" must never leave the phone's dropdown on a value its
+   own shorter list cannot show. */
+var DB={agendaInst:null,panel:null,qaWho:null,qaBusy:false,docsState:'idle',layout:null,todoDone:false,
   chP:'week',chFrom:'',chTo:'',agP:'today',agFrom:'',agTo:''};
 var DB_DOCS=[];   /* the viewer's source for My Docs; separate from IP_DOCS so an open profile popup is never clobbered */
 var _dbTimer=0;
-function dbReset(){DB.chP='week';DB.chFrom='';DB.chTo='';DB.agP='today';DB.agFrom='';DB.agTo='';DB.agendaInst=null;DB.moneyPeriod='week';DB.panel=null;DB.qaWho=null;DB.docsState='idle';DB.layout=null;DB_DOCS=[];}
+function dbReset(){DB.chP='week';DB.chFrom='';DB.chTo='';DB.agP='today';DB.agFrom='';DB.agTo='';DB.agendaInst=null;DB.panel=null;DB.todoDone=false;DB.qaWho=null;DB.docsState='idle';DB.layout=null;DB_DOCS=[];}
 /* Coalesce the many render() calls one action can trigger into one redraw. */
 function dbSchedule(){if(!DB_LIVE||!DB_LIVE[page]||_dbTimer)return;_dbTimer=setTimeout(function(){_dbTimer=0;const f=DB_LIVE[page];if(f)f();},0);}
 /* v108: every page that must follow job and appointment changes live, and how
@@ -7886,7 +7957,11 @@ function myDisplayName(){const id=PROFILE&&PROFILE.installer_id;
    name that resolves to nothing at all gives '' so the heading falls back to a
    bare "Welcome" rather than "Welcome, ". */
 function myFirstName(){return String(myDisplayName()||'').trim().split(/\s+/)[0]||'';}
-function dbAgendaInst(){return DB.agendaInst||myInstallerId()||'all';}
+/* v124: a non-admin is locked to their own list — the person dropdown is
+   data-admin in the markup, and this makes the data agree with it rather
+   than relying on the control being absent. 'none' matches nobody. */
+function dbAgendaInst(){if(!IS_ADMIN)return myInstallerId()||'none';
+  return DB.agendaInst||myInstallerId()||'all';}
 
 const DB_ICONS={
   today:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18M8 14h3v3H8z"/></svg>',
@@ -7896,16 +7971,16 @@ const DB_ICONS={
   docs:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M8 13h8M8 17h5"/></svg>',
   alert:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9v4M12 17h.01"/></svg>'};
 
-/* The phone layout's Today/Week/Month buttons (Booked work). Since v109 the
-   desk layout uses the period dropdown instead (dbxFilterHtml). */
-function dbSeg(which){const cur=DB[which+'Period'];
-  return '<div class="db-seg" id="dbSeg_'+which+'">'+[['today','Today'],['week','This Week'],['month','This Month']]
-    .map(o=>'<button type="button" data-p="'+o[0]+'" class="'+(cur===o[0]?'on':'')+'" onclick="dbSetPeriod(\''+which+'\',\''+o[0]+'\')">'+o[1]+'</button>').join('')+'</div>';}
-function dbSetPeriod(which,p){DB[which+'Period']=p;
-  document.querySelectorAll('#dbSeg_'+which+' button').forEach(b=>b.classList.toggle('on',b.dataset.p===p));dbRefresh();}
+/* v124: the phone's Today/Week/Month buttons went with the Booked work card
+   they belonged to (dbSeg, dbSetPeriod, dbMoneyHtml and DB.moneyPeriod are
+   all gone). The phone now shows the agenda there instead, under the same
+   period dropdown the desk uses. */
 function dbSetAgendaInst(v){DB.agendaInst=v||'all';dbRefresh();}
 
 function buildDashboard(){const g=$('genericView');const desk=dbIsDesk();DB.layout=desk?'desk':'field';
+  /* The phone offers Today / This Week / Custom. Coming down from a desk
+     "This Qtr" would otherwise leave its dropdown on a value it cannot show. */
+  if(!desk&&DB_PHONE_PERIODS.indexOf(DB.agP)<0)DB.agP='today';
   /* v109 desk: welcome, then tiles (left) beside two charts under ONE shared
      filter (right), then the full-width Agenda. Everything desk-only is under
      .dbx, so no phone rule is touched. The phone branch below is unchanged. */
@@ -7920,13 +7995,23 @@ function buildDashboard(){const g=$('genericView');const desk=dbIsDesk();DB.layo
         +'</div>'
         +'<section class="dbx-card dbx-agenda"><div class="dbx-head"><h3>Agenda</h3><div class="dbx-fill"></div>'+dbxFilterHtml('ag')
         +'<select class="db-sel" id="dbAgInst" onchange="dbSetAgendaInst(this.value)" aria-label="Whose agenda"></select></div>'
-        +'<div class="db-qa"><input id="dbQaText" maxlength="200" placeholder="Add a task for today…" aria-label="New task">'
-        +'<select class="db-sel" id="dbQaWho" onchange="DB.qaWho=this.value" aria-label="Assign to"></select>'
-        +'<button type="button" class="btn" id="dbQaGo" onclick="dbQuickAdd()">Add task</button></div>'
+        +'<div class="db-qa"><input id="dbQaText" maxlength="200" placeholder="Add a to-do…" aria-label="New to-do">'
+        +'<span data-admin><select class="db-sel" id="dbQaWho" onchange="DB.qaWho=this.value" aria-label="Assign to"></select></span>'
+        +'<button type="button" class="btn" id="dbQaGo" onclick="dbQuickAdd()">Add to-do</button></div>'
         +'<div id="dbAgenda"></div></section>'
       :'<div class="db-tiles" id="dbTiles"></div>'
-        +(IS_ADMIN?'<div class="db-counts" id="dbCounts"></div>'
-          +'<div class="db-card" style="margin-bottom:16px"><div class="db-head"><h3>Booked work</h3><div class="db-fill"></div>'+dbSeg('money')+'</div><div id="dbMoney"></div></div>':'')
+        /* v124: the same four tiles the desk draws, from dbxTilesHtml(), so the
+           numbers cannot disagree. Their own two-column container: .dbx-tiles
+           is auto-fill minmax(min(100%,260px),1fr) and would collapse to ONE
+           column at 390px, and it is the desk's, not to be edited. The
+           container is data-admin, which is the whole installer view. */
+        +'<div class="db-stats" id="dbStats" data-admin></div>'
+        +'<section class="db-card" style="margin-bottom:16px"><div class="db-head"><h3>Agenda</h3><div class="db-fill"></div>'+dbxFilterHtml('ag',true)
+        +'<span data-admin><select class="db-sel" id="dbAgInst" onchange="dbSetAgendaInst(this.value)" aria-label="Whose agenda"></select></span></div>'
+        +'<div class="db-qa"><input id="dbQaText" maxlength="200" placeholder="Add a to-do…" aria-label="New to-do">'
+        +'<span data-admin><select class="db-sel" id="dbQaWho" onchange="DB.qaWho=this.value" aria-label="Assign to"></select></span>'
+        +'<button type="button" class="btn" id="dbQaGo" onclick="dbQuickAdd()">Add to-do</button></div>'
+        +'<div id="dbAgenda"></div></section>'
         +'<div id="dbPanel"></div>')
     +'</div>';
   const qa=$('dbQaText');if(qa)qa.addEventListener('keydown',function(e){if(e.key==='Enter'){e.preventDefault();dbQuickAdd();}});
@@ -7953,8 +8038,7 @@ function dbRefresh(){if(page!=='dashboard')return;
     /* after layout, so clientWidth/clientHeight are real */
     if($('dbxBars'))requestAnimationFrame(dbxDrawBars);}
   dbxSyncFilter('ch');dbxSyncFilter('ag');
-  if($('dbCounts'))set('dbCounts',IS_ADMIN?dbCountsHtml():'');
-  if($('dbMoney'))set('dbMoney',IS_ADMIN?dbMoneyHtml():'');
+  if($('dbStats'))set('dbStats',IS_ADMIN?dbxTilesHtml():'');
   if($('dbAgenda')){
     const people=INSTALLERS.filter(i=>i.id!=='un');
     dbFillSelect($('dbAgInst'),[['all','Company (all)']].concat(people.map(i=>[i.id,i.name])),dbAgendaInst());
@@ -7964,12 +8048,11 @@ function dbRefresh(){if(page!=='dashboard')return;
   if($('dbTiles'))set('dbTiles',dbTilesHtml());
   if($('dbPanel'))set('dbPanel',dbPanelHtml());}
 
-function dbCount(n,label,go,hot){return '<div class="db-count'+(go?' go':'')+(hot&&n?' hot':'')+'"'+(go?' onclick="'+go+'"':'')+'><b>'+n+'</b><span>'+label+'</span></div>';}
-function dbCountsHtml(){
-  return dbCount(unassignedAppts().length,'Unassigned scheduled jobs','dbGoUnassigned()',true)
-    +dbCount(issueAppts().length,'Issues reported',"navTo('issues')",true)
-    +dbCount(awaitingQueue().length,'Awaiting product',"navTo('inventory')",false)
-    +dbCount(outstandingAppts().length,'Completed, not closed',"navTo('outstanding')",false);}
+/* v124: dbCount/dbCountsHtml (the phone's four old counts — Unassigned
+   scheduled jobs, Issues reported, Awaiting product, Completed not closed)
+   are gone. The phone shows dbxTilesHtml()'s four instead. The .db-count CSS
+   stays: it is shared with nothing else today, but removing a shared-looking
+   class is not this version's job. */
 
 /* ===== v108: work queues -- Issues Reported, Completed not closed =========
    Lists to work through, not financial views: the agenda's row format, no
@@ -8023,11 +8106,35 @@ function dbTaskRow(a,withDate,withWho){
     +'<div class="db-main" onclick="openDrawer(\''+esc(a.id)+'\')"><div class="gname">'+esc(a.scope&&a.scope!=='—'?a.scope:(a.taskType||'Task'))+'</div>'
     +'<div class="gmeta">'+esc(meta.join(' · '))+'</div></div></div>';}
 function dbSortAppts(list){return list.sort((x,y)=>(x.dateKey||'').localeCompare(y.dateKey||'')||x.start-y.start);}
-/* Agenda: that person's visits in the period as line items, then their Tasks
-   as the to-do list. A Task IS the to-do -- there is no second system.
+/* Agenda, in three sections: that person's visits in the period, then their
+   scheduled Tasks, then their TO-DOS. v124: a Task is NOT a to-do -- a Task is
+   a dated calendar item, a to-do has no date at all and lives in public.todos.
+   An open to-do is open whatever the period is showing, so the period filter
+   applies only to the completed list (by done_at, last DB_TODO_DONE_DAYS).
    v109: its own period (DB.agP, Today by default) and each list is capped at
    DB_AGENDA_CAP rows, earliest first, with a "showing N of M" count. */
 const DB_AGENDA_CAP=50;
+const DB_TODO_DONE_DAYS=30;
+/* Open to-dos ignore the period — an open to-do is open today whether you are
+   looking at Today or This Week. Completed ones are filtered BY done_at, and
+   only within the last DB_TODO_DONE_DAYS, so the list cannot grow forever on
+   screen even though nothing is ever pruned from the table. */
+function dbTodosFor(inst,P){
+  const mine=TODOS.filter(t=>inst==='all'||t.owner===inst);
+  const cut=new Date(TODAY);cut.setDate(cut.getDate()-DB_TODO_DONE_DAYS);const cutKey=_ymd(cut);
+  const doneKey=function(t){return t.doneAt?_ymd(new Date(t.doneAt)):null;};
+  return {open:mine.filter(t=>!t.done).sort((a,b)=>String(a.createdAt||'').localeCompare(String(b.createdAt||''))),
+    done:mine.filter(function(t){const k=doneKey(t);return t.done&&k&&k>=cutKey&&inPeriodFor(k,P);})
+      .sort((a,b)=>String(b.doneAt||'').localeCompare(String(a.doneAt||'')))};}
+function dbTodoRow(t,withWho){
+  const meta=[];if(withWho)meta.push(instById(t.owner).name);
+  if(t.by)meta.push('added by '+t.by);
+  return '<div class="db-row db-task db-todo'+(t.done?' done':'')+'">'
+    +'<input type="checkbox" aria-label="Done"'+(t.done?' checked':'')+' onchange="todoSetDone(\''+esc(t.id)+'\',this.checked)">'
+    +'<div class="db-main"><div class="gname">'+esc(t.body)+'</div>'
+    +(meta.length?'<div class="gmeta">'+esc(meta.join(' · '))+'</div>':'')+'</div>'
+    +'<span class="db-del" title="Delete" onclick="todoAskDelete(this,\''+esc(t.id)+'\')">×</span></div>';}
+function dbToggleDone(){DB.todoDone=!DB.todoDone;dbRefresh();}
 function dbAgendaHtml(){const P=dbxResolve(DB.agP,DB.agFrom,DB.agTo),inst=dbAgendaInst();
   const items=dbSortAppts(appts.filter(a=>inPeriodFor(a.dateKey,P)&&(inst==='all'||a.installer===inst)));
   const jobs=items.filter(a=>!isTask(a)),tasks=items.filter(isTask);
@@ -8037,15 +8144,18 @@ function dbAgendaHtml(){const P=dbxResolve(DB.agP,DB.agFrom,DB.agTo),inst=dbAgen
   return '<div class="db-sub">Jobs · '+shown(jobs.length)+'</div>'
     +(jobs.length?jobs.slice(0,cap).map(a=>dbJobRow(a,withDate,withWho)).join(''):'<div class="db-empty">No jobs scheduled.</div>')
     +'<div class="db-sub">Tasks · '+open+' open of '+tasks.length+(tasks.length>cap?' · showing '+cap:'')+'</div>'
-    +(tasks.length?tasks.slice(0,cap).map(a=>dbTaskRow(a,withDate,withWho)).join(''):'<div class="db-empty">No tasks. Add one above.</div>');}
+    +(tasks.length?tasks.slice(0,cap).map(a=>dbTaskRow(a,withDate,withWho)).join(''):'<div class="db-empty">No scheduled tasks.</div>')
+    +dbTodosHtml(inst,P,withWho,cap);}
+function dbTodosHtml(inst,P,withWho,cap){const T=dbTodosFor(inst,P);
+  return '<div class="db-sub">To-dos · '+T.open.length+' open'+(T.open.length>cap?' · showing '+cap:'')+'</div>'
+    +(T.open.length?T.open.slice(0,cap).map(t=>dbTodoRow(t,withWho)).join(''):'<div class="db-empty">Nothing on the list. Add one above.</div>')
+    +(T.done.length?'<div class="db-todo-more" onclick="dbToggleDone()">'+(DB.todoDone?'▾':'▸')+' Completed · '+T.done.length+' in the last '+DB_TODO_DONE_DAYS+' days</div>'
+      +(DB.todoDone?T.done.slice(0,cap).map(t=>dbTodoRow(t,withWho)).join(''):''):'');}
 
-/* Booked work: everything SCHEDULED in the period, whatever its status. Tasks
-   are excluded from the count; apptFinance already books them at zero. */
-function dbMoneyHtml(){
-  const D=reportData({period:DB.moneyPeriod,status:'all',inst:'all',allDealers:true,noTasks:true,byDay:true});
-  return dbMoneyTiles(D)
-    +'<div class="db-chart">'+dbBarsSvg(D.byDay)+'</div>'
-    +'<div class="db-leg"><span><i style="background:#b49e6f"></i>Revenue</span><span><i style="background:#8c877d"></i>Cost</span><span>'+D.rows.length+' scheduled job'+(D.rows.length===1?'':'s')+'</span></div>';}
+/* v124: dbMoneyHtml — the phone's Booked work card, its bar chart and its
+   legend — is gone; the phone shows the agenda in that place and no graph.
+   dbMoneyTiles and dbBarsSvg below are KEPT: the desk's Booked Jobs card
+   calls both. */
 /* Revenue / cost / margin tiles for a reportData result. Shared by the phone
    Booked work card and the desk Booked Jobs chart so they read identically. */
 function dbMoneyTiles(D){
@@ -8111,13 +8221,16 @@ function dbBarsSvg(series,box){if(!series||!series.length)return '';
    Reports .rep-range date inputs beside the dropdown, pre-filled with the
    period that was showing, so it is never half-empty. */
 const DBX_PERIODS=[['week','This Week'],['month','This Month'],['qtr','This Qtr'],['ytd','YTD'],['custom','Custom']];
+const DB_PHONE_PERIODS=['today','week','custom'];
 function dbxResolve(kind,from,to){const Y=TODAY.getFullYear();
   if(kind==='qtr'){const q=Math.floor(TODAY.getMonth()/3);return {period:'range',from:_ymd(new Date(Y,q*3,1)),to:_ymd(new Date(Y,q*3+3,0))};}
   if(kind==='ytd')return {period:'range',from:_ymd(new Date(Y,0,1)),to:_ymd(TODAY)};
   if(kind==='custom')return {period:'range',from:from,to:to};
   return {period:kind};}
-function dbxFilterHtml(which){const id=which==='ch'?'dbx':'dbAg';
-  const opts=(which==='ag'?[['today','Today']]:[]).concat(DBX_PERIODS);
+function dbxFilterHtml(which,short){const id=which==='ch'?'dbx':'dbAg';
+  /* v124: 'short' is the phone's list. Called without it, as the desk does,
+     this is byte-for-byte what it was. */
+  const opts=(which==='ag'?[['today','Today']]:[]).concat(short?DBX_PERIODS.filter(o=>o[0]==='week'||o[0]==='custom'):DBX_PERIODS);
   return '<select class="db-sel" id="'+id+'Per" onchange="dbxSetPeriod(\''+which+'\',this.value)" aria-label="Period">'
     +opts.map(o=>'<option value="'+o[0]+'">'+o[1]+'</option>').join('')+'</select>'
     +'<span class="rep-range" id="'+id+'Range" style="display:none">'
@@ -8225,13 +8338,16 @@ function dbxChartsHtml(){const P=dbxResolve(DB.chP,DB.chFrom,DB.chTo);
 
 /* Field layout: shortcut tiles. Today's Schedule opens the scheduler's day view
    on today; Upcoming Appointments and My Docs open a panel on this page. */
+/* v124 order: Today's Schedule double-wide across the top, then Upcoming +
+   Customers, then My Docs + Dealers. .db-tiles is two columns at phone width,
+   so 'wide' (grid-column:span 2) fills the row. */
 function dbTilesHtml(){
-  const t=function(key,label,act){return '<div class="db-tile'+(DB.panel===key?' on':'')+'" onclick="'+act+'">'+DB_ICONS[key]+'<span>'+label+'</span></div>';};
-  return t('today','Today’s Schedule','gotoDate(TODAY)')
+  const t=function(key,label,act,cls){return '<div class="db-tile'+(cls?' '+cls:'')+(DB.panel===key?' on':'')+'" onclick="'+act+'">'+DB_ICONS[key]+'<span>'+label+'</span></div>';};
+  return t('today','Today’s Schedule','gotoDate(TODAY)','wide')
     +t('upcoming','Upcoming Appointments',"dbPanel('upcoming')")
-    +t('dealers','Dealers',"navTo('dealers')")
     +t('customers','Customers',"navTo('customers')")
-    +t('docs','My Docs',"dbPanel('docs')");}
+    +t('docs','My Docs',"dbPanel('docs')")
+    +t('dealers','Dealers',"navTo('dealers')");}
 function dbPanel(k){DB.panel=DB.panel===k?null:k;if(DB.panel==='docs')dbLoadDocs();else dbRefresh();}
 const DB_UPCOMING_DAYS=14;
 function dbPanelHtml(){
@@ -8260,23 +8376,23 @@ async function dbLoadDocs(){const id=myInstallerId();
   if(myInstallerId()!==id)return;
   DB_DOCS=rows.filter(d=>d.group==='installer');DB.docsState='ready';dbRefresh();}
 
-/* Quick-add: one line, a real Task for TODAY through createTask. Starts at the
-   next half hour inside calendar hours, 30 minutes long. Tasks never flag
-   conflicts, so the default slot cannot mark a real job as double-booked. */
+/* Quick-add, v124: ONE line, ONE code path, both surfaces — a row in
+   public.todos, never a Task and never an appointment. Until v124 this called
+   createTask and put a 30-minute block on the calendar at the next half hour.
+   An admin may add to someone else's list (the picker is data-admin); anyone
+   else adds to their own, whatever a tampered-with select says. */
 async function dbQuickAdd(){if(DB.qaBusy)return;
-  const inp=$('dbQaText'),who=$('dbQaWho');if(!inp||!who)return;
-  const desc=inp.value.trim();if(!desc){toast('Type the task first',true);inp.focus();return;}
-  const inst=who.value;if(!inst){toast('Pick who the task is for',true);return;}
-  const now=new Date();let start=Math.ceil((now.getHours()+now.getMinutes()/60)*2)/2;
-  start=Math.min(Math.max(start,START_HOUR),END_HOUR-0.5);
+  const inp=$('dbQaText');if(!inp)return;
+  const body=inp.value.trim();if(!body){toast('Type the to-do first',true);inp.focus();return;}
+  const who=$('dbQaWho');
+  const owner=(IS_ADMIN&&who&&who.value)?who.value:myInstallerId();
+  if(!owner){toast('Pick whose list it goes on',true);return;}
   DB.qaBusy=true;const btn=$('dbQaGo');if(btn)btn.disabled=true;
   try{
-    const r=await createTask({taskType:'Task',meetingType:null,installerId:inst,dealerId:null,desc:desc,dateKey:_ymd(TODAY),start:start,mins:30});
-    if(r.error==='installer'){toast('Pick who the task is for',true);return;}
-    if(r.error==='appt'){toast('Task saved but could <b>not</b> be put on the calendar — see the console',true);return;}
-    if(r.error){toast('Could not add that task',true);return;}
-    const box=$('dbQaText');if(box)box.value='';
-    toast('Task added for '+esc(instById(inst).name)+' today');
+    const t=await todoAdd(body,owner);
+    if(!t){toast('Could not add that to-do',true);return;}
+    inp.value='';dbRefresh();
+    toast('To-do added for '+esc(instById(owner).name));
   }finally{DB.qaBusy=false;const b=$('dbQaGo');if(b)b.disabled=false;}}
 
 /* v107: the page registry, lifted out of navTo so boot can validate a page
@@ -9327,7 +9443,7 @@ if(calWrap){
   },true);
 }
 /* ===== Auth gate (v20) — email/password + self-service signup (Option B) ===== */
-let PROFILE=null,_booted=false,gateMode='signin';
+let PROFILE=null,AUTH_UID=null,_booted=false,gateMode='signin';
 /* v107: set only by a real sign-in/sign-up in this tab; read once by landPage. */
 var LOGIN_FRESH=false;
 /* Role gating (v21). Fails closed: anything that isn't 'admin' is treated as an installer. */
@@ -9466,6 +9582,7 @@ async function resolveSession(){
   gateBody.innerHTML='<div class="gate-spin"></div>';gate.classList.remove('hidden');
   const {data:{session}}=await sb.auth.getSession();
   if(!session){gateMode='signin';gateForm();return;}
+  AUTH_UID=(session.user&&session.user.id)||null;   /* v124: todos.done_by */
   const {data:prof,error}=await sb.rpc('current_profile');
   if(error){console.error(error);gateMode='signin';gateForm('Could not load your profile: '+error.message);return;}
   if(!prof||!prof.profile_id){gateDenied(session.user&&session.user.email);return;}
@@ -9475,7 +9592,7 @@ sb.auth.onAuthStateChange((ev)=>{
   /* doRecovery signs out on purpose after setting the new password. The
      gateMode guard stops this handler repainting a blank sign-in form over
      the confirmation message that follows it. */
-  if(ev==='SIGNED_OUT'){PROFILE=null;IS_ADMIN=false;document.body.classList.add('role-installer');
+  if(ev==='SIGNED_OUT'){PROFILE=null;AUTH_UID=null;TODOS=[];IS_ADMIN=false;document.body.classList.add('role-installer');
     /* v107: forget this tab's page and the dashboard's per-user choices, so
        the next sign-in starts clean on the Dashboard. */
     LOGIN_FRESH=false;try{sessionStorage.removeItem('pl.page');}catch(err){}dbReset();
