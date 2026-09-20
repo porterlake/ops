@@ -308,16 +308,27 @@
   .db-stats{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-bottom:16px}
   .db-stats:empty{display:none}
   .db-head>span[data-admin],.db-qa>span[data-admin]{display:contents}
-  /* v125, phone agenda head only — these two classes are written by the phone
-     branch of buildDashboard and by nothing else, so the desk layout cannot
-     see them. .db-who is on the SELECT, not its wrapper: the wrapper is
-     display:contents above, so margin-left:auto has to live on the flex item
-     itself. */
-  .db-who{margin-left:auto}
-  .db-per{flex:1 1 100%;display:flex;align-items:center;gap:8px;min-width:0;flex-wrap:wrap}
+  /* v126, phone agenda only. Every class here is written by the phone branch
+     of buildDashboard and by nothing else, so the desk cannot see them and no
+     media query is needed. (v125's .db-who is gone: the stack does the
+     aligning now.)
+     .db-afilt is a column pushed right by margin-left:auto; its rows stretch
+     to its width, and .db-alb is a FIXED 52px label column — that is what
+     makes the two selects exactly the same width, one directly under the
+     other. */
+  .db-afilt{margin-left:auto;display:flex;flex-direction:column;align-items:stretch;gap:8px;min-width:0;max-width:100%}
+  .db-afrow{display:flex;align-items:center;gap:8px;justify-content:flex-end;min-width:0}
+  .db-alb{flex:0 0 52px;width:52px;text-align:right;font-size:10px;font-weight:800;letter-spacing:1px;text-transform:uppercase;color:var(--muted)}
+  .db-afrow>select{flex:1 1 auto;min-width:0}
+  .db-per{flex:1 1 auto;display:flex;align-items:center;gap:8px;min-width:0;flex-wrap:wrap}
   .db-per select{flex:1 1 auto;min-width:0}
-  .db-per .rep-range{flex:1 1 100%}
+  .db-per .rep-range{flex:1 1 100%;margin-top:6px}
   .db-per .rep-range input{flex:1 1 0;min-width:0}
+  .db-assign{margin:-2px 0 10px;text-align:right}
+  .db-assign .db-afrow{justify-content:flex-end}
+  .db-link{font:inherit;font-size:11.5px;font-weight:700;color:var(--muted);background:none;border:0;padding:4px 2px;cursor:pointer;text-decoration:underline}
+  .db-link:hover{color:var(--ink)}
+  .db-link b{color:var(--ink)}
   .db-todo .db-main{cursor:default}
   .db-todo .db-del{margin-left:auto;padding:0 4px;color:var(--muted);cursor:pointer;font-size:16px;line-height:1}
   .db-todo .db-del:hover{color:#a3211d}
@@ -7947,11 +7958,11 @@ document.addEventListener('change',function(e){
    share agP, so buildDashboard coerces it into DB_PHONE_PERIODS on the phone
    -- a desk "This Qtr" must never leave the phone's dropdown on a value its
    own shorter list cannot show. */
-var DB={agendaInst:null,panel:null,qaWho:null,qaBusy:false,docsState:'idle',layout:null,todoDone:false,
+var DB={agendaInst:null,panel:null,qaWho:null,qaOpen:false,qaBusy:false,docsState:'idle',layout:null,todoDone:false,
   chP:'week',chFrom:'',chTo:'',agP:'today',agFrom:'',agTo:''};
 var DB_DOCS=[];   /* the viewer's source for My Docs; separate from IP_DOCS so an open profile popup is never clobbered */
 var _dbTimer=0;
-function dbReset(){DB.chP='week';DB.chFrom='';DB.chTo='';DB.agP='today';DB.agFrom='';DB.agTo='';DB.agendaInst=null;DB.panel=null;DB.todoDone=false;DB.qaWho=null;DB.docsState='idle';DB.layout=null;DB_DOCS=[];}
+function dbReset(){DB.chP='week';DB.chFrom='';DB.chTo='';DB.agP='today';DB.agFrom='';DB.agTo='';DB.agendaInst=null;DB.panel=null;DB.todoDone=false;DB.qaOpen=false;DB.qaWho=null;DB.docsState='idle';DB.layout=null;DB_DOCS=[];}
 /* Coalesce the many render() calls one action can trigger into one redraw. */
 function dbSchedule(){if(!DB_LIVE||!DB_LIVE[page]||_dbTimer)return;_dbTimer=setTimeout(function(){_dbTimer=0;const f=DB_LIVE[page];if(f)f();},0);}
 /* v108: every page that must follow job and appointment changes live, and how
@@ -8027,17 +8038,64 @@ function buildDashboard(){const g=$('genericView');const desk=dbIsDesk();DB.layo
            (.db-who), and the period filter drops onto its own full-width row
            below it (.db-per). Desk markup is untouched: both classes exist
            only in this branch. */
+        /* v126: the two filters STACK, right-aligned, the period one directly
+           under the person one and the same width — the label column is a
+           fixed 52px, which is what keeps the two selects equal. v125 left the
+           period filter full-width and left-aligned, which was not the intent.
+           Labels are phone-only; the desk head is untouched. */
         +'<section class="db-card" style="margin-bottom:16px"><div class="db-head"><h3>Agenda</h3><div class="db-fill"></div>'
-        +'<span data-admin><select class="db-sel db-who" id="dbAgInst" onchange="dbSetAgendaInst(this.value)" aria-label="Whose agenda"></select></span>'
-        +'<span class="db-per">'+dbxFilterHtml('ag',true)+'</span></div>'
+        +'<div class="db-afilt">'
+        +'<span class="db-afrow" data-admin><span class="db-alb">Viewing</span>'
+        +'<select class="db-sel" id="dbAgInst" onchange="dbSetAgendaInst(this.value)" aria-label="Whose agenda"></select></span>'
+        +'<span class="db-afrow"><span class="db-alb">Period</span>'
+        +'<span class="db-per">'+dbxFilterHtml('ag',true)+'</span></span>'
+        +'</div></div>'
+        /* v126 fix 3: no second person dropdown sitting there. A to-do goes to
+           the signed-in user unless an admin taps "Assign to team", and the
+           choice is shown in the link itself once made. */
         +'<div class="db-qa"><input id="dbQaText" maxlength="200" placeholder="Add a to-do…" aria-label="New to-do">'
-        +'<span data-admin><select class="db-sel" id="dbQaWho" onchange="DB.qaWho=this.value" aria-label="Assign to"></select></span>'
         +'<button type="button" class="btn" id="dbQaGo" onclick="dbQuickAdd()">Add to-do</button></div>'
+        +'<div class="db-assign" id="dbAssign" data-admin></div>'
         +'<div id="dbAgenda"></div></section>'
         +'<div id="dbPanel"></div>')
     +'</div>';
   const qa=$('dbQaText');if(qa)qa.addEventListener('keydown',function(e){if(e.key==='Enter'){e.preventDefault();dbQuickAdd();}});
-  dbRefresh();}
+  dbRefresh();
+  dbTodoSync(true);}
+
+/* ===== v126 — the to-do list catches up (Q49 stopgap) ===================
+   NOTHING in this app subscribes to anything. Every list is fetched once, at
+   boot, by loadAll(); every redraw after that — render(), dbRefresh(),
+   dbSchedule() — repaints from memory. So a to-do added on a phone never
+   reaches a desktop tab that is already open, and the same is true of jobs,
+   appointments and every other table. The general fix is realtime, which is
+   Q49 and is NOT this.
+
+   This is the narrow version: re-read TODOS when the dashboard is opened and
+   when the tab comes back to the front. It reuses loadTodos() exactly as the
+   boot sequence calls it and touches no other load.
+   Deliberately safe:
+     - it never runs while an add is in flight (DB.qaBusy);
+     - it only ever replaces TODOS, so DB.agP / DB.agendaInst / DB.todoDone and
+       every other filter survive untouched;
+     - dbRefresh() rewrites #dbAgenda, #dbAssign and the tiles, NOT the
+       quick-add input, so text typed and not yet added survives;
+     - a 3s floor stops focus-flapping turning into a request per second. */
+var _todoSyncAt=0,_todoHidden=false;
+async function dbTodoSync(force){
+  if(page!=='dashboard'||DB.qaBusy)return;
+  const now=Date.now();
+  if(!force&&now-_todoSyncAt<3000)return;
+  _todoSyncAt=now;
+  await loadTodos();
+  if(page==='dashboard')dbRefresh();}
+document.addEventListener('visibilitychange',function(){
+  if(document.visibilityState==='hidden'){_todoHidden=true;return;}
+  /* Coming back from actually being hidden ALWAYS re-reads, however brief the
+     absence — that is the switching-devices case the stopgap exists for. A
+     plain window focus (clicking between two windows) keeps the 3s floor. */
+  const was=_todoHidden;_todoHidden=false;dbTodoSync(was);});
+window.addEventListener('focus',function(){dbTodoSync();});
 
 /* Rebuild a <select>'s options only when the list itself changed, so a redraw
    never resets what someone is in the middle of choosing. */
@@ -8061,6 +8119,9 @@ function dbRefresh(){if(page!=='dashboard')return;
     if($('dbxBars'))requestAnimationFrame(dbxDrawBars);}
   dbxSyncFilter('ch');dbxSyncFilter('ag');
   if($('dbStats'))set('dbStats',IS_ADMIN?dbxTilesHtml():'');
+  /* Before the selects are filled: on the phone #dbQaWho only EXISTS while
+     the assign control is open, and dbFillSelect below has to find it. */
+  if($('dbAssign'))set('dbAssign',IS_ADMIN?dbAssignHtml():'');
   if($('dbAgenda')){
     const people=INSTALLERS.filter(i=>i.id!=='un');
     dbFillSelect($('dbAgInst'),[['all','Company (all)']].concat(people.map(i=>[i.id,i.name])),dbAgendaInst());
@@ -8178,6 +8239,30 @@ function dbTodoRow(t,withWho){
     +(meta.length?'<div class="gmeta">'+esc(meta.join(' · '))+'</div>':'')+'</div>'
     +'<span class="db-del" title="Delete" onclick="todoAskDelete(this,\''+esc(t.id)+'\')">×</span></div>';}
 function dbToggleDone(){DB.todoDone=!DB.todoDone;dbRefresh();}
+
+/* ===== v126 — who a new to-do is for (phone) ============================
+   Until v126 a second person <select> sat on screen permanently, next to the
+   agenda's own person filter, with nothing to tell them apart. Now:
+     collapsed, nobody chosen -> a link, "Assign to team";
+     collapsed, someone chosen -> the link NAMES them: "For Bea Marsh · change";
+     tapped -> the labelled picker appears in its place;
+     a pick collapses it again, so the name is what stays on screen.
+   DB.qaWho null means "me". It is reset after every add (dbQuickAdd), so the
+   next to-do goes to the signed-in user rather than silently to whoever the
+   last one went to. The block is data-admin: an installer never sees it and
+   dbQuickAdd ignores the control for them regardless.
+   The DESK keeps its always-visible select — it has the room, and its own
+   layout was to stay unchanged. */
+function dbAssignOther(){const me=myInstallerId();
+  return (DB.qaWho&&DB.qaWho!==me)?DB.qaWho:null;}
+function dbAssignHtml(){
+  if(!DB.qaOpen){const o=dbAssignOther();
+    return '<button type="button" class="db-link" onclick="dbAssignOpen(true)">'
+      +(o?'For <b>'+esc(instById(o).name)+'</b> · change':'Assign to team')+'</button>';}
+  return '<span class="db-afrow"><span class="db-alb">For</span>'
+    +'<select class="db-sel" id="dbQaWho" onchange="dbAssignPick(this.value)" aria-label="Assign to"></select></span>';}
+function dbAssignOpen(v){DB.qaOpen=!!v;dbRefresh();}
+function dbAssignPick(v){DB.qaWho=v||null;DB.qaOpen=false;dbRefresh();}
 function dbAgendaHtml(){const P=dbxResolve(DB.agP,DB.agFrom,DB.agTo),inst=dbAgendaInst();
   const items=dbSortAppts(appts.filter(a=>inPeriodFor(a.dateKey,P)&&(inst==='all'||a.installer===inst)));
   const jobs=items.filter(a=>!isTask(a)),tasks=items.filter(isTask);
@@ -8428,13 +8513,27 @@ async function dbQuickAdd(){if(DB.qaBusy)return;
   const inp=$('dbQaText');if(!inp)return;
   const body=inp.value.trim();if(!body){toast('Type the to-do first',true);inp.focus();return;}
   const who=$('dbQaWho');
-  const owner=(IS_ADMIN&&who&&who.value)?who.value:myInstallerId();
-  if(!owner){toast('Pick whose list it goes on',true);return;}
+  /* DB.qaWho is the deliberate choice on both surfaces (the desk select sets
+     it onchange, the phone's picker sets it on pick). Falling back to the
+     signed-in user, and only then to whatever the desk select shows, covers an
+     admin whose login is not linked to an installer. A non-admin never reaches
+     the control and always files to themselves. */
+  const owner=IS_ADMIN?(DB.qaWho||myInstallerId()||(who&&who.value)||''):myInstallerId();
+  if(!owner){
+    /* An admin whose login is not linked to an installer has nothing to
+       default to, and on the phone the picker is collapsed — so open it
+       rather than only complaining about a control they cannot see. */
+    if(IS_ADMIN&&$('dbAssign')&&!DB.qaOpen){DB.qaOpen=true;dbRefresh();}
+    toast('Pick whose list it goes on',true);return;}
   DB.qaBusy=true;const btn=$('dbQaGo');if(btn)btn.disabled=true;
   try{
     const t=await todoAdd(body,owner);
     if(!t){toast('Could not add that to-do',true);return;}
-    inp.value='';dbRefresh();
+    inp.value='';
+    /* Reset to the signed-in user, but only where v126's reveal control is —
+       the desk's always-visible select keeps its selection, as it always has. */
+    if($('dbAssign')){DB.qaWho=null;DB.qaOpen=false;}
+    dbRefresh();
     toast('To-do added for '+esc(instById(owner).name));
   }finally{DB.qaBusy=false;const b=$('dbQaGo');if(b)b.disabled=false;}}
 
