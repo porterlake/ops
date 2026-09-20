@@ -8023,7 +8023,7 @@ function buildDashboard(){const g=$('genericView');const desk=dbIsDesk();DB.layo
         +'<div class="dbx-right"><div class="dbx-filter"><span class="dbx-lbl">Period</span>'+dbxFilterHtml('ch')+'</div>'
         +'<div class="dbx-charts" id="dbxCharts"></div></div>'
         +'</div>'
-        +'<section class="dbx-card dbx-agenda"><div class="dbx-head"><h3>Agenda</h3><div class="dbx-fill"></div>'+dbxFilterHtml('ag')
+        +'<section class="dbx-card dbx-agenda"><div class="dbx-head"><h3>Agenda</h3><div class="dbx-fill"></div><span class="dbx-lbl">Period</span>'+dbxFilterHtml('ag')
         +'<span class="dbx-lbl">Viewing</span><select class="db-sel" id="dbAgInst" onchange="dbSetAgendaInst(this.value)" aria-label="Whose agenda"></select></div>'
         +'<div class="db-qa"><input id="dbQaText" maxlength="200" placeholder="Add a to-do…" aria-label="New to-do">'
         +'<button type="button" class="btn" id="dbQaGo" onclick="dbQuickAdd()">Add to-do</button></div>'
