@@ -833,10 +833,20 @@
   /* flex:none so the header keeps its height and never scrolls away - the X
      stays reachable no matter how long the body is. */
   .modal-h{flex:0 0 auto;padding:18px 22px;border-bottom:1px solid var(--side-border);display:flex;align-items:center;gap:10px}
-  .modal-h .mi{width:34px;height:34px;border-radius:9px;background:var(--accent-soft);display:flex;align-items:center;justify-content:center}
+  .modal-h .mi{width:34px;height:34px;border-radius:9px;background:var(--accent-soft);display:flex;align-items:center;justify-content:center;flex:none}
   .modal-h .mi svg{width:18px;height:18px;color:var(--sand)}
-  .modal-h h3{font-size:16px;font-weight:700;color:#fff}.modal-h .ms{font-size:12px;color:var(--sand-dim)}
-  .modal-h .x{margin-left:auto;background:var(--side-3);border:1px solid var(--side-border);color:var(--sand-dim);width:30px;height:30px;border-radius:8px;cursor:pointer;font-size:18px}
+  .modal-h h3{font-size:16px;font-weight:700;color:#fff;min-width:0}.modal-h .ms{font-size:12px;color:var(--sand-dim)}
+  /* v131 (Q62): the header is a flex row and the title sits in an unclassed
+     wrapper div, which defaults to min-width:auto and therefore refuses to
+     shrink below the longest word in a filename. The squeeze landed on the
+     two flex items that CAN shrink -- the icon (34px -> 24px) and the close
+     X (30px -> 13px, measured at 390px with a real report filename). A 13px
+     target 10px from "Full screen" means a missed tap opens a new tab, on
+     the ONE control that dismisses a full-screen overlay. min-width:0 lets
+     the title give way; flex:none on .mi and .x means it is the only thing
+     that does. Same rule CLAUDE.md records as MOBILE LANDMINE 1. */
+  .modal-h>div:not(.mi){min-width:0}
+  .modal-h .x{margin-left:auto;background:var(--side-3);border:1px solid var(--side-border);color:var(--sand-dim);width:30px;height:30px;border-radius:8px;cursor:pointer;font-size:18px;flex:none}
   /* The one scroll area. min-height:0 defeats the flex min-height:auto default;
      overscroll-behavior:contain stops a bottomed-out scroll from chaining into
      body, which is overflow:hidden and cannot scroll. */
@@ -2578,6 +2588,26 @@ async function dropJob(key,hour,e){const id=e.dataTransfer.getData('id');const j
   toast(`<b>${j.cust}</b> booked — assign someone`,true);}
 
 function openDrawer(id){let a=appts.find(x=>x.id===id),mode='appt';if(!a){a=queue.find(x=>x.id===id);mode='queue';}if(!a)return;
+  /* ===== v131 (Q61) — a drawer must open at the top =======================
+     .dr-body is never rebuilt: openDrawer writes textContent and .value into
+     nodes that already exist, so the SAME element survives every open and its
+     scrollTop with it. Scrolled to the bottom, closed and reopened, it came
+     back at 1343px. Opening a DIFFERENT job kept the position too, clamped to
+     the new content's height, which is worse -- you land mid-way down a job
+     you have never seen.
+
+     There is not one other scrollTop assignment in this file; the modals and
+     the viewer only appear to reset because their innerHTML is rewritten on
+     open and the clamp drops them to 0. The drawer is the sole outlier.
+
+     _reopen is the ONE case that must NOT reset: openDrawer is also the
+     refresh path (drSave and the Edit Job save both call
+     `if(selectedId)openDrawer(selectedId)` to repaint the open drawer on the
+     saved values). Same id AND already open means repaint, so leave the
+     reader where they were. Anything else -- closed, or a different job -- is
+     a genuine open and goes to the top. Captured here, BEFORE selectedId is
+     overwritten on the next line. */
+  const _reopen=$('drawer').classList.contains('open')&&selectedId===id;
   selectedId=id;drawerMode=mode;const tt=$('drTypeTag');
   /* v98: TYPES now carries a Task entry, but the fallback stays -- this line
      threw on any unmapped type and a hard throw here means the drawer never
@@ -2671,6 +2701,9 @@ function openDrawer(id){let a=appts.find(x=>x.id===id),mode='appt';if(!a){a=queu
      rate could reach a screen, and a Task has no money on it at all. */
   if(task){$('drMarginFld').style.display='none';$('drBillingFld').style.display='none';}
   else{drRenderMargin(a);biRender(a);refreshFiles();}
+  /* v131 (Q61): reset AFTER every field above has been written, so the clamp
+     is computed against the new content's height, not the old one's. */
+  if(!_reopen){const db=$('drawer').querySelector('.dr-body');if(db)db.scrollTop=0;}
   $('drawer').classList.add('open');render();}
 function currentJobId(){if(!selectedId)return null;if(drawerMode==='queue')return selectedId;const a=appts.find(x=>x.id===selectedId);return a?a.jobId:null;}
 /* v104: files.uploaded_by, for all three writers of a files row (uploadFile,
@@ -2818,10 +2851,49 @@ document.addEventListener('keydown',e=>{
   if(!$('viewBg').classList.contains('open'))return;
   if(e.key==='ArrowLeft'){viewStep(-1);e.preventDefault();}
   else if(e.key==='ArrowRight'){viewStep(1);e.preventDefault();}
-  else if(e.key==='Escape'){$('viewBg').classList.remove('open');e.preventDefault();}});
-$('viewClose').onclick=()=>$('viewBg').classList.remove('open');
-$('viewBg').addEventListener('click',e=>{if(e.target.id==='viewBg')$('viewBg').classList.remove('open')});
-function closeDrawer(){selectedId=null;$('drawer').classList.remove('open');render()}
+  else if(e.key==='Escape'){closeViewer();e.preventDefault();}});
+/* ===== v131 (Q60) — CLOSING THE VIEWER TEARS THE IFRAME DOWN =============
+   Until v131, closing the viewer only removed the .open class. #viewBody kept
+   whatever renderViewer() last wrote into it, so a PDF iframe stayed LOADED in
+   the DOM for the rest of the session: eight open/close cycles left exactly
+   one live iframe behind, and it only ever disappeared when the next file
+   opened happened to be an image and overwrote innerHTML by accident.
+
+   On iPhone/Safari that still-live PDF iframe is the prime suspect for the
+   global scroll freeze. The freeze kills scrolling on every page and every
+   tab while taps, buttons and navigation keep working, and it survives until
+   the app is relaunched -- that combination is a compositor/scrolling-layer
+   symptom, not an overlay swallowing gestures (an overlay would eat taps too)
+   and not a scroll lock (the app has none: no body overflow write, no lock
+   class, no touchmove handler anywhere in this file).
+
+   The teardown is three steps in this order, and the order matters: clear the
+   src FIRST so the PDF plugin is told to stop rather than being detached while
+   still painting, then remove the element, then empty the container.
+
+   closeViewer() is now the ONLY way the viewer closes, and every path that
+   leaves the viewer calls it -- the X, the backdrop, Escape, closeDrawer(),
+   navTo(), any modal opening (via openBg) and sign-out. Before v131 only the
+   first three did, so the viewer could be left .open over a page it no longer
+   belonged to. It deliberately does NOT touch any other modal: the work-order
+   picker is meant to stay open UNDERNEATH the viewer so closing the viewer
+   lands back on the list. */
+function closeViewer(){
+  const bg=$('viewBg');if(bg)bg.classList.remove('open');
+  const body=$('viewBody');if(!body)return;
+  const fr=body.querySelector('iframe');
+  if(fr){try{fr.setAttribute('src','about:blank');}catch(e){}fr.remove();}
+  body.innerHTML='';}
+/* Opening ANY other modal closes the viewer first. One helper rather than a
+   closeViewer() call bolted onto twelve call sites, so a modal added later
+   inherits it by using openBg. #viewBg is NOT routed through this. */
+function openBg(id){closeViewer();$(id).classList.add('open');}
+$('viewClose').onclick=()=>closeViewer();
+$('viewBg').addEventListener('click',e=>{if(e.target.id==='viewBg')closeViewer()});
+/* v131 (Q60): the viewer is opened FROM the drawer, so leaving the drawer must
+   take it with it. Before v131 closeDrawer left #viewBg .open over whatever
+   page was underneath. */
+function closeDrawer(){closeViewer();selectedId=null;$('drawer').classList.remove('open');render()}
 /* v98: WO has no 'Task' key and must not get one -- a Task has no measure
    sheet, no reports, no receiving and nothing to send to a dealer. An
    unmapped type renders NO work-order block at all rather than throwing on
@@ -3260,7 +3332,7 @@ function dlrOpen(){
   }
 
   $('dlrBody').innerHTML=h;
-  $('dlrBg').classList.add('open');
+  openBg('dlrBg');
 }
 function dlrClosePopup(){$('dlrBg').classList.remove('open');}
 function dlrViewProfile(){const a=currentItem();const id=a&&a.dealerId;
@@ -3357,7 +3429,7 @@ function ejcOpen(o){
   $('ejcYes').textContent=o.ok||'Confirm';
   $('ejcNo').textContent=o.cancel||'Cancel';
   $('ejcYes').classList.toggle('del',!!o.danger);
-  $('ejcBg').classList.add('open');
+  openBg('ejcBg');
   return new Promise(function(res){_ejcResolve=res;});}
 function ejcSettle(v){$('ejcBg').classList.remove('open');
   const r=_ejcResolve;_ejcResolve=null;if(r)r(v);}
@@ -3513,7 +3585,7 @@ function ejOpen(){
         'Removes it from the calendar permanently. Its notes go with it. Nothing else on the schedule is affected.');
     $('ejDanger').onclick=ejDanger;
     ejrFill(a);
-    $('ejBg').classList.add('open');return;}
+    openBg('ejBg');return;}
   EJ_ORIG={addr:(a.addr&&a.addr!=='\u2014')?a.addr:'',phone:a.phone||'',dealerId:a.dealerId||''};
   $('ejSub').textContent=(a.cust||'Job')+' \u00b7 '+(a.type||'');
   const opts=DEALERS.map(function(d){
@@ -3555,7 +3627,7 @@ function ejOpen(){
   if($('ejQuote'))$('ejQuote').onclick=function(){biGenerate('quote');};
   if($('ejInvoice'))$('ejInvoice').onclick=function(){biGenerate('invoice');};
   ejrFill(a);
-  $('ejBg').classList.add('open');}
+  openBg('ejBg');}
 
 async function ejDanger(){
   const a=currentItem();if(!a)return;
@@ -5934,7 +6006,7 @@ function openModal(ic,label){currentModalIc=ic;const a=currentItem()||{};$('moda
      file into a base64 string (modalPdf) that nothing ever read. */
   if(ic==='cam')camInit();
   if(ic==='upload')upInit();
-  $('modalBg').classList.add('open');}
+  openBg('modalBg');}
 function closeModal(){$('modalBg').classList.remove('open')}
 $('modalClose').onclick=closeModal;$('modalCancel').onclick=closeModal;
 $('modalSave').onclick=async()=>{
@@ -6621,7 +6693,7 @@ async function editInstaller(id){if(!IS_ADMIN)return;const i=INSTALLERS.find(x=>
   $('instEmpType').value='';$('instRole').value='';$('instEmpStatus').value=i.status||'active';ipStatusHint();
   $('ipDocsInternal').innerHTML='';$('ipDocsMine').innerHTML='';
   $('instResetBtn').disabled=true;$('instResetMsg').textContent='';ipResetArm(false);
-  ipTab('info');$('instBg').classList.add('open');
+  ipTab('info');openBg('instBg');
   /* The profile columns are read here, for ONE installer, rather than being
      added to loadInstallers(). That query runs for every signed-in user on
      every load; date of birth and home address have no business being shipped
@@ -6726,7 +6798,7 @@ function auRateUI(){const t=$('auPayType').value,lbl=$('auRateLbl');
 function openAddUser(){if(!IS_ADMIN)return;
   ['auName','auPhone','auEmail','auRate'].forEach(function(k){$(k).value='';});
   $('auRole').value='';$('auPayType').value='hourly';auRateUI();
-  $('auBg').classList.add('open');$('auName').focus();}
+  openBg('auBg');$('auName').focus();}
 async function saveNewUser(){if(!IS_ADMIN)return;
   const nm=($('auName').value||'').trim();
   if(!nm){toast('Name cannot be blank',true);$('auName').focus();return;}
@@ -7336,7 +7408,7 @@ $('newJobBtn').onclick=()=>{
   $('njTaskDesc').value='';
   $('njTaskDate').value=dateKey(weekDays(weekOffset)[Math.max(0,Math.min(6,selectedDay))].date);
   njSyncTaskMode();
-  njFillCustomers();$('njBg').classList.add('open');};
+  njFillCustomers();openBg('njBg');};
 $('njClose').onclick=$('njCancel').onclick=()=>$('njBg').classList.remove('open');
 $('njBg').addEventListener('click',e=>{if(e.target.id==='njBg')$('njBg').classList.remove('open')});
 /* ===== v98 CREATE TASK =====
@@ -7896,7 +7968,7 @@ function cqAttachOpen(){
   CQ_ATTACH_SEL=new Set([CQ_DOCS[0].id]);
   $('cqjSearch').value='';
   cqAttachRender();
-  $('cqjBg').classList.add('open');}
+  openBg('cqjBg');}
 
 async function cqAttachGo(){
   const jobEl=$('cqjJobs').querySelector('.sdrow input:checked');
@@ -8614,6 +8686,7 @@ const PAGE_TITLES={dashboard:'Dashboard',scheduler:'Scheduler',toschedule:'To Sc
    highlighted while you work through one. */
 const NAV_PARENT={issues:'dashboard',outstanding:'dashboard'};
 function navTo(p){if(!PAGE_TITLES[p])p='dashboard';if(!IS_ADMIN&&ADMIN_PAGES.has(p))p='scheduler';
+  closeViewer();   /* v131 (Q60): a page change must never leave the viewer up */
   page=p;const navKey=NAV_PARENT[p]||p;document.querySelectorAll('.nav-item').forEach(n=>n.classList.toggle('active',n.dataset.page===navKey));
   /* Page memory for REFRESH only (landPage decides when it is honoured).
      sessionStorage is per tab, cleared on sign-out; failure is harmless. */
@@ -8640,6 +8713,30 @@ function miniCal(){const m=monthAnchor(0),offset=(m.getDay()+6)%7,dim=daysInMont
     cells+=`<div class="mc-day${today?' today':''}" onclick="gotoDate(new Date(${m.getFullYear()},${m.getMonth()},${dt}))">${dt}${has?'<span class="pip"></span>':''}</div>`}
   return `<div class="minical"><div class="mc-h">${monthLabel(0)}</div><div class="mc-grid">${DOW.map(d=>`<span>${d[0]}</span>`).join('')}${cells}</div></div>`;}
 function buildGeneric(p){const g=$('genericView');
+  /* ===== v131 (Q61) — every page build starts at the top =================
+     #genericView is ONE container reused by every generic page, so its
+     scrollTop carried across navigations: scrolled To Schedule to 600, went
+     to Rates, landed at 632; came back, landed at 683. Replacing innerHTML
+     does NOT clear it -- Chrome's scroll anchoring re-anchors after the
+     mutation and the position creeps roughly +51px per rebuild.
+
+     The reset sits HERE, at the top, rather than at the foot of each branch,
+     because this function is a dispatcher with eleven early returns (dealers,
+     customers, inventory, quickquote, rates, reports, dashboard, issues and
+     outstanding each hand off and return) and there is no single end to put
+     it at. Zero needs no clamping against content height the way a non-zero
+     value would, and zeroing before the mutation also removes the anchor the
+     creep is measured from, so it holds either way. Verified at 390px and on
+     desktop after the change.
+
+     TRADE-OFF, deliberate and Michael's call: buildGeneric is also the
+     REFRESH path (loadJobs and a few save handlers call it to repaint the
+     list you are on), so a background refresh now returns you to the top
+     instead of leaving you where you were. If that proves annoying in the
+     field the reset moves to navTo() instead -- one line, and it would then
+     fire only on a real page change, with .generic{overflow-anchor:none}
+     covering the creep. */
+  g.scrollTop=0;
   if(p==='toschedule'){const ready=queue.filter(readyToSchedule);const awaiting=queue.filter(stillAwaiting).length;
     g.innerHTML=`<div class="ts-wrap"><div class="ts-main"><div class="gp-head">To Schedule</div><div class="gp-sub">${ready.length} jobs ready to book.${awaiting?` ${awaiting} more awaiting product in Receiving.`:''}</div>${ready.map(j=>{const aw=partialAwaiting(j)?`<span class="awtag light">⏳ awaiting product</span>`:'';return `<div class="grow" style="cursor:pointer" onclick="openDrawer('${j.id}')"><span class="gt" style="background:rgba(216,198,160,.28);color:#7a6c45">${j.type}</span><div style="flex:1"><div class="gname">${j.cust} ${aw}</div><div class="gmeta">${j.scope} · ${j.addr}</div></div><div class="gmeta">${j.dealer}</div></div>`}).join('')||'<div class="empty"><h3>Queue is clear</h3><p>No jobs ready to schedule.</p></div>'}</div><div class="ts-side">${miniCal()}</div></div>`;return}
   if(p==='installers'){markConflicts();g.innerHTML=`<div class="rate-top"><div><div class="gp-head">Users</div><div class="gp-sub">Team load &amp; pay setup. Pay type drives cost and margin.</div></div><button class="btn" data-admin onclick="openAddUser()">+ Add User</button></div><div class="gcards">${INSTALLERS.filter(i=>i.id!=='un').map(i=>{const inact=i.status==='inactive';const jobs=appts.filter(a=>a.installer===i.id);const conf=jobs.filter(a=>a._conflict).length;const pay=i.payType==='sub_1099'?`1099 · ${i.payRate||0}% of price`:`${i.payType==='salary'?'Salary':'Hourly'} · ${fmtMoney(i.payRate||0)}/hr`;return `<div class="gcard${inact?' ginactive':''}"><h4>${roleIco(i.companyRole)}${i.name}${inact?'<span class="ibadge">Inactive</span>':''}<button class="pedit" onclick="editInstaller('${i.id}')">Profile</button></h4>${i.companyRole?'<div class="irole">'+esc(i.companyRole)+'</div>':''}<div class="gstat"><div><b>${jobs.length}</b>jobs this week</div><div><b style="color:${conf?'#d9605c':'var(--ink)'}">${conf}</b>conflicts</div></div><div class="ipay">${pay}</div></div>`}).join('')}</div>`;return}
@@ -8928,7 +9025,7 @@ function editService(id){if(!IS_ADMIN)return;const s=id?SERVICES.find(x=>x.id===
   $('svcType').value=(s&&s.item_type==='service')?'service':'product';
   $('svcActive').checked=s?s.active!==false:true;
   $('svcDelete').style.display=s?'inline-flex':'none';
-  editingSvc=id||null;$('svcBg').classList.add('open');}
+  editingSvc=id||null;openBg('svcBg');}
 let editingSvc=null;
 async function saveService(){if(!IS_ADMIN)return;const name=$('svcName').value.trim();if(!name){toast('Enter a name',true);return;}
   const unit=$('svcUnit').value;const priceRaw=$('svcPrice').value.trim();
@@ -9233,7 +9330,7 @@ function apptWhen(a){const p=String(a.dateKey||'').split('-').map(Number);
 function recvNotes(jobId){const j=recvFind(jobId);if(!j)return;
   $('rnoteName').textContent=j.cust;
   const ta=$('rnoteNew');if(ta)ta.value='';
-  $('rnoteBg').classList.add('open');
+  openBg('rnoteBg');
   noteLoad(NOTE_RECV,jobId);}
 function recvNotesClose(){$('rnoteBg').classList.remove('open');}
 $('rnoteClose').onclick=recvNotesClose;
@@ -9473,7 +9570,7 @@ function toggleLine(jobId,lineId){
       +'the ⏳ product flag again so dispatch can see the stock is no longer '
       +'confirmed.</p>';}
   $('unrecvBody').innerHTML=h;
-  $('unrecvBg').classList.add('open');}
+  openBg('unrecvBg');}
 
 function unrecvClosePopup(){_unrecv=null;$('unrecvBg').classList.remove('open');}
 $('unrecvClose').onclick=unrecvClosePopup;
@@ -9802,12 +9899,14 @@ sb.auth.onAuthStateChange((ev)=>{
   /* doRecovery signs out on purpose after setting the new password. The
      gateMode guard stops this handler repainting a blank sign-in form over
      the confirmation message that follows it. */
-  if(ev==='SIGNED_OUT'){PROFILE=null;AUTH_UID=null;TODOS=[];IS_ADMIN=false;document.body.classList.add('role-installer');
+  /* v131 (Q60): sign-out tears the viewer down too. A signed-out gate must not
+     sit under a live PDF iframe holding a signed URL. */
+  if(ev==='SIGNED_OUT'){closeViewer();PROFILE=null;AUTH_UID=null;TODOS=[];IS_ADMIN=false;document.body.classList.add('role-installer');
     /* v107: forget this tab's page and the dashboard's per-user choices, so
        the next sign-in starts clean on the Dashboard. */
     LOGIN_FRESH=false;try{sessionStorage.removeItem('pl.page');}catch(err){}dbReset();
     if(gateMode!=='recovery'){gateMode='signin';gateForm();}}});
-$('siSignOut').onclick=async e=>{e.stopPropagation();menu.classList.remove('open');await sb.auth.signOut();};
+$('siSignOut').onclick=async e=>{e.stopPropagation();closeViewer();menu.classList.remove('open');await sb.auth.signOut();};
 resolveSession();
 </script>
 </body>
