@@ -8104,7 +8104,11 @@ function dbReset(){DB.chP='week';DB.chFrom='';DB.chTo='';DB.agP='today';DB.agFro
 function dbSchedule(){if(!DB_LIVE||!DB_LIVE[page]||_dbTimer)return;_dbTimer=setTimeout(function(){_dbTimer=0;const f=DB_LIVE[page];if(f)f();},0);}
 /* v108: every page that must follow job and appointment changes live, and how
    it redraws. The work queues rebuild whole: they hold no input to lose. */
-var DB_LIVE={dashboard:function(){dbRefresh();},issues:function(){buildWorkQueue('issues');},outstanding:function(){buildWorkQueue('outstanding');}};
+var DB_LIVE={dashboard:function(){dbRefresh();},issues:function(){buildWorkQueue('issues');},outstanding:function(){buildWorkQueue('outstanding');},
+  /* v132 (Q59): the upcoming list follows appointment changes live for the
+     same reason the work queues do -- it holds no input to lose, and a job
+     rescheduled or completed elsewhere must leave it without a refresh. */
+  upcoming:function(){buildWorkQueue('upcoming');}};
 function dbIsDesk(){return IS_ADMIN&&!MOBILE_Q.matches;}
 /* Who the signed-in user is, via current_profile()'s installer_id. Resolves to
    null until INSTALLERS has loaded, so defaults are re-derived on every draw
@@ -8289,19 +8293,75 @@ function dbRefresh(){if(page!=='dashboard')return;
    (both pages are in ADMIN_PAGES). */
 function issueAppts(){return appts.filter(a=>!isTask(a)&&a.status==='issue');}
 function outstandingAppts(){return appts.filter(a=>!isTask(a)&&isOutstanding(a));}
+/* ===== Q59 (v132) — MY upcoming work, today forward, no cap ==============
+   This REPLACES the field dashboard's inline 14-day Upcoming panel; it does
+   not sit beside it. The panel's definition is deleted with it, so the app
+   still holds exactly ONE definition of "my future work" rather than two
+   that can drift.
+
+   The rule, and why each clause is there:
+
+   - `a.installer===id` — the signed-in user's own appointments only, via the
+     existing myInstallerId(). There is deliberately no person filter on this
+     page: it is a personal shortcut, and the Agenda already exists for
+     looking at somebody else's schedule.
+   - `a.dateKey>=from` — from TODAY, not after today. The old panel used
+     `>today` and said so on its face ("Your next 14 days, after today"),
+     which is the single biggest reason it felt useless on a phone: the
+     appointment you most want is usually the next one, and that is normally
+     later the same day. A job booked for this morning and still in progress
+     therefore STAYS on the list. It is literally the work you are doing.
+   - `!isDone(a)` — a completed or closed job drops off even when it is dated
+     today, because at 6am-finished it is no longer upcoming. isDone() is the
+     app's existing shared helper (`done` or `closed`), reused rather than
+     re-derived, so this introduces no new status vocabulary.
+   - Nothing else is filtered. An appointment with an **issue reported** or
+     **on hold** stays: it is still on your calendar and it is precisely the
+     one that needs you. Hiding it would hide the exception.
+
+   ⚠ What this deliberately does NOT include: an appointment scheduled in the
+   PAST that was never completed. That is overdue, not upcoming, and folding
+   it in would quietly turn a schedule into a chase-list and put stale work
+   above tomorrow under "soonest first". Nothing in the app surfaces that set
+   today; it wants its own view and its own name, not a smuggled clause here.
+
+   Tasks are included, and a ticked-off Task stays on the list struck through
+   rather than vanishing -- exactly what the Agenda does with the same
+   dbTaskRow. A Task's checkbox is a calendar note, not the job lifecycle
+   isDone() describes, which is why the two are treated differently. */
+function upcomingAppts(){const id=myInstallerId();if(!id)return [];
+  const from=_ymd(TODAY);
+  return appts.filter(a=>a.installer===id&&a.dateKey&&a.dateKey>=from&&!isDone(a));}
+/* v132: the three list pages are one pattern with three descriptions. `when`,
+   `who` and `tasks` default to exactly what the two v108 work queues already
+   did, so issues and outstanding render identically to v131. */
 const WQ={
   issues:{list:issueAppts,title:'Issues Reported',
     sub:function(n){return n+' job'+(n===1?'':'s')+' with an issue reported, oldest first. Open one to resolve it.';},
     empty:'No open issues.'},
   outstanding:{list:outstandingAppts,title:'Completed, not closed',
     sub:function(n){return n+' completed job'+(n===1?'':'s')+' not yet closed out, oldest first.';},
-    empty:'Nothing waiting to be closed.'}};
+    empty:'Nothing waiting to be closed.'},
+  /* when:'md' -- "Sep 23 · 1p". This list has no cap and can run into next
+     month, so the work queues' 'full' (a date with no time) is wrong for a
+     schedule and the Agenda's weekday form ("Mon 21 · 9a") is ambiguous past
+     four weeks. who:false -- every row is yours, so stamping your own name on
+     all of them is noise. */
+  upcoming:{list:upcomingAppts,title:'Upcoming Appointments',when:'md',who:false,tasks:true,
+    sub:function(n){return myInstallerId()
+      ?n+' appointment'+(n===1?'':'s')+' from today on, soonest first. Yours only.'
+      :'Your personal schedule.';},
+    empty:function(){return myInstallerId()
+      ?'Nothing scheduled from today on.'
+      :'Your login is not linked to an installer, so there is no personal schedule to show.';}}};
 function buildWorkQueue(kind){const g=$('genericView'),Q=WQ[kind];if(!Q)return;
   const rows=dbSortAppts(Q.list());
+  const when=Q.when||'full',who=Q.who!==false;
+  const empty=(typeof Q.empty==='function')?Q.empty():Q.empty;
   g.innerHTML='<div class="db">'
     +'<div class="db-back" onclick="navTo(\'dashboard\')">‹ Dashboard</div>'
     +'<div class="gp-head">'+Q.title+'</div><div class="gp-sub">'+Q.sub(rows.length)+'</div>'
-    +'<div class="db-card">'+(rows.length?rows.map(a=>dbJobRow(a,'full',true)).join(''):'<div class="db-empty">'+Q.empty+'</div>')+'</div></div>';}
+    +'<div class="db-card">'+(rows.length?rows.map(a=>(Q.tasks&&isTask(a))?dbTaskRow(a,when,who):dbJobRow(a,when,who)).join(''):'<div class="db-empty">'+empty+'</div>')+'</div></div>';}
 function dbGoUnassigned(){navTo('scheduler');showUnassigned();}
 function dbGoUnassignedToday(){gotoDate(TODAY);showUnassigned();}
 
@@ -8612,19 +8672,24 @@ function dbxChartsHtml(){const P=dbxResolve(DB.chP,DB.chFrom,DB.chTo);
 function dbTilesHtml(){
   const t=function(key,label,act,cls){return '<div class="db-tile'+(cls?' '+cls:'')+(DB.panel===key?' on':'')+'" onclick="'+act+'">'+DB_ICONS[key]+'<span>'+label+'</span></div>';};
   return t('today','Today’s Schedule','gotoDate(TODAY)','wide')
-    +t('upcoming','Upcoming Appointments',"dbPanel('upcoming')")
+    /* v132 (Q59): this tile used to toggle an inline panel that rendered at
+       the FOOT of the dashboard -- measured at 390x844, the tile sits at
+       y=244 and the panel it opened at y=1396, some 550px below the fold.
+       Tapping it looked like nothing happened, which is why it read as going
+       nowhere. It now navigates to a real page, like Customers and Dealers
+       already do. */
+    +t('upcoming','Upcoming Appointments',"navTo('upcoming')")
     +t('customers','Customers',"navTo('customers')")
     +t('docs','My Docs',"dbPanel('docs')")
     +t('dealers','Dealers',"navTo('dealers')");}
 function dbPanel(k){DB.panel=DB.panel===k?null:k;if(DB.panel==='docs')dbLoadDocs();else dbRefresh();}
-const DB_UPCOMING_DAYS=14;
+/* v132 (Q59): the inline 14-day Upcoming panel is GONE. The tile it belonged
+   to now opens the real Upcoming Appointments page (buildWorkQueue), whose
+   upcomingAppts() carries the one definition of "my future work". The panel
+   is not kept alongside it: two lists of the same thing, one capped at 14
+   days and excluding today and one not, is exactly the drift worth deleting.
+   DB.panel now only ever holds 'docs' or null. */
 function dbPanelHtml(){
-  if(DB.panel==='upcoming'){const id=myInstallerId();
-    if(!id)return '<div class="db-card"><h3>Upcoming appointments</h3><div class="db-empty" style="margin-top:8px">Your login is not linked to an installer, so there is no personal schedule to show.</div></div>';
-    const from=_ymd(TODAY),e=new Date(TODAY);e.setDate(e.getDate()+DB_UPCOMING_DAYS);const to=_ymd(e);
-    const items=dbSortAppts(appts.filter(a=>a.installer===id&&a.dateKey&&a.dateKey>from&&a.dateKey<=to));
-    return '<div class="db-card"><h3>Upcoming appointments</h3><div class="gmeta" style="margin:2px 0 10px">Your next '+DB_UPCOMING_DAYS+' days, after today</div>'
-      +(items.length?items.map(a=>isTask(a)?dbTaskRow(a,true,false):dbJobRow(a,true,false)).join(''):'<div class="db-empty">Nothing scheduled.</div>')+'</div>';}
   if(DB.panel==='docs'){
     let body;
     if(DB.docsState==='loading')body='<div class="db-empty">Loading…</div>';
@@ -8680,11 +8745,14 @@ async function dbQuickAdd(){if(DB.qaBusy)return;
 /* v107: the page registry, lifted out of navTo so boot can validate a page
    name restored from sessionStorage before navigating to it. */
 const PAGE_TITLES={dashboard:'Dashboard',scheduler:'Scheduler',toschedule:'To Schedule',quickquote:'Quick Quote',installers:'Users',dealers:'Dealers',customers:'Customers',inventory:'Receiving',rates:'Service Rates',reports:'Reports',
-  issues:'Issues Reported',outstanding:'Completed, Not Closed'};
+  issues:'Issues Reported',outstanding:'Completed, Not Closed',upcoming:'Upcoming Appointments'};
 /* v108: pages with no sidebar entry of their own light up their parent. The
    two work queues are reached from the dashboard counts, so Dashboard stays
-   highlighted while you work through one. */
-const NAV_PARENT={issues:'dashboard',outstanding:'dashboard'};
+   highlighted while you work through one.
+   v132 (Q59): Upcoming Appointments is reached from a dashboard tile and
+   behaves the same way. It is deliberately NOT in ADMIN_PAGES -- it is a
+   personal schedule and an installer is exactly who needs it. */
+const NAV_PARENT={issues:'dashboard',outstanding:'dashboard',upcoming:'dashboard'};
 function navTo(p){if(!PAGE_TITLES[p])p='dashboard';if(!IS_ADMIN&&ADMIN_PAGES.has(p))p='scheduler';
   closeViewer();   /* v131 (Q60): a page change must never leave the viewer up */
   page=p;const navKey=NAV_PARENT[p]||p;document.querySelectorAll('.nav-item').forEach(n=>n.classList.toggle('active',n.dataset.page===navKey));
@@ -8747,7 +8815,7 @@ function buildGeneric(p){const g=$('genericView');
   if(p==='rates'){buildRates();return}
   if(p==='reports'){buildReports();return}
   if(p==='dashboard'){buildDashboard();return}
-  if(p==='issues'||p==='outstanding'){buildWorkQueue(p);return}}
+  if(p==='issues'||p==='outstanding'||p==='upcoming'){buildWorkQueue(p);return}}
 
 /* ===== Dealers — master/detail (v22).
    The list sources from DEALERS, not from job rows, so accounts with no live
