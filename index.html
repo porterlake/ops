@@ -1511,6 +1511,45 @@ body.dragging .calmore-pop{pointer-events:none}
      vertical scroll feel loose. min-width:0 lets the row shrink. */
   .lirow>*,.msdim>*,.filepdf>*,.fileadd>*,.ipconfirm>*,.fld2>*{min-width:0}
   .lirow input,.msdim input,.msdim select,.fileadd select{width:100%;max-width:100%}
+
+  /* ===== v130 (Q55) — RECEIVING, the awaiting card on a phone =============
+     MEASURED, not guessed: .lrow is a flex row with NO wrap, and two of its
+     children refuse to give way — .ladd is flex-shrink:0 around two fixed
+     62px inputs and an Add button (176px in all), and the .lstat badge has no
+     shrink either. Only .ld could shrink, so at 390px the row's content came
+     to 365px inside a 286px box and the badge sat at x=417 on a 390px screen.
+     The page did not scroll sideways because an ancestor clips overflow-x —
+     so the qty and box inputs were simply CUT OFF, which is what Matthew sees.
+     It is not the iOS 16px rule: these inputs were 12.5px and are NOT in that
+     rule's selector list, so they ALSO zoomed the page on focus and never
+     zoomed back. Both are fixed here.
+     The row now wraps: check + description + badge on the first line, and the
+     entry controls on their own full-width line beneath, where they get real
+     tap targets. ===================================================== */
+  .lrow{flex-wrap:wrap;gap:8px 10px}
+  .lrow .ld{flex:1 1 150px;min-width:0}
+  .lrow .lstat{flex:0 0 auto;margin-left:auto}
+  /* min-width:0 is REQUIRED: a flex item defaults to min-width:auto, so
+     without it .ladd cannot shrink below the intrinsic width of the two
+     number inputs and grows past the card instead of taking the row it was
+     given. This is the same automatic-minimum trap as .lirow>*. */
+  .lrow .ladd{flex:1 1 100%;order:9;gap:6px;min-width:0}
+  .lrow .ladd input{flex:1 1 0;width:auto;min-width:0;font-size:16px;padding:9px 10px}
+  .lrow .ladd button{flex:0 0 auto;padding:9px 16px;font-size:13px}
+
+  /* ===== v130 (Q54) — NEW JOB line items on a phone ======================
+     The proportions were backwards: .lidesc is flex:1 (basis 0%) while
+     .liqty/.liprice inherit width:100% from the rule above, so the two number
+     boxes each claimed the full row as their flex basis and the SEARCH — the
+     one control that needs room — was left at 22px. On a phone the search now
+     takes a line of its own and the numbers share the line below it.
+     Not a v129 regression: v128 measured 22 / 124 / 124 too. ============= */
+  .lirow .litop{flex-wrap:wrap}
+  .lirow .lidesc{flex:1 1 100%;width:100%}
+  .lirow .liqty{flex:0 0 74px;width:74px}
+  .lirow .liprice{flex:1 1 90px;width:auto;min-width:0}
+  .lirow .lilt{flex:1 1 auto;width:auto;text-align:right}
+  .lirow .lidel{flex:0 0 34px}
   /* The document type picker plus its Add button genuinely do not fit side by
      side on a small phone, so let that one row wrap instead of squeezing. */
   .fileadd{flex-wrap:wrap}
