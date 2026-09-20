@@ -502,7 +502,10 @@
   .liprice{width:92px}
   .liprice.locked{opacity:.75;cursor:not-allowed}
   .lilt{width:82px;text-align:right;font-weight:600;color:var(--sand-ink);font-size:13px;white-space:nowrap}
-  .limeta{font-size:11px;color:var(--muted);padding-left:2px;min-height:0}
+  /* v129: the line box has to fit the taller control now sitting in it, so
+     the status text beside it (custom line, min applied, quote) is not clipped
+     or jammed against the row above. */
+  .limeta{font-size:11px;color:var(--muted);padding-left:2px;min-height:0;line-height:2.1}
   /* v119: the per-line discount control lives on the .limeta line, not in
      .litop. .litop is already four controls plus a delete button and has to
      survive a phone; .limeta is where a line already says it is custom, a
@@ -516,8 +519,16 @@
      lines it cannot apply to. Same partner-rule pattern as .vwnav, .ipconfirm
      and .btn. */
   .lidctl[hidden]{display:none}
-  .lidctl select,.lidctl input{font:inherit;font-size:10.5px;font-weight:600;padding:2px 6px;border-radius:6px;background:var(--side-3);border:1px solid var(--side-border);color:var(--sand-ink);outline:none;cursor:pointer}
-  .lidctl input{width:54px;cursor:text}
+  /* v129 (Q38 remainder): 10.5px text in 2px of padding drew a 24px-tall
+     control that was hard to read and harder to tap, and because .lidctl is an
+     inline-flex span the control sized to its own label - so widening the
+     drawer never helped it, at any width. The OPEN list was already 13.5px;
+     only the closed control was small. 13px text with real padding now, which
+     is the size of the other compact selects in the app (.db-sel is 12.5px).
+     It stays on .limeta, the second tier, exactly where v119 put it: .litop is
+     four controls plus a delete button and has to survive a phone. */
+  .lidctl select,.lidctl input{font:inherit;font-size:13px;font-weight:600;padding:6px 10px;border-radius:8px;background:var(--side-3);border:1px solid var(--side-border);color:var(--sand-ink);outline:none;cursor:pointer}
+  .lidctl input{width:64px;cursor:text}
   .pejobdisc{display:flex;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap}
   .pejobdisc input{width:72px;font:inherit;font-size:12.5px;padding:5px 8px;border-radius:7px;background:var(--side-3);border:1px solid var(--side-border);color:var(--sand-ink);outline:none}
   .lidctl select:hover,.lidctl input:focus{border-color:var(--accent-line)}
@@ -733,6 +744,15 @@
   .durrow select:focus{border-color:var(--accent)}
   .durx{color:var(--sand-dim);font-size:12px;font-weight:600;margin-left:-3px}
   .rate-top{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:14px}
+  /* v129 (Q52): the button is not the thing that should give way. Both
+     children of this flex row default to flex-shrink:1, so on a phone the grey
+     sub-head kept claiming width and the BUTTON was squeezed below its own
+     label, which then broke over two lines. The text column shrinks and wraps
+     instead - that is what prose does - and min-width:0 is what lets it, since
+     a flex item will not shrink past min-content without it. No effect on the
+     desk, where this row has width to spare. */
+  .rate-top>div{min-width:0}
+  .rate-top .btn{flex:0 0 auto;white-space:nowrap}
   .rate-search{width:100%;background:var(--card);border:1px solid var(--border);color:var(--ink);font:inherit;font-size:14px;padding:11px 14px;border-radius:10px;outline:none;margin-bottom:16px}
   .rate-search:focus{border-color:var(--accent-line)}
   .rate-cat{display:flex;align-items:center;gap:8px;font-size:11px;font-weight:800;letter-spacing:1.3px;text-transform:uppercase;color:var(--sand-dim);margin:18px 0 8px;padding-bottom:6px;border-bottom:1px solid var(--border)}
@@ -1307,8 +1327,9 @@ body.dragging .calmore-pop{pointer-events:none}
     background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23a99c7e' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
     background-repeat:no-repeat;background-position:right 10px center;background-size:12px;
     padding-right:30px;cursor:pointer}
-  /* the line control is small; it needs a tighter chevron than a .fld select */
-  .lidctl select{background-position:right 6px center;background-size:10px;padding-right:20px}
+  /* v129: the chevron follows the control back to a normal size - still
+     tighter than a .fld select, but no longer a 10px mark on a 24px box. */
+  .lidctl select{background-position:right 8px center;background-size:12px;padding-right:26px}
   .fld select:hover,.durrow select:hover{border-color:var(--accent-line)}
   .fld select option,.durrow select option{background:var(--side-2);color:var(--sand-ink)}
 
@@ -8582,7 +8603,7 @@ function miniCal(){const m=monthAnchor(0),offset=(m.getDay()+6)%7,dim=daysInMont
 function buildGeneric(p){const g=$('genericView');
   if(p==='toschedule'){const ready=queue.filter(readyToSchedule);const awaiting=queue.filter(stillAwaiting).length;
     g.innerHTML=`<div class="ts-wrap"><div class="ts-main"><div class="gp-head">To Schedule</div><div class="gp-sub">${ready.length} jobs ready to book.${awaiting?` ${awaiting} more awaiting product in Receiving.`:''}</div>${ready.map(j=>{const aw=partialAwaiting(j)?`<span class="awtag light">⏳ awaiting product</span>`:'';return `<div class="grow" style="cursor:pointer" onclick="openDrawer('${j.id}')"><span class="gt" style="background:rgba(216,198,160,.28);color:#7a6c45">${j.type}</span><div style="flex:1"><div class="gname">${j.cust} ${aw}</div><div class="gmeta">${j.scope} · ${j.addr}</div></div><div class="gmeta">${j.dealer}</div></div>`}).join('')||'<div class="empty"><h3>Queue is clear</h3><p>No jobs ready to schedule.</p></div>'}</div><div class="ts-side">${miniCal()}</div></div>`;return}
-  if(p==='installers'){markConflicts();g.innerHTML=`<div class="rate-top"><div><div class="gp-head">Users</div><div class="gp-sub">Team load &amp; pay setup. Pay type drives cost and margin.</div></div><button class="btn" data-admin onclick="openAddUser()">+ Add user</button></div><div class="gcards">${INSTALLERS.filter(i=>i.id!=='un').map(i=>{const inact=i.status==='inactive';const jobs=appts.filter(a=>a.installer===i.id);const conf=jobs.filter(a=>a._conflict).length;const pay=i.payType==='sub_1099'?`1099 · ${i.payRate||0}% of price`:`${i.payType==='salary'?'Salary':'Hourly'} · ${fmtMoney(i.payRate||0)}/hr`;return `<div class="gcard${inact?' ginactive':''}"><h4>${roleIco(i.companyRole)}${i.name}${inact?'<span class="ibadge">Inactive</span>':''}<button class="pedit" onclick="editInstaller('${i.id}')">Profile</button></h4>${i.companyRole?'<div class="irole">'+esc(i.companyRole)+'</div>':''}<div class="gstat"><div><b>${jobs.length}</b>jobs this week</div><div><b style="color:${conf?'#d9605c':'var(--ink)'}">${conf}</b>conflicts</div></div><div class="ipay">${pay}</div></div>`}).join('')}</div>`;return}
+  if(p==='installers'){markConflicts();g.innerHTML=`<div class="rate-top"><div><div class="gp-head">Users</div><div class="gp-sub">Team load &amp; pay setup. Pay type drives cost and margin.</div></div><button class="btn" data-admin onclick="openAddUser()">+ Add User</button></div><div class="gcards">${INSTALLERS.filter(i=>i.id!=='un').map(i=>{const inact=i.status==='inactive';const jobs=appts.filter(a=>a.installer===i.id);const conf=jobs.filter(a=>a._conflict).length;const pay=i.payType==='sub_1099'?`1099 · ${i.payRate||0}% of price`:`${i.payType==='salary'?'Salary':'Hourly'} · ${fmtMoney(i.payRate||0)}/hr`;return `<div class="gcard${inact?' ginactive':''}"><h4>${roleIco(i.companyRole)}${i.name}${inact?'<span class="ibadge">Inactive</span>':''}<button class="pedit" onclick="editInstaller('${i.id}')">Profile</button></h4>${i.companyRole?'<div class="irole">'+esc(i.companyRole)+'</div>':''}<div class="gstat"><div><b>${jobs.length}</b>jobs this week</div><div><b style="color:${conf?'#d9605c':'var(--ink)'}">${conf}</b>conflicts</div></div><div class="ipay">${pay}</div></div>`}).join('')}</div>`;return}
   if(p==='dealers'){buildDealers();return}
   if(p==='customers'){buildCustomers();return}
   if(p==='inventory'){RECV_NOTE_N=null;buildReceiving();return}
