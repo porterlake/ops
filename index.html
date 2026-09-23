@@ -1844,6 +1844,7 @@ body.dragging .calmore-pop{pointer-events:none}
           <div class="fld"><label>Email</label><input id="instEmail" type="email" placeholder="name@example.com"></div>
         </div>
         <div class="fld"><label>Login</label>
+          <div class="limeta" id="instLoginStatus" style="padding:0 2px 8px"></div>
           <button class="btn ghost" id="instResetBtn" onclick="ipResetConfirm()" disabled>Reset password</button>
           <div class="ipconfirm" id="instResetConfirm" hidden>
             <button class="btn" id="instResetYes" onclick="ipResetPassword()">Send reset link</button>
@@ -1918,7 +1919,8 @@ body.dragging .calmore-pop{pointer-events:none}
         <option value="salary">Salary &#183; allocated $/hr</option>
       </select></div>
       <div class="fld"><label id="auRateLbl">Hourly rate ($/hr)</label><input id="auRate" type="number" step="0.01" placeholder="0"></div>
-      <div class="limeta" style="padding:0 2px">Creates a staff record so this person can be scheduled and paid. It does not create a login. To give them access, add them to the profiles allowlist and have them register with this email address.</div>
+      <div class="fld"><label class="chkrow"><input type="checkbox" id="auInvite"><span>Send a sign-in invite to this email</span></label></div>
+      <div class="limeta" style="padding:0 2px">Creates a staff record so this person can be scheduled and paid. Tick the box to also email them an invite: they click the link, choose a password and are signed in. Invites give Admin access, the only level until roles arrive. You can send or resend an invite later from their profile.</div>
     </div>
     <div class="modal-f"><div style="flex:1"></div><button class="btn ghost" onclick="$('auBg').classList.remove('open')">Cancel</button><button class="btn" id="auSave" onclick="saveNewUser()">Create user</button></div>
   </div></div>
@@ -6692,7 +6694,7 @@ async function editInstaller(id){if(!IS_ADMIN)return;const i=INSTALLERS.find(x=>
   ['instPhone','instEmail','instAddress','instDob','instStart'].forEach(k=>{$(k).value='';});
   $('instEmpType').value='';$('instRole').value='';$('instEmpStatus').value=i.status||'active';ipStatusHint();
   $('ipDocsInternal').innerHTML='';$('ipDocsMine').innerHTML='';
-  $('instResetBtn').disabled=true;$('instResetMsg').textContent='';ipResetArm(false);
+  $('instResetBtn').disabled=true;$('instResetMsg').textContent='';$('instLoginStatus').textContent='';ipResetArm(false);
   ipTab('info');openBg('instBg');
   /* The profile columns are read here, for ONE installer, rather than being
      added to loadInstallers(). That query runs for every signed-in user on
@@ -6708,60 +6710,97 @@ async function editInstaller(id){if(!IS_ADMIN)return;const i=INSTALLERS.find(x=>
     $('instRole').value=data.company_role||'';
     $('instDob').value=ipDate(data.dob);$('instStart').value=ipDate(data.start_date);
     $('instEmpStatus').value=data.employment_status||'active';ipStatusHint();}
-  await ipLoginCheck(id,(data&&data.email)||'');
+  await ipLoginCheck(id);
   await ipRefreshDocs();}
-/* Whether an installer has a login is answered by installer_has_login(), an
-   admin-gated SECURITY DEFINER function. The app deliberately does not read
-   public.profiles directly - it never has, and opening that table to client
-   reads just to answer one yes/no question would be a poor trade.
+/* ===== Login status and invites (v133, Q66) ===========================
+   The Login block reads team_login_status(), an admin-gated SECURITY DEFINER
+   function keyed on profiles.installer_id and joined to auth.users on
+   user_id. It replaced installer_has_login(), which joined on EMAIL and so
+   reported "no login" for anyone whose staff-record email differs from their
+   login email -- Michael's does (mike@porterlakeshades.com on the staff
+   record, mike@porterlake.com on the login). The app still never reads
+   public.profiles directly.
 
-   The link between the two is the email address and nothing else: installers
-   carries no profile_id. If someone's login email differs from the one typed
-   here, this reports no account when they have one. A profile_id column is
-   the durable fix and belongs with the role system. */
-async function ipLoginCheck(id,email){
-  const btn=$('instResetBtn'),msg=$('instResetMsg');
-  btn.disabled=true;ipResetArm(false);
-  const e=(email||'').trim();
-  msg.textContent='Checking for a login account…';
-  /* Keyed on the installer id, NOT on a typed email. public.profiles carries
-     installer_id, which is the real relationship between a person and their
-     login; matching on an email string was a workaround for a link that
-     already existed and could drift the moment the two differed. */
-  const {data,error}=await sb.rpc('installer_has_login',{p_installer_id:id});
+   One button, three meanings, chosen from the status:
+     no profile row, or not_invited  -> Send invite    (invite-user function)
+     invited                         -> Resend invite  (invite-user function)
+     active                          -> Reset password (resetPasswordForEmail)
+   The ids stay instReset* from v73, so the .btn[hidden] partner rule and the
+   arm/confirm pattern are untouched; IP_LOGIN.mode says what the button does.
+   The address used is always the LOGIN email from the status row. The typed
+   staff email is used only for a first invite, when no login exists yet.
+   Invites give Admin access: it is the only level until Q17, and
+   team_invite_prepare refuses anything else. */
+let IP_LOGIN={mode:null,email:''};
+const IP_LOGIN_TXT={
+  invite:{btn:'Send invite',yes:'Send invite',ask:'Send an invite to ',idle:'Sends an invite to ',tail:'. They choose a password from the email and get Admin access.'},
+  resend:{btn:'Resend invite',yes:'Resend invite',ask:'Resend the invite to ',idle:'Sends the invite again to ',tail:'.'},
+  reset:{btn:'Reset password',yes:'Send reset link',ask:'Send a password reset link to ',idle:'Sends a password reset link to ',tail:'.'}};
+function ipLoginWhen(ts){if(!ts)return '';const d=new Date(ts);
+  return isNaN(d)?'':d.toLocaleDateString(undefined,{month:'short',day:'numeric',year:'numeric'});}
+function ipLoginEmail(){return IP_LOGIN.mode==='invite'&&!IP_LOGIN.email?($('instEmail').value||'').trim():IP_LOGIN.email;}
+async function ipLoginCheck(id){
+  const btn=$('instResetBtn'),msg=$('instResetMsg'),st=$('instLoginStatus');
+  btn.disabled=true;ipResetArm(false);IP_LOGIN={mode:null,email:''};
+  st.textContent='Checking for a login…';msg.textContent='';
+  const {data,error}=await sb.rpc('team_login_status');
   /* The admin can close this popup and open another while the call is in
-     flight; a late answer must not light up the wrong installer's button. */
+     flight; a late answer must not light up the wrong person's button. */
   if(editingInst!==id)return;
-  if(error){console.error('installer_has_login',error);msg.textContent='Login check failed — the database error is in the browser console.';return;}
-  if(!data){msg.textContent='No login account for this user.';return;}
-  /* They have a login, but the link still needs somewhere to go and
-     resetPasswordForEmail takes an address, not an id. */
-  if(!e){msg.textContent='This user has a login, but no email address is saved here to send the link to.';return;}
+  if(error){console.error('team_login_status',error);st.textContent='Login check failed — the database error is in the browser console.';return;}
+  const row=(data||[]).find(r=>r.installer_id===id);
+  if(!row){st.textContent='Not invited — no login yet.';IP_LOGIN={mode:'invite',email:''};}
+  else if(row.status==='not_invited'){st.textContent='Not invited — set up for '+row.email+', but the invite has not gone out.';IP_LOGIN={mode:'invite',email:row.email};}
+  else if(row.status==='invited'){const w=ipLoginWhen(row.invited_at);
+    st.textContent='Invited'+(w?' '+w:'')+' — not accepted yet ('+row.email+').';IP_LOGIN={mode:'resend',email:row.email};}
+  else{const w=ipLoginWhen(row.last_sign_in_at);
+    st.textContent='Active — signs in as '+row.email+(w?', last on '+w:'')+'.';IP_LOGIN={mode:'reset',email:row.email};}
+  btn.textContent=IP_LOGIN_TXT[IP_LOGIN.mode].btn;$('instResetYes').textContent=IP_LOGIN_TXT[IP_LOGIN.mode].yes;
   btn.disabled=false;ipResetIdleMsg();}
+/* A first invite reads the typed email, so keep the hint in step with it. */
+$('instEmail').addEventListener('input',()=>{if(IP_LOGIN.mode==='invite'&&!IP_LOGIN.email&&$('instResetConfirm').hidden)ipResetIdleMsg();});
 /* Emailing a staff member should not happen on one stray tap, so the button
    arms a Confirm/Cancel pair in place. Deliberately NOT a second .modal-bg:
    stacking another modal over this one would put a second scroll container
    inside the popup, which is the exact thing the modal chain is built to
    avoid, and it would have to fight instBg for z-index as well. */
 function ipResetArm(on){$('instResetConfirm').hidden=!on;$('instResetBtn').hidden=!!on;}
-function ipResetIdleMsg(){const e=($('instEmail').value||'').trim();
-  $('instResetMsg').textContent=e?'Sends a password reset link to '+e+'.':'';}
+function ipResetIdleMsg(){const t=IP_LOGIN_TXT[IP_LOGIN.mode];
+  if(!t){$('instResetMsg').textContent='';return;}
+  const e=ipLoginEmail();
+  $('instResetMsg').textContent=e?t.idle+e+t.tail:'Add an email address above to send an invite.';}
 function ipResetConfirm(){if(!IS_ADMIN||!editingInst)return;
-  const e=($('instEmail').value||'').trim();if(!e)return;
-  ipResetArm(true);$('instResetMsg').textContent='Send a password reset link to '+e+'?';}
+  const t=IP_LOGIN_TXT[IP_LOGIN.mode],e=ipLoginEmail();if(!t)return;
+  if(!e){$('instResetMsg').textContent='Add an email address above first.';$('instEmail').focus();return;}
+  ipResetArm(true);$('instResetMsg').textContent=t.ask+e+'?';}
 function ipResetCancel(){ipResetArm(false);ipResetIdleMsg();}
 async function ipResetPassword(){
   if(!IS_ADMIN||!editingInst)return;
-  const e=($('instEmail').value||'').trim();if(!e)return;
+  const id=editingInst,mode=IP_LOGIN.mode,e=ipLoginEmail();if(!mode||!e)return;
   const yes=$('instResetYes'),no=$('instResetNo'),msg=$('instResetMsg'),label=yes.textContent;
-  yes.disabled=true;no.disabled=true;yes.textContent='Sending\u2026';
-  /* redirectTo has to be on the project's Redirect URLs allow-list or Supabase
-     quietly substitutes the Site URL instead. location.pathname preserves the
-     /ops/ base path GitHub Pages serves from. */
-  const {error}=await sb.auth.resetPasswordForEmail(e,{redirectTo:location.origin+location.pathname});
+  yes.disabled=true;no.disabled=true;yes.textContent='Sending…';
+  if(mode==='reset'){
+    /* redirectTo has to be on the project's Redirect URLs allow-list or
+       Supabase quietly substitutes the Site URL instead. location.pathname
+       preserves the /ops/ base path GitHub Pages serves from. */
+    const {error}=await sb.auth.resetPasswordForEmail(e,{redirectTo:location.origin+location.pathname});
+    yes.textContent=label;yes.disabled=false;no.disabled=false;ipResetArm(false);
+    if(error){console.error('resetPasswordForEmail',error);toast('Could not send the reset link',true);msg.textContent=error.message||'Send failed.';return;}
+    toast('Reset link sent to <b>'+esc(e)+'</b>');msg.textContent='Reset link sent to '+e+'.';return;}
+  const r=await ipSendInvite(id,e);
   yes.textContent=label;yes.disabled=false;no.disabled=false;ipResetArm(false);
-  if(error){console.error('resetPasswordForEmail',error);toast('Could not send the reset link',true);msg.textContent=error.message||'Send failed.';return;}
-  toast('Reset link sent to <b>'+esc(e)+'</b>');msg.textContent='Reset link sent to '+e+'.';}
+  if(!r.ok){toast('The invite did not send',true);if(editingInst===id)msg.textContent=r.message;return;}
+  toast(r.said+'<b>'+esc(e)+'</b>');
+  await ipLoginCheck(id);
+  if(editingInst===id)msg.textContent=r.said+e+'.';}
+/* The one caller of the invite-user Edge Function; Add User uses it too.
+   The function's own messages are already written for an admin to read, so
+   they are shown as they come. */
+async function ipSendInvite(installerId,email){
+  const r=await invokeFn('invite-user',{installer_id:installerId,email:email});
+  if(!r.ok){console.error('invite-user',r.code,r.message);return {ok:false,message:r.message||'The invite did not send.'};}
+  const a=r.data&&r.data.action;
+  return {ok:true,said:a==='resent'?'Invite resent to ':(a==='reset_sent'?'Set-password link sent to ':'Invite sent to ')};}
 async function saveInstaller(){if(!IS_ADMIN)return;if(!editingInst)return;
   /* A blank name would render as an empty label on every card, calendar
      appointment and PDF line that resolves through instById. Refuse it here
@@ -6786,22 +6825,26 @@ async function saveInstaller(){if(!IS_ADMIN)return;if(!editingInst)return;
      exception - its <option> text is built once - so rebuild it here. */
   populateInstallerFilter();
   $('instBg').classList.remove('open');if(page==='installers')buildGeneric('installers');toast('Profile saved');}
-/* ===== Add User (v117) =================================================
-   Creates a STAFF RECORD and nothing else. There is deliberately no auth work
-   here: no sb.auth call, no write to profiles, no installer_has_login, no
-   invite and no email. A login still needs a profiles allowlist row and the
-   person registering themselves, which is what the note under the form says.
+/* ===== Add User (v117, invite added in v133) ===========================
+   Creates a STAFF RECORD. With "Send a sign-in invite" ticked it then calls
+   ipSendInvite -- the same path as the profile's Send invite button -- which
+   goes through the invite-user Edge Function. The app itself still does no
+   auth work and never writes profiles; team_invite_prepare does that,
+   server-side. A failed invite never undoes the staff record: the person is
+   created either way and the invite can be sent again from their profile.
    Admin-gated twice, exactly as saveInstaller is: data-admin on the button so
    the DOM hides it, and the IS_ADMIN guard below, which is the real one. */
 function auRateUI(){const t=$('auPayType').value,lbl=$('auRateLbl');
   lbl.textContent=t==='sub_1099'?'Percent of job price (%)':(t==='hourly'?'Hourly rate ($/hr)':'Loaded hourly cost ($/hr)');}
 function openAddUser(){if(!IS_ADMIN)return;
   ['auName','auPhone','auEmail','auRate'].forEach(function(k){$(k).value='';});
-  $('auRole').value='';$('auPayType').value='hourly';auRateUI();
+  $('auRole').value='';$('auPayType').value='hourly';$('auInvite').checked=false;auRateUI();
   openBg('auBg');$('auName').focus();}
 async function saveNewUser(){if(!IS_ADMIN)return;
   const nm=($('auName').value||'').trim();
   if(!nm){toast('Name cannot be blank',true);$('auName').focus();return;}
+  const invite=$('auInvite').checked,inviteTo=($('auEmail').value||'').trim();
+  if(invite&&!inviteTo){toast('Add an email address to send an invite',true);$('auEmail').focus();return;}
   const btn=$('auSave');if(btn){btn.disabled=true;btn.textContent='Creating\u2026';}
   /* ACTIVE:TRUE IS SENT EXPLICITLY AND MUST STAY THAT WAY. loadInstallers()
      reads with .eq('active',true) and NOTHING in this app has ever written
@@ -6815,9 +6858,12 @@ async function saveNewUser(){if(!IS_ADMIN)return;
     pay_type:$('auPayType').value||'hourly',
     pay_rate:+$('auRate').value||0,
     phone:ipNz($('auPhone').value),email:ipNz($('auEmail').value)};
-  const {error}=await sb.from('installers').insert(row);
+  /* .select('id') because an invite needs the new person's id. */
+  const {data:made,error}=await sb.from('installers').insert(row).select('id').single();
+  if(error){if(btn){btn.disabled=false;btn.textContent='Create user';}toast('Could not create the user',true);console.error(error);return;}
+  let inv=null;
+  if(invite&&made&&made.id){if(btn)btn.textContent='Sending invite…';inv=await ipSendInvite(made.id,inviteTo);}
   if(btn){btn.disabled=false;btn.textContent='Create user';}
-  if(error){toast('Could not create the user',true);console.error(error);return;}
   /* Re-read rather than push onto the caches. The reload goes back through the
      same active filter the whole app uses, so a row that did NOT land active
      shows up as a missing tile here and now rather than as a mystery later.
@@ -6826,7 +6872,9 @@ async function saveNewUser(){if(!IS_ADMIN)return;
   await loadInstallers();
   $('auBg').classList.remove('open');
   if(page==='installers')buildGeneric('installers');
-  toast('<b>'+esc(nm)+'</b> added');}
+  if(!inv)toast('<b>'+esc(nm)+'</b> added');
+  else if(inv.ok)toast('<b>'+esc(nm)+'</b> added and invited at <b>'+esc(inviteTo)+'</b>');
+  else toast('<b>'+esc(nm)+'</b> added, but the invite did not send: '+esc(inv.message)+' Open their profile to try again.',true,8000);}
 const IP_TYPES={application:'Application',resume:'Resume',tax_w2:'W-2',tax_1099:'1099',insurance:'Insurance',commission_report:'Commission report',coi:'Certificate of insurance',other:'Other'};
 /* v107: optional group narrows the query (the dashboard's My Docs asks for
    'installer' only). A query filter, not a permission -- see Q17. */
@@ -9817,9 +9865,14 @@ if(calWrap){
     swFired=false;e.stopPropagation();e.preventDefault();
   },true);
 }
-/* ===== Auth gate (v20) — email/password + self-service signup (Option B) ===== */
+/* ===== Auth gate (v20) — email/password. Invite-only since v133 (Q66) =====
+   Public sign-up is OFF in the Supabase project and the Sign up toggle is
+   gone. People arrive by an admin's invite (Users > profile > Send invite),
+   which the invite-user Edge Function sends. gateMode is 'signin' or
+   'recovery'; there is no 'signup' mode any more. */
 let PROFILE=null,AUTH_UID=null,_booted=false,gateMode='signin';
-/* v107: set only by a real sign-in/sign-up in this tab; read once by landPage. */
+/* v107: set only by a real sign-in (or, v133, finishing an invite) in this
+   tab; read once by landPage. */
 var LOGIN_FRESH=false;
 /* Role gating (v21). Fails closed: anything that isn't 'admin' is treated as an installer. */
 let IS_ADMIN=false;
@@ -9827,20 +9880,17 @@ const ADMIN_PAGES=new Set(['installers','rates','reports','issues','outstanding'
 const gate=$('authGate'),gateBody=$('gateBody');
 function esc(s){return String(s||'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
 function gateForm(msg,ok){gate.classList.remove('hidden');
-  const isSignup=gateMode==='signup';
   gateBody.innerHTML=`
     <div class="gate-field"><label>Email</label>
       <input class="gate-input" id="gEmail" type="email" autocomplete="email" placeholder="you@example.com"></div>
     <div class="gate-field"><label>Password</label>
-      <input class="gate-input" id="gPass" type="password" autocomplete="${isSignup?'new-password':'current-password'}" placeholder="${isSignup?'Choose a password (8+ characters)':'Your password'}"></div>
-    <button class="gate-btn" id="gGo">${isSignup?'Create account':'Sign in'}</button>
+      <input class="gate-input" id="gPass" type="password" autocomplete="current-password" placeholder="Your password"></div>
+    <button class="gate-btn" id="gGo">Sign in</button>
     ${msg?`<div class="gate-err">${msg}</div>`:''}
     ${ok?`<div class="gate-ok">${ok}</div>`:''}
-    <div class="gate-toggle">${isSignup?'Already have an account?':"Don't have an account yet?"}
-      <button id="gToggle">${isSignup?'Sign in':'Sign up'}</button></div>`;
-  $('gToggle').onclick=()=>{gateMode=isSignup?'signin':'signup';gateForm();};
+    <div class="gate-note">No account yet? Accounts are by invitation &#8212; ask your admin to send you one.</div>`;
   const go=$('gGo'),em=$('gEmail'),pw=$('gPass');
-  const submit=isSignup?doSignup:doSignin;
+  const submit=doSignin;
   go.onclick=submit;
   pw.onkeydown=e=>{if(e.key==='Enter')submit();};
   em.onkeydown=e=>{if(e.key==='Enter')pw.focus();};
@@ -9852,13 +9902,25 @@ function gateForm(msg,ok){gate.classList.remove('hidden');
    never be asked to choose a password - so they would still be locked out on
    their next visit. The button that sends the link is useless without this. */
 const RECOVERY_HASH=/(^|[#&])type=recovery(&|$)/;
+/* v133 (Q66): an INVITE link lands the same way, with #type=invite, and
+   supabase-js signs the person in from it. It gets the same screen with
+   new-user wording, because without it they would boot straight into the app
+   with no password and be locked out on every other device. GATE_INVITE is
+   set by resolveSession from the hash, before supabase-js strips it. */
+const INVITE_HASH=/(^|[#&])type=invite(&|$)/;
+let GATE_INVITE=false;
+/* An expired or already-used link comes back as #error_code=otp_expired
+   (and no session). Read it before the first await, as the hashes above are. */
+const LINK_ERR_HASH=/(^|[#&])error_code=([^&]+)/;
 function gateRecovery(msg,ok){gate.classList.remove('hidden');
+  const inv=GATE_INVITE;
   gateBody.innerHTML=`
-    <div class="gate-field"><label>New password</label>
+    ${inv?`<div class="gate-note" style="margin:0 0 14px;color:#a89f92">Welcome to Porter Lake. Choose a password to finish setting up your account.</div>`:''}
+    <div class="gate-field"><label>${inv?'Choose a password':'New password'}</label>
       <input class="gate-input" id="gNew" type="password" autocomplete="new-password" placeholder="Choose a password (8+ characters)"></div>
-    <div class="gate-field"><label>Confirm new password</label>
+    <div class="gate-field"><label>${inv?'Confirm password':'Confirm new password'}</label>
       <input class="gate-input" id="gNew2" type="password" autocomplete="new-password" placeholder="Type it again"></div>
-    <button class="gate-btn" id="gSet">Set new password</button>
+    <button class="gate-btn" id="gSet">${inv?'Set password and continue':'Set new password'}</button>
     ${msg?`<div class="gate-err">${msg}</div>`:''}
     ${ok?`<div class="gate-ok">${ok}</div>`:''}
     <div class="gate-toggle">Not expecting this?
@@ -9867,7 +9929,7 @@ function gateRecovery(msg,ok){gate.classList.remove('hidden');
   $('gSet').onclick=doRecovery;
   b.onkeydown=e=>{if(e.key==='Enter')doRecovery();};
   a.onkeydown=e=>{if(e.key==='Enter')b.focus();};
-  $('gCancel').onclick=async()=>{await sb.auth.signOut();clearRecoveryHash();gateMode='signin';gateForm();};
+  $('gCancel').onclick=async()=>{await sb.auth.signOut();clearRecoveryHash();GATE_INVITE=false;gateMode='signin';gateForm();};
   a.focus();}
 /* Strip the token out of the address bar so a refresh, a back button or a
    pasted URL cannot replay it. */
@@ -9880,6 +9942,10 @@ async function doRecovery(){
   const {error}=await sb.auth.updateUser({password:p1});
   if(error){gateRecovery(error.message);return;}
   clearRecoveryHash();
+  /* v133: a new user finishing an invite is already signed in by the link and
+     goes straight into the app. A password RESET still signs out and asks for
+     the new password, exactly as v73 did. */
+  if(GATE_INVITE){GATE_INVITE=false;gateMode='signin';LOGIN_FRESH=true;resolveSession();return;}
   await sb.auth.signOut();
   gateMode='signin';
   gateForm('','Password updated. Sign in with your new password.');}
@@ -9891,18 +9957,6 @@ async function doSignin(){
   const {error}=await sb.auth.signInWithPassword({email,password:pass});
   if(error){gateForm(error.message);return;}
   LOGIN_FRESH=true;resolveSession();}
-async function doSignup(){
-  const email=$('gEmail').value.trim().toLowerCase(),pass=$('gPass').value;
-  if(!email||!pass){gateForm('Enter an email and a password.');return;}
-  if(pass.length<8){gateForm('Password must be at least 8 characters.');return;}
-  gateBusy('Creating account…');
-  const {data,error}=await sb.auth.signUp({email,password:pass});
-  if(error){gateForm(error.message);return;}
-  // If email confirmation is OFF, a session exists now → resolve straight through.
-  if(data.session){LOGIN_FRESH=true;resolveSession();return;}
-  // If confirmation is ON, no session yet → tell them to check email.
-  gateMode='signin';
-  gateForm('',`Account created. If a confirmation email is required, check your inbox, then sign in.`);}
 function gateDenied(email){gate.classList.remove('hidden');
   gateBody.innerHTML=`<div class="gate-err" style="color:#efe9df">Signed in as <span class="gate-email">${esc(email)||'unknown'}</span> — but this account isn't authorized for this workspace yet.</div><div class="gate-note">Ask your admin to add this email to the team, then sign in again.</div><button class="gate-link" id="gOut">Sign out &amp; use a different account</button>`;
   $('gOut').onclick=async()=>{await sb.auth.signOut();gateMode='signin';gateForm();};}
@@ -9953,9 +10007,13 @@ function landPage(){let target='dashboard';
   LOGIN_FRESH=false;
   navTo(target);}
 async function resolveSession(){
+  if(INVITE_HASH.test(location.hash)){GATE_INVITE=true;gateMode='recovery';gateRecovery();return;}
   if(RECOVERY_HASH.test(location.hash)){gateMode='recovery';gateRecovery();return;}
+  const linkErr=LINK_ERR_HASH.test(location.hash);
   gateBody.innerHTML='<div class="gate-spin"></div>';gate.classList.remove('hidden');
   const {data:{session}}=await sb.auth.getSession();
+  if(!session&&linkErr){clearRecoveryHash();gateMode='signin';
+    gateForm('That link has expired or has already been used. Ask your admin to send a new invite, or sign in if you already chose a password.');return;}
   if(!session){gateMode='signin';gateForm();return;}
   AUTH_UID=(session.user&&session.user.id)||null;   /* v124: todos.done_by */
   const {data:prof,error}=await sb.rpc('current_profile');
