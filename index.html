@@ -6694,7 +6694,7 @@ async function editInstaller(id){if(!IS_ADMIN)return;const i=INSTALLERS.find(x=>
   ['instPhone','instEmail','instAddress','instDob','instStart'].forEach(k=>{$(k).value='';});
   $('instEmpType').value='';$('instRole').value='';$('instEmpStatus').value=i.status||'active';ipStatusHint();
   $('ipDocsInternal').innerHTML='';$('ipDocsMine').innerHTML='';
-  $('instResetBtn').disabled=true;$('instResetMsg').textContent='';$('instLoginStatus').textContent='';ipResetArm(false);
+  $('instResetBtn').disabled=true;$('instResetMsg').textContent='';$('instLoginStatus').textContent='';ipResetArm(false);IP_EMAIL0=null;
   ipTab('info');openBg('instBg');
   /* The profile columns are read here, for ONE installer, rather than being
      added to loadInstallers(). That query runs for every signed-in user on
@@ -6705,7 +6705,7 @@ async function editInstaller(id){if(!IS_ADMIN)return;const i=INSTALLERS.find(x=>
      another installer while the request is still in flight. */
   if(error){console.error(error);toast('Could not load profile',true);}
   else if(data&&editingInst===id){
-    $('instPhone').value=data.phone||'';$('instEmail').value=data.email||'';
+    $('instPhone').value=data.phone||'';$('instEmail').value=data.email||'';IP_EMAIL0=(data.email||'').trim().toLowerCase();
     $('instAddress').value=data.address||'';$('instEmpType').value=data.employment_type||'';
     $('instRole').value=data.company_role||'';
     $('instDob').value=ipDate(data.dob);$('instStart').value=ipDate(data.start_date);
@@ -6727,18 +6727,28 @@ async function editInstaller(id){if(!IS_ADMIN)return;const i=INSTALLERS.find(x=>
      active                          -> Reset password (resetPasswordForEmail)
    The ids stay instReset* from v73, so the .btn[hidden] partner rule and the
    arm/confirm pattern are untouched; IP_LOGIN.mode says what the button does.
-   The address used is always the LOGIN email from the status row. The typed
-   staff email is used only for a first invite, when no login exists yet.
+   The address used is the email in the status row. CORRECTION (v134): in
+   v133 that was profiles.email, NOT the login email as this comment claimed,
+   so a reset for someone whose login differed went nowhere. Since the Q28 SQL
+   the row carries the login email, and update-email keeps all copies equal.
+   A first invite uses the SAVED User Profile email (IP_EMAIL0).
    Invites give Admin access: it is the only level until Q17, and
    team_invite_prepare refuses anything else. */
 let IP_LOGIN={mode:null,email:''};
+/* v134 (Q28): the User Profile email as loaded, lower-cased; null until the
+   load succeeds. saveInstaller compares against it, and a first invite goes
+   to it -- never to unsaved typing -- because the saved User Profile email is
+   the one source of truth and team_invite_prepare now refuses anything else. */
+let IP_EMAIL0=null;
 const IP_LOGIN_TXT={
   invite:{btn:'Send invite',yes:'Send invite',ask:'Send an invite to ',idle:'Sends an invite to ',tail:'. They choose a password from the email and get Admin access.'},
   resend:{btn:'Resend invite',yes:'Resend invite',ask:'Resend the invite to ',idle:'Sends the invite again to ',tail:'.'},
   reset:{btn:'Reset password',yes:'Send reset link',ask:'Send a password reset link to ',idle:'Sends a password reset link to ',tail:'.'}};
 function ipLoginWhen(ts){if(!ts)return '';const d=new Date(ts);
   return isNaN(d)?'':d.toLocaleDateString(undefined,{month:'short',day:'numeric',year:'numeric'});}
-function ipLoginEmail(){return IP_LOGIN.mode==='invite'&&!IP_LOGIN.email?($('instEmail').value||'').trim():IP_LOGIN.email;}
+function ipLoginEmail(){return IP_LOGIN.mode==='invite'&&!IP_LOGIN.email?(IP_EMAIL0||''):IP_LOGIN.email;}
+/* True while the email box holds something other than the saved email. */
+function ipEmailDirty(){return IP_EMAIL0!==null&&($('instEmail').value||'').trim().toLowerCase()!==IP_EMAIL0;}
 async function ipLoginCheck(id){
   const btn=$('instResetBtn'),msg=$('instResetMsg'),st=$('instLoginStatus');
   btn.disabled=true;ipResetArm(false);IP_LOGIN={mode:null,email:''};
@@ -6758,7 +6768,7 @@ async function ipLoginCheck(id){
   btn.textContent=IP_LOGIN_TXT[IP_LOGIN.mode].btn;$('instResetYes').textContent=IP_LOGIN_TXT[IP_LOGIN.mode].yes;
   btn.disabled=false;ipResetIdleMsg();}
 /* A first invite reads the typed email, so keep the hint in step with it. */
-$('instEmail').addEventListener('input',()=>{if(IP_LOGIN.mode==='invite'&&!IP_LOGIN.email&&$('instResetConfirm').hidden)ipResetIdleMsg();});
+$('instEmail').addEventListener('input',()=>{if(IP_LOGIN.mode&&$('instResetConfirm').hidden)ipResetIdleMsg();});
 /* Emailing a staff member should not happen on one stray tap, so the button
    arms a Confirm/Cancel pair in place. Deliberately NOT a second .modal-bg:
    stacking another modal over this one would put a second scroll container
@@ -6768,10 +6778,12 @@ function ipResetArm(on){$('instResetConfirm').hidden=!on;$('instResetBtn').hidde
 function ipResetIdleMsg(){const t=IP_LOGIN_TXT[IP_LOGIN.mode];
   if(!t){$('instResetMsg').textContent='';return;}
   const e=ipLoginEmail();
-  $('instResetMsg').textContent=e?t.idle+e+t.tail:'Add an email address above to send an invite.';}
+  if(ipEmailDirty()){$('instResetMsg').textContent='Save the new email first. Saving changes the login email too.';return;}
+  $('instResetMsg').textContent=e?t.idle+e+t.tail:'Add an email address above and save to send an invite.';}
 function ipResetConfirm(){if(!IS_ADMIN||!editingInst)return;
   const t=IP_LOGIN_TXT[IP_LOGIN.mode],e=ipLoginEmail();if(!t)return;
-  if(!e){$('instResetMsg').textContent='Add an email address above first.';$('instEmail').focus();return;}
+  if(ipEmailDirty()){$('instResetMsg').textContent='Save the new email first, then send.';return;}
+  if(!e){$('instResetMsg').textContent='Add an email address above and save first.';$('instEmail').focus();return;}
   ipResetArm(true);$('instResetMsg').textContent=t.ask+e+'?';}
 function ipResetCancel(){ipResetArm(false);ipResetIdleMsg();}
 async function ipResetPassword(){
@@ -6808,23 +6820,44 @@ async function saveInstaller(){if(!IS_ADMIN)return;if(!editingInst)return;
   const nm=($('instNameEdit').value||'').trim();
   if(!nm){toast('Name cannot be blank',true);ipTab('info');$('instNameEdit').focus();return;}
   const payType=$('instPayType').value,payRate=+$('instRate').value||0;
+  const id=editingInst;
+  /* v134 (Q28): the User Profile email is the single source of truth for a
+     person's email, and it is NEVER in this patch. Signed-in users have no
+     UPDATE privilege on installers.email. A changed email goes through the
+     update-email Edge Function, which changes the User Profile, profiles.email
+     and the login email together, server-side and admin-only. It runs FIRST:
+     if it refuses, nothing on this form is saved and the admin sees why.
+     IP_EMAIL0 is the email as loaded; null means the load failed, and then
+     the email is left alone rather than read as "changed to blank". */
+  const newEmail=($('instEmail').value||'').trim().toLowerCase();
+  let emailMsg='';
+  if(IP_EMAIL0!==null&&newEmail!==IP_EMAIL0){
+    const r=await invokeFn('update-email',{installer_id:id,email:newEmail});
+    if(!r.ok){console.error('update-email',r.code,r.message);
+      toast('Nothing saved. The email was not changed: '+esc(r.message),true,8000);return;}
+    IP_EMAIL0=newEmail;
+    if(r.data&&r.data.action==='changed')
+      emailMsg=newEmail?(' Email is now <b>'+esc(newEmail)+'</b>'+(r.data.login_changed?' and they sign in with it.':'.')):' Email removed.';
+  }
   const patch={name:nm,pay_type:payType,pay_rate:payRate,
-    phone:ipNz($('instPhone').value),email:ipNz($('instEmail').value),address:ipNz($('instAddress').value),
+    phone:ipNz($('instPhone').value),address:ipNz($('instAddress').value),
     employment_type:$('instEmpType').value||null,
     company_role:$('instRole').value||null,
     employment_status:$('instEmpStatus').value||'active',
     dob:$('instDob').value||null,start_date:$('instStart').value||null};
-  const {error}=await sb.from('installers').update(patch).eq('id',editingInst);
-  if(error){toast('Save failed',true);console.error(error);return;}
+  const {error}=await sb.from('installers').update(patch).eq('id',id);
+  if(error){toast(emailMsg?'The email changed, but the other changes did not save.':'Save failed',true,emailMsg?8000:undefined);console.error(error);return;}
+  if(emailMsg)[INSTALLERS,ALL_INSTALLERS].forEach(arr=>{const i=arr.find(x=>x.id===id);if(i)i.email=newEmail;});
   /* Both caches are updated: INSTALLERS drives the cards and the assignment
      dropdown, ALL_INSTALLERS is what history resolves through. */
   const st=$('instEmpStatus').value||'active',cr=$('instRole').value||null;
-  [INSTALLERS,ALL_INSTALLERS].forEach(arr=>{const i=arr.find(x=>x.id===editingInst);if(i){i.name=nm;i.payType=payType;i.payRate=payRate;i.status=st;i.companyRole=cr;}});
+  [INSTALLERS,ALL_INSTALLERS].forEach(arr=>{const i=arr.find(x=>x.id===id);if(i){i.name=nm;i.payType=payType;i.payRate=payRate;i.status=st;i.companyRole=cr;}});
   /* Every other surface resolves the name through instById at render time, so
      it picks the new one up on its next draw. The top installer filter is the
      exception - its <option> text is built once - so rebuild it here. */
   populateInstallerFilter();
-  $('instBg').classList.remove('open');if(page==='installers')buildGeneric('installers');toast('Profile saved');}
+  $('instBg').classList.remove('open');if(page==='installers')buildGeneric('installers');
+  toast('Profile saved.'+emailMsg,false,emailMsg?6000:undefined);}
 /* ===== Add User (v117, invite added in v133) ===========================
    Creates a STAFF RECORD. With "Send a sign-in invite" ticked it then calls
    ipSendInvite -- the same path as the profile's Send invite button -- which
