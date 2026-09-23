@@ -5214,7 +5214,8 @@ async function invokeFn(name,body){
 /* Every error code the function can return, in installer language. Anything
    unmapped falls back to the function's own message rather than a shrug. */
 const SD_ERRORS={
-  DEALER_EMAIL_MISSING:'This dealer has no email on file. Add one to the dealer record, or type an address in \u201cSend to a different email\u201d to send it there instead.',
+  DEALER_EMAIL_MISSING:'This dealer has no email on file. Add one to the dealer record, or type an address in \u201cAlso send to\u201d to send it there.',
+  DEALER_HAS_EMAIL:'The dealer now has an email on file. Send again: the dealer receives it and your extra address gets a copy.',
   DEALER_MISSING:'This job has no dealer, so there is nobody to send it to.',
   JOB_NOT_FOUND:'Could not find this job. Refresh and try again.',
   FILE_NOT_ON_JOB:'One of the attachments is no longer on this job. Close the drawer, reopen it and try again.',
@@ -5225,7 +5226,7 @@ const SD_ERRORS={
   RESEND_FAILED:'The mail service refused the send.',
   UNAUTHENTICATED:'Your session has expired — sign in again.',
   NOT_ALLOWLISTED:'This account is not authorized to send documents.',
-  FORBIDDEN_OVERRIDE:'Only an admin can set a cc list or a custom subject.',
+  FORBIDDEN_OVERRIDE:'That send asked for more than this account may do (extra addresses or a custom subject).',
   CONFIG_ERROR:'Email is not configured on the server yet.',
   NETWORK:'Could not reach the server. Check your connection and try again.',
   INTERNAL_ERROR:'Something went wrong sending the email.'
@@ -5676,23 +5677,24 @@ async function sdInit(){
       +'<div id="sdPhotoNote" style="'+dim+';margin-top:9px">Preparing photos\u2026</div></div>';
   }
 
-  /* RECIPIENT (v121, Q39). One field with one meaning for every role: an
-     address typed here goes out as to_override and REPLACES the dealer's
-     on-file address. From v65 to v120 an admin's entry went out as cc
-     instead, which kept the dealer as the main recipient. So with no dealer
-     email on file an admin hit DEALER_EMAIL_MISSING and could not send at
-     all, while an installer could: the more privileged role had less
-     capability. The Edge Function needed no change. to_override has always
-     been open to every allowlisted user, and only cc and subject_override
-     are admin-gated; the app now sends neither. If copying someone in
-     alongside the dealer is wanted again, it belongs in its own, explicitly
-     labelled admin-only field (the function still accepts cc from an
-     admin), never in this field under a second meaning. The text below is
-     exactly what an installer has always seen. */
-  html+='<div class="fld"><label>Send to a different email (optional)</label>'
+  /* RECIPIENT (v135, Q69). ONE MEANING PER FIELD, every role:
+     - dealer email on file: the dealer is ALWAYS the recipient, and an address
+       typed here goes as cc ("also send to");
+     - no dealer email: the typed address becomes the recipient (to_override);
+     - neither: the send is refused before anything is uploaded.
+     History, because it will be tempting to undo: v65 to v120 sent an admin's
+     entry as cc and an installer's as to_override, so an admin with no dealer
+     email could not send (Q39). v121 (ops 2351a11, 2026-09-18) fixed that by
+     sending EVERY entry as to_override, which send-documents reads as
+     "instead of the dealer" - so from then until v135 the dealer silently
+     stopped receiving anything an extra address was typed for. v135 keeps
+     Q39's intent and restores the dealer. send-documents now opens cc to every
+     role (one address for a non-admin) and REFUSES to_override when the dealer
+     has an email, so it can never quietly replace the dealer again. */
+  html+='<div class="fld"><label>Also send to (optional)</label>'
     +'<input id="sdTo" type="email" inputmode="email" autocomplete="off" autocapitalize="off" '
-    +'spellcheck="false" placeholder="Leave blank to use the dealer\'s email">'
-    +'<div style="'+dim+';margin-top:6px">Sends to that address <b>instead of</b> the dealer\u2019s on-file address.</div></div>';
+    +'spellcheck="false" placeholder="Another email address">'
+    +'<div style="'+dim+';margin-top:6px">The dealer always receives it; this address gets a copy. If the dealer has no email on file, it goes to this address instead.</div></div>';
   box.innerHTML=html;
 
   if(!photos.length){
@@ -5789,6 +5791,14 @@ async function sdSend(){
      this one would be a silent, serious mistake. */
   if(sel.photos.length&&SD_PREP.jobId!==jobId){
     toast('Photos are still being prepared for this job \u2014 try again in a moment',true);return;}
+  /* v135 (Q69): which field the extra address goes in depends on whether the
+     dealer has an email, so read it fresh -- the same job -> dealer join the
+     function uses -- and refuse the no-recipient case BEFORE any photo is
+     uploaded. DEALERS in memory deliberately carries no emails. */
+  const {data:jr,error:je}=await sb.from('jobs').select('dealer_id,dealers(email)').eq('id',jobId).maybeSingle();
+  if(je){console.error('sdSend dealer lookup',je);toast('Could not check the dealer\u2019s email \u2014 try again',true);return;}
+  const dealerEmail=((jr&&jr.dealers&&jr.dealers.email)||'').trim();
+  if(jr&&jr.dealer_id&&!dealerEmail&&!override){toast(SD_ERRORS.DEALER_EMAIL_MISSING,true);$('sdTo')&&$('sdTo').focus();return;}
 
   const btn=$('modalSave');
   SD_BUSY=true;
@@ -5817,16 +5827,17 @@ async function sdSend(){
   const body={job_id:jobId,file_ids:ids,document_type:sdDocumentType(sel)};
   const msg=sdMessage(sel);
   if(msg)body.message=msg;
-  /* One payload for every role - see the Q39 note in sdInit. */
-  if(override)body.to_override=override;
+  /* One rule for every role - see the Q69 note in sdInit. */
+  if(override){if(dealerEmail)body.cc=[override];else body.to_override=override;}
   const res=await invokeFn('send-documents',body);
   SD_BUSY=false;
   if(res.ok){
-    const to=(res.data&&res.data.to)||override||'the dealer';
+    const to=(res.data&&res.data.to)||(dealerEmail?dealerEmail:override)||'the dealer';
+    const cc=(res.data&&Array.isArray(res.data.cc))?res.data.cc:(dealerEmail&&override?[override]:[]);
     const parts=[];
     if(sel.docs.length)parts.push(sel.docs.length+(sel.docs.length===1?' document':' documents'));
     if(sel.photos.length)parts.push(sel.photos.length+(sel.photos.length===1?' photo':' photos'));
-    let line='Sent to <b>'+esc(to)+'</b> \u2014 '+parts.join(' and ');
+    let line='Sent to <b>'+esc(to)+'</b>'+(cc.length?', copy to <b>'+esc(cc.join(', '))+'</b>':'')+' \u2014 '+parts.join(' and ');
     toast(line);
     refreshFiles();closeModal();return;}
   sdSyncButton();
