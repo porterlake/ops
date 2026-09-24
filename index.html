@@ -812,6 +812,11 @@
      backdrop-filter rules in this file. Safari needs it. */
   .modal-bg{position:fixed;inset:0;background:rgba(8,8,10,.6);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);display:flex;align-items:center;justify-content:center;opacity:0;pointer-events:none;transition:.18s;z-index:60}
   .modal-bg.open{opacity:1;pointer-events:auto}
+  /* v136 (Q71): "Discard changes?" is asked from INSIDE other modals, and
+     every .modal-bg shares z-index 60, so DOM order decided the stack and
+     #ejcBg sits before modalBg, njBg, instBg and auBg - the question would
+     have opened BEHIND the form it was about. A confirm is always on top. */
+  #ejcBg{z-index:70}
   /* ===== Modal scroll shell (v55) =========================================
      The modal used to be the scroller itself (overflow:auto on this box), so
      .modal-b had no height bound of its own and the header and footer scrolled
@@ -2589,7 +2594,12 @@ async function dropJob(key,hour,e){const id=e.dataTransfer.getData('id');const j
   if(!a){toast('Could not schedule',true);return;}
   toast(`<b>${j.cust}</b> booked — assign someone`,true);}
 
-function openDrawer(id){let a=appts.find(x=>x.id===id),mode='appt';if(!a){a=queue.find(x=>x.id===id);mode='queue';}if(!a)return;
+function openDrawer(id){
+  /* v136 (Q71): opening a DIFFERENT job from outside the drawer (a calendar
+     tile, a list row) used to overwrite unsaved edits in place. Ask first. */
+  if($('drawer').classList.contains('open')&&selectedId&&selectedId!==id&&formDirty('drawer')){
+    formAskDiscard().then(function(ok){if(ok){delete FORM_BASE.drawer;openDrawer(id);}});return;}
+  let a=appts.find(x=>x.id===id),mode='appt';if(!a){a=queue.find(x=>x.id===id);mode='queue';}if(!a)return;
   /* ===== v131 (Q61) — a drawer must open at the top =======================
      .dr-body is never rebuilt: openDrawer writes textContent and .value into
      nodes that already exist, so the SAME element survives every open and its
@@ -2706,6 +2716,9 @@ function openDrawer(id){let a=appts.find(x=>x.id===id),mode='appt';if(!a){a=queu
   /* v131 (Q61): reset AFTER every field above has been written, so the clamp
      is computed against the new content's height, not the old one's. */
   if(!_reopen){const db=$('drawer').querySelector('.dr-body');if(db)db.scrollTop=0;}
+  /* v136 (Q71): a genuine open starts clean; a repaint after a save re-reads
+     saved values, so the baseline moves with them. */
+  if(_reopen){if('drawer' in FORM_BASE)formClean('drawer');}else delete FORM_BASE.drawer;
   $('drawer').classList.add('open');render();}
 function currentJobId(){if(!selectedId)return null;if(drawerMode==='queue')return selectedId;const a=appts.find(x=>x.id===selectedId);return a?a.jobId:null;}
 /* v104: files.uploaded_by, for all three writers of a files row (uploadFile,
@@ -2889,9 +2902,76 @@ function closeViewer(){
 /* Opening ANY other modal closes the viewer first. One helper rather than a
    closeViewer() call bolted onto twelve call sites, so a modal added later
    inherits it by using openBg. #viewBg is NOT routed through this. */
-function openBg(id){closeViewer();$(id).classList.add('open');}
+/* ===== v136 (Q71) — an outside tap never loses work ======================
+   Reported from the field: on a phone the modals are nearly full screen, so a
+   tap on the edge or just beside a text box landed on the .modal-bg backdrop,
+   whose click handler closed the form and threw away everything typed.
+   The rules, for every .modal-bg form and the job drawer, at every width:
+   - PHONE (MOBILE_Q): a backdrop tap never closes anything. X, Cancel and
+     Save are the only ways out.
+   - WIDER: a backdrop tap closes only when nothing is unsaved; otherwise a
+     toast says why it stayed open. This is width-based, never dbIsDesk():
+     a non-admin gets the field layout at 1440px and is protected the same.
+   - X or Cancel with unsaved changes asks "Discard changes?" first.
+   UNSAVED = the form differs from its BASELINE, a snapshot taken at the first
+   real pointerdown or keydown inside it (not at open, because several forms
+   fill in asynchronously after they open). The snapshot is every input,
+   select and textarea value, every selected chip, plus staged files and
+   unsaved signature ink (formExtra). The measure sheet and the additional
+   services report already track unsaved cards exactly, so they use that.
+   openBg() clears a form's baseline; saves that keep a form open re-baseline
+   it with formClean(). Programmatic closes (after a save) are never asked. */
+var FORM_BASE={};
+function formExtra(id){
+  if(id==='njBg')return 'f'+NJ_FILES.length;
+  if(id==='modalBg'){
+    if(currentModalIc==='cam')return 'c'+CAM_SEL.length;
+    if(currentModalIc==='upload')return 'u'+UP_SEL.length;
+    if(currentModalIc==='check')return 's'+((SG_INKED&&!SG_SIGNED_AT)?1:0);}
+  return '';}
+function formSnap(id){const root=$(id);if(!root)return '';const v=[];
+  root.querySelectorAll('input,select,textarea').forEach(function(el){
+    if(el.type==='file')v.push('F'+(el.files?el.files.length:0));
+    else if(el.type==='checkbox'||el.type==='radio')v.push(el.checked?1:0);
+    else v.push(el.value);});
+  root.querySelectorAll('.chip.on,.cr-pay.on').forEach(function(el){v.push('on:'+(el.dataset.t||el.dataset.pay||el.textContent));});
+  return JSON.stringify(v)+'|'+formExtra(id);}
+function formDirty(id){
+  if(id==='modalBg'&&$('modalBg').classList.contains('open')){
+    if(currentModalIc==='ruler')return msDirtyCards().length>0;
+    if(currentModalIc==='asr')return asrDirtyCards().length>0;}
+  if(!(id in FORM_BASE))return false;
+  return formSnap(id)!==FORM_BASE[id];}
+function formClean(id){FORM_BASE[id]=formSnap(id);}
+function formAskDiscard(){return ejcOpen({title:'Discard changes?',sub:'What you entered has not been saved.',
+  ok:'Discard changes',cancel:'Keep editing',danger:true});}
+/* Backdrop taps: every .modal-bg click handler asks this first. */
+function bgMayClose(id){if(MOBILE_Q.matches)return false;
+  if(formDirty(id)){toast('Not closed \u2014 you have unsaved changes. Save, or use Cancel to discard them.',true);return false;}
+  return true;}
+['pointerdown','keydown'].forEach(function(ev){document.addEventListener(ev,function(e){
+  if(!e.isTrusted||!e.target||!e.target.closest)return;
+  const r=e.target.closest('.modal-bg.open[id],#drawer.open');
+  if(r&&!(r.id in FORM_BASE))FORM_BASE[r.id]=formSnap(r.id);},true);});
+/* X and Cancel, per surface. Intercepted in the CAPTURE phase so none of the
+   dozen existing handlers (several are inline onclick) had to change. After
+   "Discard", the baseline is dropped and the same button is clicked again;
+   that click is untrusted, so it passes straight through. */
+const FORM_CLOSERS={drawer:'#drClose',modalBg:'#modalClose,#modalCancel',njBg:'#njClose,#njCancel',
+  ejBg:'#ejClose,#ejCancel',instBg:'#instBg .modal-h .x,#instBg .modal-f .btn.ghost',
+  auBg:'#auBg .modal-h .x,#auBg .modal-f .btn.ghost',svcBg:'#svcBg .modal-h .x,#svcBg .modal-f .btn.ghost:not(#svcDelete)',
+  cqjBg:'#cqjClose,#cqjCancel',dlrBg:'#dlrClose,#dlrCancel',rnoteBg:'#rnoteClose,#rnoteCancel',
+  unrecvBg:'#unrecvClose,#unrecvCancel'};
+document.addEventListener('click',function(e){
+  if(!e.isTrusted||!e.target||!e.target.closest)return;
+  for(const id in FORM_CLOSERS){const btn=e.target.closest(FORM_CLOSERS[id]);if(!btn)continue;
+    if(!formDirty(id))return;
+    e.preventDefault();e.stopImmediatePropagation();
+    formAskDiscard().then(function(ok){if(ok){delete FORM_BASE[id];btn.click();}});
+    return;}},true);
+function openBg(id){closeViewer();delete FORM_BASE[id];$(id).classList.add('open');}
 $('viewClose').onclick=()=>closeViewer();
-$('viewBg').addEventListener('click',e=>{if(e.target.id==='viewBg')closeViewer()});
+$('viewBg').addEventListener('click',e=>{if(e.target.id==='viewBg'&&bgMayClose('viewBg'))closeViewer()});
 /* v131 (Q60): the viewer is opened FROM the drawer, so leaving the drawer must
    take it with it. Before v131 closeDrawer left #viewBg .open over whatever
    page was underneath. */
@@ -3392,7 +3472,7 @@ function drRenderProduct(a){const fld=$('drProductFld'),el=$('drProduct');
     el.innerHTML=`<span style="color:#7c9a3f">All ${n} line item${n>1?'s':''} delivered</span>`;
   el.onclick=drProductOpen;el.style.cursor='pointer';el.style.textDecoration='underline';}
 $('dlrClose').onclick=dlrClosePopup;$('dlrCancel').onclick=dlrClosePopup;
-$('dlrBg').addEventListener('click',e=>{if(e.target.id==='dlrBg')dlrClosePopup()});
+$('dlrBg').addEventListener('click',e=>{if(e.target.id==='dlrBg'&&bgMayClose('dlrBg'))dlrClosePopup()});
 
 /* ===== Edit Job (v64) ================================================
    ONE popup behind the drawer's left footer button, shared by every drawer -
@@ -3727,11 +3807,11 @@ async function ejSave(){
 
 $('ejClose').onclick=ejClose;$('ejCancel').onclick=ejClose;
 $('ejSave').onclick=ejSave;
-$('ejBg').addEventListener('click',function(e){if(e.target.id==='ejBg')ejClose();});
+$('ejBg').addEventListener('click',function(e){if(e.target.id==='ejBg'&&bgMayClose('ejBg'))ejClose();});
 $('ejcClose').onclick=function(){ejcSettle(false);};
 $('ejcNo').onclick=function(){ejcSettle(false);};
 $('ejcYes').onclick=function(){ejcSettle(true);};
-$('ejcBg').addEventListener('click',function(e){if(e.target.id==='ejcBg')ejcSettle(false);});
+$('ejcBg').addEventListener('click',function(e){if(e.target.id==='ejcBg'&&bgMayClose('ejcBg'))ejcSettle(false);});
 
 $('drClose').onclick=closeDrawer;
 $('drType').addEventListener('click',e=>{const c=e.target.closest('.chip');if(!c)return;document.querySelectorAll('#drType .chip').forEach(x=>{x.classList.remove('on');x.style.background=''});c.classList.add('on');c.style.background=TYPES[c.dataset.t].c;renderWO(c.dataset.t);drTypeShow(c.dataset.t)});
@@ -4600,8 +4680,16 @@ function crFormHTML(r){r=r||{};
 
 /* The signature block is re-rendered on its own so signing does not rebuild
    the whole form and lose anything typed but unsaved. */
+/* v136 (Q65): the signer is the signed-in user, named from their User Profile
+   (installers.name via profiles.installer_id). Until v135 the box was
+   pre-filled with noteWho(PROFILE.email) - the email's local part - and
+   whatever it held was stored in completion_reports.ack_name, so reports
+   read "I, Provisionhomeservices, acknowledge...". The name is no longer
+   typed at all. A login with no User Profile cannot sign; it is told why. */
+function crSignerName(){const id=myInstallerId();const i=id?instById(id):null;
+  return (i&&i.id===id&&i.name)?String(i.name).trim():'';}
 function crAckRender(){const box=$('crAckBox');if(!box)return;
-  const who=(PROFILE&&PROFILE.email)?noteWho(PROFILE.email):'';
+  const who=crSignerName();
   if(CR_ACK&&CR_ACK.name){
     box.className='crack signed';
     box.innerHTML='<div style="font-size:13px;line-height:1.55;color:var(--ink)">'
@@ -4612,10 +4700,10 @@ function crAckRender(){const box=$('crAckBox');if(!box)return;
     return;}
   box.className='crack';
   box.innerHTML='<div style="font-size:13px;line-height:1.55;color:var(--ink)">'
-    +'I, <b>[your name]</b>, acknowledge that all information provided is true and '
-    +'accurate to the best of my knowledge.</div>'
-    +'<div style="margin-top:10px"><input class="dl-input cr-ackname" value="'+msEsc(who)+'" placeholder="Type your full name"></div>'
-    +'<div style="margin-top:9px"><button type="button" class="msbtn pri cr-sign">Confirm &amp; sign</button></div>';}
+    +(who?'I, <b>'+msEsc(who)+'</b>, acknowledge that all information provided is true and '
+      +'accurate to the best of my knowledge.</div>'
+      +'<div style="margin-top:9px"><button type="button" class="msbtn pri cr-sign">Confirm &amp; sign</button></div>'
+     :'This login is not linked to a User Profile, so it cannot sign the report. Ask an admin to link it.</div>');}
 
 /* Every conditional in one place. Called on open and on every change, so the
    form can never be left showing a follow-up whose trigger has moved on. */
@@ -4745,13 +4833,12 @@ document.addEventListener('click',function(e){
       b.classList.toggle('on',b.dataset.pay===CR_PAYSEL);});
     return;}
   if(e.target.closest('.cr-sign')){
-    const el=$('crForm').querySelector('.cr-ackname');
-    const nm=el?el.value.trim():'';
-    if(!nm){toast('Type your name to sign',true);return;}
+    const nm=crSignerName();
+    if(!nm){toast('This login is not linked to a User Profile, so it cannot sign',true);return;}
     CR_ACK={name:nm,at:new Date().toISOString()};
-    crAckRender();crSync();crSave();return;}
+    crAckRender();crSync();crSave().then(function(ok){if(ok)formClean('modalBg');});return;}
   if(e.target.closest('.cr-unsign')){CR_ACK=null;crAckRender();crSync();return;}
-  if(e.target.closest('.cr-save')){crSave();return;}});
+  if(e.target.closest('.cr-save')){crSave().then(function(ok){if(ok)formClean('modalBg');});return;}});
 ['input','change'].forEach(function(ev){document.addEventListener(ev,function(e){
   if(e.target.closest('#crForm'))crSync();});});
 document.addEventListener('click',function(e){
@@ -6081,7 +6168,7 @@ $('modalSave').onclick=async()=>{
     batchToast(r,'PDF');
     closeModal();return;}
   toast('Saved to work order');closeModal();};
-$('modalBg').addEventListener('click',e=>{if(e.target.id==='modalBg')closeModal()});
+$('modalBg').addEventListener('click',e=>{if(e.target.id==='modalBg'&&bgMayClose('modalBg'))closeModal()});
 
 $('njType').addEventListener('click',e=>{const c=e.target.closest('.chip');if(!c)return;document.querySelectorAll('#njType .chip').forEach(x=>{x.classList.remove('on');x.style.background=''});c.classList.add('on');c.style.background=TYPES[c.dataset.t].c;fillDur($('njDurH'),$('njDurM'),defaultMins(c.dataset.t));njSyncTaskMode()});
 /* ===== v98 NEW-TASK MODE =====
@@ -6985,7 +7072,7 @@ $('ipFile').addEventListener('change',async function(){
   try{await ipUploadDoc(editingInst,f,group,docType);await ipRefreshDocs();toast('Document uploaded');}
   catch(e){console.error('installer doc upload',e);toast('Upload failed',true);}
   this.value='';});
-$('instBg').addEventListener('click',e=>{if(e.target.id==='instBg')$('instBg').classList.remove('open')});
+$('instBg').addEventListener('click',e=>{if(e.target.id==='instBg'&&bgMayClose('instBg'))$('instBg').classList.remove('open')});
 $('drInstaller').addEventListener('change',()=>drRenderMargin(currentItem()));
 $('drDurH').addEventListener('change',()=>drRenderMargin(currentItem()));
 $('drDurM').addEventListener('change',()=>drRenderMargin(currentItem()));
@@ -7502,7 +7589,7 @@ $('newJobBtn').onclick=()=>{
   njSyncTaskMode();
   njFillCustomers();openBg('njBg');};
 $('njClose').onclick=$('njCancel').onclick=()=>$('njBg').classList.remove('open');
-$('njBg').addEventListener('click',e=>{if(e.target.id==='njBg')$('njBg').classList.remove('open')});
+$('njBg').addEventListener('click',e=>{if(e.target.id==='njBg'&&bgMayClose('njBg'))$('njBg').classList.remove('open')});
 /* ===== v98 CREATE TASK =====
    Runs BEFORE the dealer guard below, which is the whole point: a Task has no
    dealer to be guarded on. It writes the job and its appointment in one go and
@@ -8096,7 +8183,7 @@ async function cqAttachGo(){
 $('cqjClose').onclick=$('cqjCancel').onclick=()=>$('cqjBg').classList.remove('open');
 $('cqjGo').onclick=cqAttachGo;
 $('cqjSearch').addEventListener('input',cqAttachRender);
-$('cqjBg').addEventListener('click',e=>{if(e.target.id==='cqjBg')$('cqjBg').classList.remove('open')});
+$('cqjBg').addEventListener('click',e=>{if(e.target.id==='cqjBg'&&bgMayClose('cqjBg'))$('cqjBg').classList.remove('open')});
 
 /* ---- the page --------------------------------------------------------- */
 function buildQuickQuote(){const g=$('genericView');
@@ -9496,7 +9583,7 @@ function recvNotesClose(){$('rnoteBg').classList.remove('open');}
 $('rnoteClose').onclick=recvNotesClose;
 $('rnoteCancel').onclick=recvNotesClose;
 $('rnoteAdd').onclick=function(){noteAdd(NOTE_RECV);};
-$('rnoteBg').addEventListener('click',function(e){if(e.target.id==='rnoteBg')recvNotesClose();});
+$('rnoteBg').addEventListener('click',function(e){if(e.target.id==='rnoteBg'&&bgMayClose('rnoteBg'))recvNotesClose();});
 
 /* queue plus the scheduled jobs, deduped by job id. The lineItems array is
    passed by REFERENCE, not copied — that is what lets toggleLine mutate the
@@ -9735,7 +9822,7 @@ function toggleLine(jobId,lineId){
 function unrecvClosePopup(){_unrecv=null;$('unrecvBg').classList.remove('open');}
 $('unrecvClose').onclick=unrecvClosePopup;
 $('unrecvCancel').onclick=unrecvClosePopup;
-$('unrecvBg').addEventListener('click',function(e){if(e.target.id==='unrecvBg')unrecvClosePopup();});
+$('unrecvBg').addEventListener('click',function(e){if(e.target.id==='unrecvBg'&&bgMayClose('unrecvBg'))unrecvClosePopup();});
 $('unrecvGo').onclick=function(){const t=_unrecv;
   _unrecv=null;$('unrecvBg').classList.remove('open');
   if(t)applyLineToggle(t.jobId,t.lineId,false);};
@@ -9845,7 +9932,7 @@ const menu=$('settingsMenu');$('whoBtn').addEventListener('click',e=>{e.stopProp
 menu.querySelectorAll('.si').forEach(i=>i.onclick=e=>{e.stopPropagation();toast(i.textContent.trim()+' →');menu.classList.remove('open')});
 let toastT;function toast(msg,warn,ms){const t=$('toast');t.innerHTML=msg;t.className='toast show'+(warn?' warn':'');clearTimeout(toastT);toastT=setTimeout(()=>t.className='toast',ms||2400)}
 
-$('svcBg').addEventListener('click',e=>{if(e.target.id==='svcBg')$('svcBg').classList.remove('open')});
+$('svcBg').addEventListener('click',e=>{if(e.target.id==='svcBg'&&bgMayClose('svcBg'))$('svcBg').classList.remove('open')});
 let _rsz;window.addEventListener('resize',()=>{clearTimeout(_rsz);_rsz=setTimeout(()=>{if(page==='scheduler')render();},120)});
 
 /* ===== Mobile pass 1 (v22) — off-canvas nav + collapsible queue.
