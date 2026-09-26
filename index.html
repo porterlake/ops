@@ -525,6 +525,20 @@
      lines it cannot apply to. Same partner-rule pattern as .vwnav, .ipconfirm
      and .btn. */
   .lidctl[hidden]{display:none}
+  /* Q78 (v141): the line's Product/Service type sits on .limeta beside the
+     discount control, for the reason v119 put that control there -- .litop is
+     already four inputs and a delete button and has to survive a phone. A
+     CATALOG line shows its rate's type as read-only text (the rate sheet owns
+     it); a CUSTOM line gets the select, because a one-off item is the only
+     line whose type nothing else can know. [hidden] needs the partner rule
+     for the same reason .lidctl does: inline-flex beats the UA sheet. */
+  .litype{display:inline-flex;align-items:center;gap:5px;margin-right:8px;vertical-align:middle}
+  .litype[hidden]{display:none}
+  .litype select{font:inherit;font-size:13px;font-weight:600;padding:6px 10px;border-radius:8px;background:var(--side-3);border:1px solid var(--side-border);color:var(--sand-ink);outline:none;cursor:pointer}
+  .litype select:hover{border-color:var(--accent-line)}
+  .litype .ltfix{font-size:11px;font-weight:700;letter-spacing:.4px;text-transform:uppercase}
+  .litype .ltfix.prod{color:#8fa8c4}
+  .litype .ltfix.svc{color:var(--muted)}
   /* v129 (Q38 remainder): 10.5px text in 2px of padding drew a 24px-tall
      control that was hard to read and harder to tap, and because .lidctl is an
      inline-flex span the control sized to its own label - so widening the
@@ -2179,9 +2193,9 @@ function mapJob(j){return {id:j.id,type:j.type,taskType:j.task_type||null,meetin
   cust:j.customers?j.customers.name:'—',dealer:j.dealers?j.dealers.name:'—',
   addr:j.site_address||'—',phone:j.customers?(j.customers.phone||''):'',scope:j.scope||'—',
   awaitingProduct:j.awaiting_product,override:j.override_schedule||false,
-  lineItems:(j.line_items||[]).map(li=>({id:li.id,desc:li.description,qty:li.qty,delivered:li.delivered,qtyRecv:li.qty_received||0,by:li.delivered_by||'',serviceId:li.service_id||null,unitPrice:li.unit_price,minCharge:li.min_charge,isCustom:!!li.is_custom,discountMode:li.discount_mode||'inherit',discountPct:li.discount_pct==null?null:+li.discount_pct})),jobDiscount:+j.discount_pct||0};}
+  lineItems:(j.line_items||[]).map(li=>({id:li.id,desc:li.description,qty:li.qty,delivered:li.delivered,qtyRecv:li.qty_received||0,by:li.delivered_by||'',itemType:li.item_type||null,serviceId:li.service_id||null,unitPrice:li.unit_price,minCharge:li.min_charge,isCustom:!!li.is_custom,discountMode:li.discount_mode||'inherit',discountPct:li.discount_pct==null?null:+li.discount_pct})),jobDiscount:+j.discount_pct||0};}
 async function loadJobs(){try{const {data,error}=await sb.from('jobs')
-    .select('id,customer_id,dealer_id,type,task_type,meeting_type,task_done,site_address,scope,estimated_minutes,awaiting_product,override_schedule,completed_at,closed_at,job_number,discount_pct,customers(name,phone),dealers(name),line_items(id,description,qty,delivered,delivered_by,qty_received,service_id,unit_price,min_charge,is_custom,discount_mode,discount_pct)')
+    .select('id,customer_id,dealer_id,type,task_type,meeting_type,task_done,site_address,scope,estimated_minutes,awaiting_product,override_schedule,completed_at,closed_at,job_number,discount_pct,customers(name,phone),dealers(name),line_items(id,description,qty,delivered,delivered_by,qty_received,item_type,service_id,unit_price,min_charge,is_custom,discount_mode,discount_pct)')
     .order('created_at',{ascending:true});
   if(error){console.error(error);toast('Could not load jobs',true);return;}
   const scheduled=new Set(appts.map(a=>a.jobId));
@@ -2210,11 +2224,29 @@ function liTarget(li){const n=Math.round(+((li&&li.qty))||0);return n>0?n:1;}
 function liRecv(li){const n=Math.round(+((li&&li.qtyRecv))||0);return n>0?n:0;}
 function liFull(li){return liRecv(li)>=liTarget(li);}
 function liLeft(li){return Math.max(0,liTarget(li)-liRecv(li));}
-function isStockLine(li){
-  if(!li)return false;
-  if(!li.serviceId)return true;
+/* ===== Q78 (v141) A LINE'S OWN TYPE DECIDES ============================
+   Every pricing line is a PRODUCT or a SERVICE, and line_items.item_type is
+   where that now lives. Until Q78 there was no column and the app GUESSED:
+   "no rate" and "a rate typed service" were the only signals it had, so every
+   CUSTOM line counted as stock and any job carrying one sat awaiting product
+   until somebody ticked off an item that had never been ordered.
+   lineType() is the ONE place a type is decided and it reads item_type and
+   nothing else. The old guess survives only as the fallback for a row the
+   backfill has not reached, so on a database without the backfill this file
+   behaves exactly as v140 did -- the change is invisible until the data moves.
+   isStockLine keeps the name every caller already uses (Receiving, the
+   readiness trio, the calendar hourglass, the stock popup, the drawer's
+   Product status), so the type reaches all of them through this one edit. */
+function liGuessType(li){
+  if(!li.serviceId)return 'product';
   const s=SERVICES.find(x=>x.id===li.serviceId);
-  return !s||s.item_type!=='service';}
+  return (s&&s.item_type==='service')?'service':'product';}
+function lineType(li){
+  if(!li)return 'product';
+  const t=String(li.itemType||'');
+  return (t==='product'||t==='service')?t:liGuessType(li);}
+function svcItemType(s){return (s&&s.item_type==='service')?'service':'product';}
+function isStockLine(li){return !!li&&lineType(li)==='product';}
 function stockLines(list){return (list||[]).filter(isStockLine);}
 /* Readiness is judged on STOCK lines only. A service line can never be ticked
    delivered because it is not shown in Receiving, so leaving these three
@@ -2303,9 +2335,9 @@ function mapAppt(r){const j=r.jobs||{};const d=new Date(r.start_time);return {id
   phone:j.customers?(j.customers.phone||''):'',scope:j.scope||'—',customerId:j.customer_id,dealerId:j.dealer_id,estMins:j.estimated_minutes||120,
   awaitingProduct:j.awaiting_product,override:j.override_schedule||false,
   completedAt:j.completed_at||null,closedAt:j.closed_at||null,jobNo:j.job_number||null,
-  lineItems:(j.line_items||[]).map(li=>({id:li.id,desc:li.description,qty:li.qty,delivered:li.delivered,qtyRecv:li.qty_received||0,by:li.delivered_by||'',serviceId:li.service_id||null,unitPrice:li.unit_price,minCharge:li.min_charge,isCustom:!!li.is_custom,discountMode:li.discount_mode||'inherit',discountPct:li.discount_pct==null?null:+li.discount_pct})),jobDiscount:+j.discount_pct||0,files:[]};}
+  lineItems:(j.line_items||[]).map(li=>({id:li.id,desc:li.description,qty:li.qty,delivered:li.delivered,qtyRecv:li.qty_received||0,by:li.delivered_by||'',itemType:li.item_type||null,serviceId:li.service_id||null,unitPrice:li.unit_price,minCharge:li.min_charge,isCustom:!!li.is_custom,discountMode:li.discount_mode||'inherit',discountPct:li.discount_pct==null?null:+li.discount_pct})),jobDiscount:+j.discount_pct||0,files:[]};}
 async function loadAppointments(){try{const {data,error}=await sb.from('appointments')
-    .select('id,job_id,installer_id,status,start_time,duration_minutes,notes,jobs(type,task_type,meeting_type,task_done,site_address,scope,estimated_minutes,awaiting_product,override_schedule,completed_at,closed_at,job_number,discount_pct,customer_id,dealer_id,customers(name,phone),dealers(name),line_items(id,description,qty,delivered,delivered_by,qty_received,service_id,unit_price,min_charge,is_custom,discount_mode,discount_pct))')
+    .select('id,job_id,installer_id,status,start_time,duration_minutes,notes,jobs(type,task_type,meeting_type,task_done,site_address,scope,estimated_minutes,awaiting_product,override_schedule,completed_at,closed_at,job_number,discount_pct,customer_id,dealer_id,customers(name,phone),dealers(name),line_items(id,description,qty,delivered,delivered_by,qty_received,item_type,service_id,unit_price,min_charge,is_custom,discount_mode,discount_pct))')
     .order('start_time',{ascending:true});
   if(error){console.error(error);toast('Could not load appointments',true);return;}
   appts=(data||[]).map(mapAppt);markConflicts();render();}catch(e){console.error(e)}}
@@ -2613,9 +2645,13 @@ function renderQueue(){const list=$('queueList');list.innerHTML='';
   $('queueCount').textContent=ready.length;$('navCount').textContent=ready.length;
   $('navRecv').textContent=awaitingQueue().length;
   dbSchedule();}
-/* v107: the unscheduled queue still waiting on product -- the Receiving badge's
-   definition, shared with the dashboard's awaiting-product count. */
-function awaitingQueue(){return queue.filter(stillAwaiting);}
+/* v107: the jobs still waiting on product -- the Receiving badge's definition.
+   Q78 (v141, decision 5): the pool is now recvPool(), the queue PLUS the
+   scheduled jobs, not the queue alone. Stock outstanding on a job that is
+   already booked is still stock outstanding, and the badge is what tells the
+   warehouse there is work; a job dropping out of the count the moment it was
+   scheduled was how it got missed. Same predicate, wider pool. */
+function awaitingQueue(){return recvPool().filter(stillAwaiting);}
 /* ===== v114 THE ONE CREATE PATH =====
    Scheduling an unscheduled job CREATES an appointment, where rescheduleAppt
    moves one. Drag-drop from the queue, the Edit Job "Schedule" picker and New
@@ -3399,7 +3435,7 @@ async function stockInit(){
   /* Fresh read, not the cached copy. delivered_at is selected here for the
      first time — the app has always written it and never read it back. */
   const {data,error}=await sb.from('line_items')
-    .select('id,description,qty,delivered,delivered_by,delivered_at,service_id,qty_received')
+    .select('id,description,qty,delivered,delivered_by,delivered_at,item_type,service_id,qty_received')
     .eq('job_id',jobId)
     .order('delivered',{ascending:true})
     .order('description',{ascending:true});
@@ -3408,9 +3444,9 @@ async function stockInit(){
   /* Service lines are not stock, so they never appear here. This reads the
      same isStockLine predicate the queue and Receiving use, so the popup can
      never disagree with the badge on the card. */
-  const rows=(data||[]).filter(function(r){return isStockLine({serviceId:r.service_id});});
+  const rows=(data||[]).filter(function(r){return isStockLine({serviceId:r.service_id,itemType:r.item_type});});
   if(!rows.length){
-    box.innerHTML='<p style="'+dim+'">Nothing to check in on this job \u2014 every line is a service, not stock.</p>';return;}
+    box.innerHTML='<p style="'+dim+'">Nothing to check in on this job \u2014 no line on it is a product.</p>';return;}
 
   /* Partitioned on the QUANTITY, not the boolean, so a part-delivered line
      sits with the outstanding work where the installer needs to see it. */
@@ -3549,22 +3585,29 @@ function drProductOpen(){openModal('box','Confirm Stock Received');}
    to Receiving). It is offered only on a job flagged awaiting product, in every
    state that job can be in -- exactly as before for those jobs -- and never on
    a "No" job, which Receiving has nothing to say about. */
+/* Q78 (v141, Michael's decision 6): EXACTLY three things this row can say.
+   The counts are gone. "3/5 delivered" asked the reader to do the arithmetic
+   and then told them nothing they could act on, and it was wrong as often as
+   not because it counted whatever isStockLine() had guessed. The states:
+     Nothing to Receive   not flagged, plain text, no link      (unchanged)
+     Awaiting Product     flagged, stock outstanding, yellow link
+     Fully Received       flagged, every product in, green link
+   Both links open the same stock popup, whose button is still Go to
+   Receiving. The row is hidden when there is nothing to say at all. */
 function drRenderProduct(a){const fld=$('drProductFld'),el=$('drProduct');
   if(!a.awaitingProduct){
     const any=(a.lineItems||[]).length>0;
     fld.style.display=any?'block':'none';
-    el.textContent=any?'Nothing to receive':'';
+    el.textContent=any?'Nothing to Receive':'';
     el.onclick=null;el.style.cursor='default';el.style.textDecoration='none';
     return;}
   const stock=stockLines(a.lineItems);
   if(!stock.length){fld.style.display='none';el.onclick=null;return;}
-  /* Flagged from here on: the row counts and is the Receiving link. */
-  const n=stock.length,got=stock.filter(liFull).length;
   fld.style.display='block';
   if(stillAwaiting(a)||partialAwaiting(a))
-    el.innerHTML=`<span style="color:#caa017">${got}/${n} delivered — awaiting product</span>`;
+    el.innerHTML='<span style="color:#caa017">Awaiting Product</span>';
   else
-    el.innerHTML=`<span style="color:#7c9a3f">All ${n} line item${n>1?'s':''} delivered</span>`;
+    el.innerHTML='<span style="color:#7c9a3f">Fully Received</span>';
   el.onclick=drProductOpen;el.style.cursor='pointer';el.style.textDecoration='underline';}
 $('dlrClose').onclick=dlrClosePopup;$('dlrCancel').onclick=dlrClosePopup;
 $('dlrBg').addEventListener('click',e=>{if(e.target.id==='dlrBg'&&bgMayClose('dlrBg'))dlrClosePopup()});
@@ -6429,9 +6472,19 @@ let njDiscount=0;
 function njSetDiscount(v){njDiscount=Math.max(0,Math.min(100,+v||0));}
 function njShowDiscount(disc){njSetDiscount(disc||0);$('njDisc').value=njDiscount||'';$('njDiscWrap').style.display='flex';njRecalc();}
 function resolveRow(row,opt){opt=opt||{};const descEl=row.querySelector('.lidesc'),priceEl=row.querySelector('.liprice');const svc=svcByName(descEl.value);
-  if(svc&&svc.price!=null){row.dataset.serviceId=svc.id;row.dataset.min=svc.min_charge!=null?svc.min_charge:'';row.dataset.custom='0';row.dataset.quote='0';row.dataset.unit=svc.unit||'';if(opt.autofill)priceEl.value=Number(svc.price).toFixed(2);if(opt.lock){priceEl.readOnly=true;priceEl.classList.add('locked');}else{priceEl.readOnly=false;priceEl.classList.remove('locked');}}
-  else if(svc&&svc.price==null){row.dataset.serviceId=svc.id;row.dataset.min=svc.min_charge!=null?svc.min_charge:'';row.dataset.custom='0';row.dataset.quote='1';row.dataset.unit=svc.unit||'';priceEl.readOnly=false;priceEl.classList.remove('locked');}
-  else{row.dataset.serviceId='';row.dataset.min='';row.dataset.quote='0';row.dataset.unit='';row.dataset.custom=descEl.value.trim()?'1':'0';priceEl.readOnly=false;priceEl.classList.remove('locked');}}
+  if(svc&&svc.price!=null){row.dataset.serviceId=svc.id;row.dataset.min=svc.min_charge!=null?svc.min_charge:'';row.dataset.custom='0';row.dataset.quote='0';row.dataset.unit=svc.unit||'';row.dataset.itype=svcItemType(svc);row.dataset.itypeSrc='rate';if(opt.autofill)priceEl.value=Number(svc.price).toFixed(2);if(opt.lock){priceEl.readOnly=true;priceEl.classList.add('locked');}else{priceEl.readOnly=false;priceEl.classList.remove('locked');}}
+  else if(svc&&svc.price==null){row.dataset.serviceId=svc.id;row.dataset.min=svc.min_charge!=null?svc.min_charge:'';row.dataset.custom='0';row.dataset.quote='1';row.dataset.unit=svc.unit||'';row.dataset.itype=svcItemType(svc);row.dataset.itypeSrc='rate';priceEl.readOnly=false;priceEl.classList.remove('locked');}
+  else{row.dataset.serviceId='';row.dataset.min='';row.dataset.quote='0';row.dataset.unit='';row.dataset.custom=descEl.value.trim()?'1':'0';
+    /* Q78: a custom line owns its type and keeps whatever the toggle says. A
+       row that was a catalog line one keystroke ago starts again at SERVICE,
+       the backfill's default for a custom line: a one-off item typed onto a
+       job is labour or a fee far more often than stock on order, and guessing
+       product would park the job in Receiving waiting for something nobody
+       ordered -- the exact failure Q78 exists to end. */
+    if(row.dataset.itypeSrc!=='line'||(row.dataset.itype!=='product'&&row.dataset.itype!=='service'))row.dataset.itype='service';
+    row.dataset.itypeSrc='line';
+    priceEl.readOnly=false;priceEl.classList.remove('locked');}
+  lrTypeSync(row);}
 /* The live editor's arithmetic. It reads the DOM rather than saved rows, so
    it is a second implementation by necessity -- but every discount decision
    goes through discFor(), the same function jobPricing() uses, and a row is
@@ -6493,6 +6546,27 @@ function liDiscGet(row){
   if(mode!=='override')return {discount_mode:mode,discount_pct:null};
   const v=Math.max(0,Math.min(100,+(p?p.value:0)||0));
   return {discount_mode:'override',discount_pct:v};}
+/* Q78 (v141): the line's type control, on the shared row so all three
+   surfaces get it from one edit (New Job, Edit Job Rates, Install Quote).
+   Two faces, one span:
+     CATALOG line - read-only text. The rate sheet owns the type, so changing
+                    it here would silently disagree with the rate.
+     CUSTOM line  - a select. Nothing else can know what a one-off item is.
+   The live value is row.dataset.itype, which every save path reads through
+   lrType(); itypeSrc records WHERE it came from, so resolveRow can tell a
+   line that has just stopped being a catalog line from one the user typed. */
+function liTypeCtl(){return '<span class="litype"><span class="ltfix"></span>'
+  +'<select class="litsel"><option value="product">Product</option><option value="service">Service</option></select></span>';}
+function lrType(row){return row.dataset.itype==='product'?'product':'service';}
+function lrTypeSync(row){const box=row.querySelector('.litype');if(!box)return;
+  const sel=box.querySelector('.litsel'),fix=box.querySelector('.ltfix');
+  const has=!!row.querySelector('.lidesc').value.trim();
+  const custom=row.dataset.custom==='1';
+  const t=lrType(row);
+  box.hidden=!has;
+  if(sel){sel.hidden=!custom;sel.value=t;}
+  if(fix){fix.hidden=custom;fix.textContent=custom?'':(t==='product'?'Product':'Service');
+    fix.className='ltfix '+(t==='product'?'prod':'svc');}}
 /* v139 (Q77 step 2): ONE line row for every surface that prices a job.
    Until v139 New Job built its rows in addLineRow and the drawer's Edit Job
    Rates in drAddRow: the same markup twice, wired twice. Q76 was the cost of
@@ -6521,11 +6595,15 @@ function lineRow(surf,li){const S=LR_SURF[surf];const row=document.createElement
     +'<input class="liqty" type="number" min="1" value="'+qty+'"><input class="liprice" type="number" min="0" step="0.01" placeholder="0.00" value="'+price+'">'
     +'<span class="lilt"></span><button class="lidel">×</button></div>'
     +'<div class="rclist" role="listbox"></div>'
-    +'<div class="limeta">'+liDiscCtl()+'<span class="limetatext"></span></div>';
+    +'<div class="limeta">'+liTypeCtl()+liDiscCtl()+'<span class="limetatext"></span></div>';
   S.host().appendChild(row);lrWire(row,S);liDiscSet(row,li);
-  if(li){row.dataset.lineId=li.id||'';row.dataset.serviceId=li.serviceId||'';row.dataset.min=li.minCharge!=null?li.minCharge:'';row.dataset.custom=li.isCustom?'1':'0';row.dataset.quote=(li.unitPrice==null&&li.serviceId)?'1':'0';const svc=li.serviceId?SERVICES.find(s=>s.id===li.serviceId):null;row.dataset.unit=svc?(svc.unit||''):'';}
+  if(li){row.dataset.lineId=li.id||'';row.dataset.serviceId=li.serviceId||'';row.dataset.min=li.minCharge!=null?li.minCharge:'';row.dataset.custom=li.isCustom?'1':'0';row.dataset.quote=(li.unitPrice==null&&li.serviceId)?'1':'0';const svc=li.serviceId?SERVICES.find(s=>s.id===li.serviceId):null;row.dataset.unit=svc?(svc.unit||''):'';
+    /* Q78: a saved line opens showing its OWN type. lineType() falls back to
+       the old guess for a row the backfill has not reached, so nothing moves
+       under the user before the data does. */
+    row.dataset.itype=lineType(li);row.dataset.itypeSrc=li.serviceId?'rate':'line';}
   else{row.dataset.lineId='';resolveRow(row,{lock:S.lock,autofill:true});}
-  S.recalc();return row;}
+  lrTypeSync(row);S.recalc();return row;}
 function lrWire(row,S){const d=row.querySelector('.lidesc');
   const re=function(){resolveRow(row,{lock:S.lock,autofill:true});S.recalc();};
   d.addEventListener('input',re);d.addEventListener('change',re);
@@ -6534,6 +6612,10 @@ function lrWire(row,S){const d=row.querySelector('.lidesc');
   const m=row.querySelector('.lidmode'),p=row.querySelector('.lidpct');
   if(m)m.addEventListener('change',function(){if(p){p.hidden=(m.value!=='override');if(m.value==='override'&&!p.value)p.value='0';}S.recalc();});
   if(p)p.addEventListener('input',rc);
+  const ts=row.querySelector('.litsel');
+  /* Q78: the toggle writes the dataset the save paths read, nothing else. It
+     changes no price, so there is no recalc to run. */
+  if(ts)ts.addEventListener('change',function(){row.dataset.itype=ts.value==='product'?'product':'service';row.dataset.itypeSrc='line';lrTypeSync(row);});
   row.querySelector('.lidel').onclick=function(){row.remove();S.recalc();};
   rcWire(row);}
 
@@ -6593,6 +6675,54 @@ $('njDisc').addEventListener('input',e=>{njSetDiscount(e.target.value);njRecalc(
    never writes back. The standing rate is edited on the dealer page and
    nowhere else. */
 $('njDisc').addEventListener('change',e=>{njSetDiscount(e.target.value);njRecalc();});
+/* ===== Q78 (v141) NEW PRODUCT LINES: ONE QUESTION ======================
+   Adding a product line to a live job is ambiguous in a way adding a service
+   never is: the product may be on order, or it may already be in the van.
+   Before Q78 the app answered for the user -- Edit Job Rates wrote every new
+   line delivered:true with no qty_received, which reads as NOT received, so
+   any new line silently held a flagged job in Receiving.
+   Now it asks, once, and only when the answer can matter:
+     new PRODUCT lines, job not frozen   -> ask
+     no new product lines                -> never ask
+     Completed / Issue Reported / Closed -> never ask; a line added to one of
+       those is an invoice adjustment, and it is saved as on hand.
+   The three frozen codes are the same three strings CM_STATUSES uses for
+   payroll. They are written out again rather than shared because the two
+   rules are unrelated and must stay free to diverge.
+   Dismissing the popup (X, backdrop) resolves NO. That is the choice which
+   changes nothing about scheduling, and a line wrongly marked on hand is
+   un-received on the Receiving page in one tap, where a job wrongly flagged
+   awaiting product cannot be scheduled until somebody overrides it. */
+const PS_FROZEN=new Set(['done','issue','closed']);
+function psFrozen(a){return PS_FROZEN.has(String((a&&a.status)||''));}
+function psStamp(){return recvWho()+' \u00b7 '+shortDate();}
+function psAsk(rows){const n=rows.length;
+  const body='<p style="font-size:13px;line-height:1.6;color:var(--sand-ink);margin:0 0 8px">'
+    +(n===1?'One new <b>product</b> line is being added:':n+' new <b>product</b> lines are being added:')+'</p>'
+    +'<div style="border:1px solid var(--side-border);border-radius:9px;padding:6px 10px;margin-bottom:8px">'
+    +rows.map(function(d){return '<div style="display:flex;gap:8px;padding:4px 0;font-size:13px;color:var(--sand-ink)">'
+      +'<span style="flex:1">'+esc(d.desc)+'</span><span>\u00d7'+d.qty+'</span></div>';}).join('')
+    +'</div>'
+    +'<p style="font-size:12.5px;color:var(--sand-dim);line-height:1.6;margin:0">'
+    +'<b>Yes</b> sends them to Receiving and flags this job as awaiting product.<br>'
+    +'<b>No</b> records them as already on hand, received now, so they never hold the job.</p>';
+  return ejcOpen({title:'Send new products to Receiving?',sub:'New product lines on this job',
+    body:body,ok:'Yes, send to Receiving',cancel:'No, they are on hand'});}
+/* The row a new line is inserted as. A SERVICE is written exactly as v140
+   wrote it -- it is not stock and Receiving never shows it. A product is
+   either pending (Yes) or fully received with a stamp (No). */
+function psNewRow(base,type,sendRecv,stamp){
+  const r=Object.assign({},base,{item_type:type,delivered:true});
+  if(type!=='product')return r;
+  if(sendRecv){r.delivered=false;r.qty_received=0;r.delivered_by=null;r.delivered_at=null;return r;}
+  r.qty_received=liTarget({qty:base.qty});r.delivered_by=stamp;r.delivered_at=new Date().toISOString();
+  return r;}
+/* Yes also flags the job, in the database and in every in-memory twin. */
+async function psFlagAwaiting(jobId,a){
+  const {error}=await sb.from('jobs').update({awaiting_product:true}).eq('id',jobId);
+  if(error)throw error;
+  if(a)a.awaitingProduct=true;
+  [...appts,...queue].forEach(function(x){if((x.jobId||x.id)===jobId)x.awaitingProduct=true;});}
 // ---- Drawer pricing editor (admin-side edits to a saved job) ----
 let drPriceDisc=0,drPriceOrig=[],drPriceJobId=null;
 function renderDrPricing(a){const P=jobPricing(a);const box=$('drPricing');$('drPricingFld').style.display='block';
@@ -6616,7 +6746,7 @@ function drRecalc(){drPriceDisc=$('drJobDisc')?Math.max(0,Math.min(100,+$('drJob
   peRecalc($('drPriceLines'),$('drPriceTotals'),drPriceDisc);}
 function drEnterEdit(a){if(!IS_ADMIN)return;if(!a)return;drPriceDisc=+a.jobDiscount||0;drPriceJobId=currentJobId();
   if($('drJobDisc'))$('drJobDisc').value=drPriceDisc||'';
-  drPriceOrig=(a.lineItems||[]).map(l=>({id:l.id,desc:l.desc,qty:l.qty,unitPrice:l.unitPrice,serviceId:l.serviceId||null,minCharge:l.minCharge,isCustom:!!l.isCustom,discountMode:l.discountMode||'inherit',discountPct:l.discountPct==null?null:+l.discountPct}));
+  drPriceOrig=(a.lineItems||[]).map(l=>({id:l.id,desc:l.desc,qty:l.qty,unitPrice:l.unitPrice,serviceId:l.serviceId||null,minCharge:l.minCharge,isCustom:!!l.isCustom,itemType:lineType(l),discountMode:l.discountMode||'inherit',discountPct:l.discountPct==null?null:+l.discountPct}));
   $('drPriceLines').innerHTML='';
   if(drPriceOrig.length)drPriceOrig.forEach(l=>lineRow('dr',l));else lineRow('dr');
   $('drPricing').style.display='none';$('drPriceEdit').style.display='block';drRecalc();}
@@ -6626,17 +6756,28 @@ async function drSavePricing(a){if(!IS_ADMIN)return;if(!a)return;const jobId=drP
     const qty=Math.max(1,+row.querySelector('.liqty').value||1);const priceStr=row.querySelector('.liprice').value.trim();const isQuote=row.dataset.quote==='1';
     if(priceStr===''&&!isQuote){toast(`Enter a price for "${desc}"`,true);return;}
     const dsc=liDiscGet(row);
-    desired.push({lineId:row.dataset.lineId||null,desc,qty,serviceId:row.dataset.serviceId||null,minCharge:row.dataset.min!==''?Number(row.dataset.min):null,isCustom:row.dataset.custom==='1',unitPrice:priceStr===''?null:Number(priceStr),discountMode:dsc.discount_mode,discountPct:dsc.discount_pct});}
+    desired.push({lineId:row.dataset.lineId||null,desc,qty,serviceId:row.dataset.serviceId||null,minCharge:row.dataset.min!==''?Number(row.dataset.min):null,isCustom:row.dataset.custom==='1',itemType:lrType(row),unitPrice:priceStr===''?null:Number(priceStr),discountMode:dsc.discount_mode,discountPct:dsc.discount_pct});}
   const btn=$('drPriceSave');btn.disabled=true;btn.textContent='Saving…';
   try{
     const keptIds=desired.filter(d=>d.lineId).map(d=>d.lineId);
     const toDelete=drPriceOrig.filter(o=>!keptIds.includes(o.id)).map(o=>o.id);
     if(toDelete.length){const {error}=await sb.from('line_items').delete().in('id',toDelete);if(error)throw error;}
     for(const d of desired.filter(x=>x.lineId)){const o=drPriceOrig.find(x=>x.id===d.lineId);
-      if(o&&(o.desc!==d.desc||(+o.qty)!==(+d.qty)||o.unitPrice!==d.unitPrice||(o.serviceId||null)!==(d.serviceId||null)||o.minCharge!==d.minCharge||!!o.isCustom!==d.isCustom||(o.discountMode||'inherit')!==d.discountMode||(o.discountPct==null?null:+o.discountPct)!==d.discountPct)){
-        const {error}=await sb.from('line_items').update({description:d.desc,qty:d.qty,unit_price:d.unitPrice,service_id:d.serviceId,min_charge:d.minCharge,is_custom:d.isCustom,discount_mode:d.discountMode,discount_pct:d.discountPct}).eq('id',d.lineId);if(error)throw error;}}
+      if(o&&(o.desc!==d.desc||(+o.qty)!==(+d.qty)||o.unitPrice!==d.unitPrice||(o.serviceId||null)!==(d.serviceId||null)||o.minCharge!==d.minCharge||!!o.isCustom!==d.isCustom||o.itemType!==d.itemType||(o.discountMode||'inherit')!==d.discountMode||(o.discountPct==null?null:+o.discountPct)!==d.discountPct)){
+        /* Q78: item_type rides the same diff, so re-typing an existing line
+           moves it in or out of Receiving with the next save and nothing
+           else about the line changes. */
+        const {error}=await sb.from('line_items').update({description:d.desc,qty:d.qty,unit_price:d.unitPrice,service_id:d.serviceId,min_charge:d.minCharge,is_custom:d.isCustom,item_type:d.itemType,discount_mode:d.discountMode,discount_pct:d.discountPct}).eq('id',d.lineId);if(error)throw error;}}
     const toInsert=desired.filter(x=>!x.lineId);
-    if(toInsert.length){const {error}=await sb.from('line_items').insert(toInsert.map(d=>({job_id:jobId,description:d.desc,qty:d.qty,delivered:true,service_id:d.serviceId,unit_price:d.unitPrice,min_charge:d.minCharge,is_custom:d.isCustom,discount_mode:d.discountMode,discount_pct:d.discountPct})));if(error)throw error;}
+    /* Q78: one question, asked before anything is written, and only when new
+       PRODUCT lines are going onto a job that is not Completed, Issue
+       Reported or Closed. */
+    const newProd=toInsert.filter(d=>d.itemType==='product');
+    let sendRecv=false;
+    if(newProd.length&&!psFrozen(a))sendRecv=await psAsk(newProd);
+    if(toInsert.length){const stamp=psStamp();
+      const {error}=await sb.from('line_items').insert(toInsert.map(d=>psNewRow({job_id:jobId,description:d.desc,qty:d.qty,service_id:d.serviceId,unit_price:d.unitPrice,min_charge:d.minCharge,is_custom:d.isCustom,discount_mode:d.discountMode,discount_pct:d.discountPct},d.itemType,sendRecv,stamp)));if(error)throw error;}
+    if(sendRecv&&newProd.length)await psFlagAwaiting(jobId,a);
     /* The job's own percentage is saved from the same button. It is the
        job's number now -- writing it never touches the dealer record. */
     const jd=$('drJobDisc')?Math.max(0,Math.min(100,+$('drJobDisc').value||0)):(+a.jobDiscount||0);
@@ -6646,11 +6787,16 @@ async function drSavePricing(a){if(!IS_ADMIN)return;if(!a)return;const jobId=drP
       a.jobDiscount=jd;drPriceDisc=jd;
       const twin=[...appts,...queue].find(x=>(x.jobId||x.id)===jobId);
       if(twin&&twin!==a)twin.jobDiscount=jd;}
-    const {data:fresh,error:fe}=await sb.from('line_items').select('id,description,qty,delivered,delivered_by,service_id,unit_price,min_charge,is_custom,discount_mode,discount_pct').eq('job_id',jobId);
+    const {data:fresh,error:fe}=await sb.from('line_items').select('id,description,qty,delivered,delivered_by,qty_received,item_type,service_id,unit_price,min_charge,is_custom,discount_mode,discount_pct').eq('job_id',jobId);
     if(fe)throw fe;
-    a.lineItems=(fresh||[]).map(li=>({id:li.id,desc:li.description,qty:li.qty,delivered:li.delivered,by:li.delivered_by||'',serviceId:li.service_id||null,unitPrice:li.unit_price,minCharge:li.min_charge,discountMode:li.discount_mode||'inherit',discountPct:li.discount_pct==null?null:+li.discount_pct,isCustom:!!li.is_custom}));
-    drCancelEdit();renderDrPricing(a);drRenderMargin(a);toast('Pricing updated');
+    a.lineItems=(fresh||[]).map(li=>({id:li.id,desc:li.description,qty:li.qty,delivered:li.delivered,qtyRecv:li.qty_received||0,by:li.delivered_by||'',itemType:li.item_type||null,serviceId:li.service_id||null,unitPrice:li.unit_price,minCharge:li.min_charge,discountMode:li.discount_mode||'inherit',discountPct:li.discount_pct==null?null:+li.discount_pct,isCustom:!!li.is_custom}));
+    drCancelEdit();renderDrPricing(a);drRenderMargin(a);drRenderProduct(a);
+    /* Q78: the answer moves the job between Receiving, the queue rail and the
+       calendar hourglass, so repaint them rather than waiting for a reload. */
+    renderQueue();render();
+    toast(sendRecv?'Pricing updated \u2014 new products sent to Receiving':'Pricing updated');
     if(page==='inventory')buildReceiving();
+    if(page==='toschedule')buildGeneric('toschedule');
   }catch(e){console.error(e);toast('Could not save pricing',true);}
   btn.disabled=false;btn.textContent='Save pricing';}
 if($('drJobDisc'))$('drJobDisc').addEventListener('input',drRecalc);
@@ -7864,9 +8010,12 @@ $('njSave').onclick=async()=>{if(!IS_ADMIN)return;
     const isCustom=r.dataset.custom==='1',isQuote=r.dataset.quote==='1';
     if((isCustom||isQuote)&&(price===''||+price<=0)){toast(`Enter a price for "${desc}"`,true);return;}
     const dsc=liDiscGet(r);
-    formLines.push({desc,qty,serviceId:r.dataset.serviceId||null,unitPrice:price===''?null:Number(price),minCharge:r.dataset.min!==''?Number(r.dataset.min):null,isCustom,discountMode:dsc.discount_mode,discountPct:dsc.discount_pct});
+    formLines.push({desc,qty,serviceId:r.dataset.serviceId||null,unitPrice:price===''?null:Number(price),minCharge:r.dataset.min!==''?Number(r.dataset.min):null,isCustom,itemType:lrType(r),discountMode:dsc.discount_mode,discountPct:dsc.discount_pct});
   }
-  if(awaiting&&!formLines.length)formLines=[{desc:'Product on order',qty:1,serviceId:null,unitPrice:null,minCharge:null,isCustom:false,discountMode:'inherit',discountPct:null}];
+  /* Q78: the placeholder New Job inserts for an awaiting job with no lines is
+     the one line that is a product by definition -- it exists to say stock is
+     on order. It is not custom, so nothing else would type it. */
+  if(awaiting&&!formLines.length)formLines=[{desc:'Product on order',qty:1,serviceId:null,unitPrice:null,minCharge:null,isCustom:false,itemType:'product',discountMode:'inherit',discountPct:null}];
   const estMins=Math.max(15,hmToMins($('njDurH').value,$('njDurM').value)||defaultMins(type));
   /* next_job_number() does the increment and the read in ONE statement, so two
      people creating a job at the same moment cannot be handed the same number.
@@ -7886,7 +8035,9 @@ $('njSave').onclick=async()=>{if(!IS_ADMIN)return;
   const {data:job,error:je}=await sb.from('jobs').insert({customer_id:custId,dealer_id:dId,type,site_address:addr||null,scope:scope||null,estimated_minutes:estMins,awaiting_product:awaiting,override_schedule:false,job_number:jobNo,discount_pct:njDiscount}).select('id,job_number').single();
   if(je){toast('Could not save job',true);console.error(je);return;}
   let lineItems=[];
-  if(formLines.length){const {data:liData,error:le}=await sb.from('line_items').insert(formLines.map(l=>({job_id:job.id,description:l.desc,qty:l.qty,delivered:false,service_id:l.serviceId,unit_price:l.unitPrice,min_charge:l.minCharge,is_custom:l.isCustom,discount_mode:l.discountMode||'inherit',discount_pct:l.discountPct==null?null:l.discountPct}))).select();
+  /* Q78: New Job is otherwise UNCHANGED (Michael's decision 3) -- no popup,
+     every line still inserted delivered:false. It only records the type. */
+  if(formLines.length){const {data:liData,error:le}=await sb.from('line_items').insert(formLines.map(l=>({job_id:job.id,description:l.desc,qty:l.qty,delivered:false,item_type:l.itemType||'service',service_id:l.serviceId,unit_price:l.unitPrice,min_charge:l.minCharge,is_custom:l.isCustom,discount_mode:l.discountMode||'inherit',discount_pct:l.discountPct==null?null:l.discountPct}))).select();
     if(le)console.error(le);else lineItems=(liData||[]).map(li=>({id:li.id,desc:li.description,qty:li.qty,delivered:false,by:'',serviceId:li.service_id||null,unitPrice:li.unit_price,minCharge:li.min_charge,isCustom:!!li.is_custom}));}
   /* job.job_number is read back from the INSERT, so this is the number the
      database actually stored rather than what we hoped to send. Without it the
@@ -7984,18 +8135,18 @@ function cqReadRates(strict){const out=[];const rows=[...document.querySelectorA
     const isQuote=row.dataset.quote==='1';
     if(strict&&ps===''&&!isQuote){toast('Enter a price for “'+msEsc(desc)+'”',true);return null;}
     const d=liDiscGet(row);
-    out.push({sort_order:out.length,description:desc,qty:qty,service_id:row.dataset.serviceId||null,
+    out.push({sort_order:out.length,description:desc,qty:qty,item_type:lrType(row),service_id:row.dataset.serviceId||null,
       unit_price:ps===''?null:Number(ps),min_charge:row.dataset.min!==''&&row.dataset.min!=null?Number(row.dataset.min):null,
       is_custom:row.dataset.custom==='1',discount_mode:d.discount_mode,discount_pct:d.discount_pct});}
   return out;}
 /* The item shape jobPricing() reads, so an Install Quote is priced by the
    SAME code as a job (minimum charge, then discount, quote-only lines). */
 function cqRateItem(lines,disc){return {jobDiscount:disc,lineItems:(lines||[]).map(l=>({desc:l.description,qty:l.qty,
-  unitPrice:l.unit_price==null?null:+l.unit_price,minCharge:l.min_charge==null?null:+l.min_charge,isCustom:!!l.is_custom,
+  unitPrice:l.unit_price==null?null:+l.unit_price,minCharge:l.min_charge==null?null:+l.min_charge,isCustom:!!l.is_custom,itemType:l.item_type||null,
   serviceId:l.service_id||null,discountMode:l.discount_mode||'inherit',discountPct:l.discount_pct==null?null:+l.discount_pct}))};}
 function cqRenderRates(lines){const box=$('cqRates');if(!box)return;box.innerHTML='';
   if(lines&&lines.length)lines.forEach(l=>lineRow('cq',{id:'',desc:l.description,qty:l.qty,unitPrice:l.unit_price,
-    serviceId:l.service_id||null,minCharge:l.min_charge,isCustom:!!l.is_custom,discountMode:l.discount_mode||'inherit',
+    serviceId:l.service_id||null,minCharge:l.min_charge,isCustom:!!l.is_custom,itemType:l.item_type||null,discountMode:l.discount_mode||'inherit',
     discountPct:l.discount_pct==null?null:+l.discount_pct}));
   else lineRow('cq');
   cqRateRecalc();}
@@ -8113,7 +8264,7 @@ function cqRenderHistory(){const box=$('cqHistory');if(!box)return;
         +'<div class="gmeta">'+fmtMoney(q.total)+'</div></div>').join('')
     : '<div class="dl-empty">No quotes yet.</div>';}
 
-const CQRATECOLS='sort_order,description,qty,service_id,unit_price,min_charge,is_custom,discount_mode,discount_pct';
+const CQRATECOLS='sort_order,description,qty,item_type,service_id,unit_price,min_charge,is_custom,discount_mode,discount_pct';
 async function cqLoadList(){
   const {data,error}=await sb.from('custom_quotes')
     .select('id,number,customer_name,updated_at,quote_type,dealer_id,discount_pct,custom_quote_lines(price),custom_quote_rate_lines('+CQRATECOLS+')')
@@ -8339,7 +8490,7 @@ async function cqGenerate(){
       total=snap.total;
       /* The internal copy Attach to Job appends from: ids, minimum charge and
          discount, frozen with this version and never printed. */
-      copy=CQ_RATES.map(l=>({description:l.description,qty:l.qty,service_id:l.service_id,unit_price:l.unit_price,
+      copy=CQ_RATES.map(l=>({description:l.description,qty:l.qty,item_type:l.item_type||null,service_id:l.service_id,unit_price:l.unit_price,
         min_charge:l.min_charge,is_custom:l.is_custom,discount_mode:l.discount_mode,discount_pct:l.discount_pct}));
     }else{snap=cqSnapshot(CQ_LINES);total=cqTotal(CQ_LINES);}
     const cols='id,version,total,issued_at,pdf_filename,job_id,lines_snapshot,customer_name,quote_type,copy_lines,lines_copied_job_id,lines_copied_at';
@@ -8440,9 +8591,9 @@ function cqJobOf(jobId){return [...appts,...queue].find(x=>(x.jobId||x.id)===job
 function cqLineHave(job,l){return ((job&&job.lineItems)||[]).some(li=>
   (l.service_id&&li.serviceId===l.service_id)||String(li.desc||'').trim().toLowerCase()===String(l.description||'').trim().toLowerCase());}
 async function cqRefreshJobLines(jobId){
-  const {data,error}=await sb.from('line_items').select('id,description,qty,delivered,delivered_by,qty_received,service_id,unit_price,min_charge,is_custom,discount_mode,discount_pct').eq('job_id',jobId);
+  const {data,error}=await sb.from('line_items').select('id,description,qty,delivered,delivered_by,qty_received,item_type,service_id,unit_price,min_charge,is_custom,discount_mode,discount_pct').eq('job_id',jobId);
   if(error){console.error('cqRefreshJobLines',error);return;}
-  const lis=(data||[]).map(li=>({id:li.id,desc:li.description,qty:li.qty,delivered:li.delivered,qtyRecv:li.qty_received||0,by:li.delivered_by||'',serviceId:li.service_id||null,unitPrice:li.unit_price,minCharge:li.min_charge,isCustom:!!li.is_custom,discountMode:li.discount_mode||'inherit',discountPct:li.discount_pct==null?null:+li.discount_pct}));
+  const lis=(data||[]).map(li=>({id:li.id,desc:li.description,qty:li.qty,delivered:li.delivered,qtyRecv:li.qty_received||0,by:li.delivered_by||'',itemType:li.item_type||null,serviceId:li.service_id||null,unitPrice:li.unit_price,minCharge:li.min_charge,isCustom:!!li.is_custom,discountMode:li.discount_mode||'inherit',discountPct:li.discount_pct==null?null:+li.discount_pct}));
   [...appts,...queue].forEach(x=>{if((x.jobId||x.id)===jobId)x.lineItems=lis.map(l=>Object.assign({},l));});
   renderQueue();render();
   if(selectedId&&currentJobId()===jobId){const a=currentItem();if(a){renderDrPricing(a);drRenderMargin(a);}}}
@@ -8470,23 +8621,38 @@ function cqCopyBody(plan){const dim='font-size:12.5px;color:var(--sand-dim);line
       +(cqLineHave(plan.job,l)?' <span style="color:#caa017">\u00b7 the job already has this</span>':'')+'</span>'
       +'<span>\u00d7'+l.qty+'</span><span style="min-width:70px;text-align:right">'+(l.unit_price==null?'Quote':fmtMoney(l.unit_price))+'</span></div>').join('')
     +'</div>';
-  if(plan.awaiting)b+='<p style="'+dim+'">\u26a0 This job is <b>awaiting product</b>. Added lines count as stock until received in Receiving, so the job stays awaiting until they are checked off (custom lines included \u2014 see Q78).</p>';
+  if(plan.awaiting)b+='<p style="'+dim+'">\u26a0 This job is <b>awaiting product</b>. Only <b>product</b> lines go to Receiving; service lines never hold a job. You will be asked whether the new products are on order or already on hand.</p>';
   if(plan.invoices.length)b+='<p style="'+dim+'">\u26a0 This job already has '+(plan.invoices.length===1?'an issued invoice':plan.invoices.length+' issued invoices')
     +' ('+plan.invoices.map(r=>'#'+esc(r.number)).join(', ')+'). '+(plan.invoices.length===1?'It does':'They do')+' not include these lines.</p>';
   return b;}
+/* Q78 (v141): a copied line's type, for a version frozen before item_type
+   existed. Its own value wins; otherwise the rate decides, and a custom line
+   with no rate is a service, the same default the backfill uses. */
+function cqCopyType(l){return lineType({itemType:l.item_type||null,serviceId:l.service_id||null});}
 async function cqCopyLines(jobId,plan){
   const now=new Date().toISOString();
   const claim=await sb.from('custom_quote_docs').update({lines_copied_job_id:jobId,lines_copied_at:now})
     .eq('id',plan.newest.id).is('lines_copied_job_id',null).select('id');
   if(claim.error||!claim.data||!claim.data.length){console.error('cqCopyLines claim',claim.error);
     toast('Those lines were already added to a job \u2014 not added again',true);return 0;}
-  const rows=plan.lines.map(l=>({job_id:jobId,description:l.description,qty:l.qty,delivered:true,service_id:l.service_id||null,
+  /* Q78: the SAME question Edit Job Rates asks, on the same rule -- copied
+     PRODUCT lines, and only when the job is not Completed, Issue Reported or
+     Closed. Asked AFTER the claim so two tabs cannot both copy, and before
+     any line is written. */
+  const types=plan.lines.map(cqCopyType);
+  const prod=plan.lines.filter(function(l,i){return types[i]==='product';});
+  let sendRecv=false;
+  if(prod.length&&!psFrozen(plan.job))
+    sendRecv=await psAsk(prod.map(function(l){return {desc:l.description,qty:l.qty};}));
+  const stamp=psStamp();
+  const rows=plan.lines.map((l,i)=>psNewRow({job_id:jobId,description:l.description,qty:l.qty,service_id:l.service_id||null,
     unit_price:l.unit_price==null?null:+l.unit_price,min_charge:l.min_charge==null?null:+l.min_charge,is_custom:!!l.is_custom,
-    discount_mode:l.discount_mode||'inherit',discount_pct:l.discount_pct==null?null:+l.discount_pct}));
+    discount_mode:l.discount_mode||'inherit',discount_pct:l.discount_pct==null?null:+l.discount_pct},types[i],sendRecv,stamp));
   const ins=await sb.from('line_items').insert(rows);
   if(ins.error){console.error('cqCopyLines insert',ins.error);
     await sb.from('custom_quote_docs').update({lines_copied_job_id:null,lines_copied_at:null}).eq('id',plan.newest.id);
     toast('Could not add the lines to the job \u2014 nothing was added',true);return 0;}
+  if(sendRecv&&prod.length){try{await psFlagAwaiting(jobId,plan.job);}catch(e){console.error('cqCopyLines flag',e);}}
   await cqRefreshJobLines(jobId);
   return rows.length;}
 
@@ -9996,7 +10162,14 @@ function recvPool(){
     if(!a.jobId||seen.has(a.jobId))return;
     if(!a.lineItems||!a.lineItems.length)return;
     seen.add(a.jobId);
+    /* Q78 (v141, Michael's decision 5): awaitingProduct and override ride
+       along now. Without them stillAwaiting() read undefined on every
+       scheduled job and the Receiving badge could only ever count the
+       unscheduled queue -- a job that went on the calendar fell out of the
+       count while its stock was still outstanding. status comes too, so the
+       frozen-job rule can be judged from this pool. */
     out.push({id:a.jobId,cust:a.cust,type:a.type,dealer:a.dealer,addr:a.addr,
+              awaitingProduct:a.awaitingProduct,override:a.override,status:a.status,
               lineItems:a.lineItems,scheduled:true});
   });
   return out;
@@ -10092,7 +10265,9 @@ function buildReceiving(){const g=$('genericView');
     if(el&&el.scrollIntoView)el.scrollIntoView({block:'nearest'});
     return;}
 
-  const awaiting=queue.filter(stillAwaiting).filter(recvMatch);
+  /* Q78 (v141, decision 5): scheduled jobs too -- same pool as the badge, so
+     the two can never disagree about what is awaiting. */
+  const awaiting=recvPool().filter(stillAwaiting).filter(recvMatch);
   const ready=queue.filter(readyToSchedule);
   const received=recvPool().filter(recvFullyReceived).filter(recvMatch);
 
