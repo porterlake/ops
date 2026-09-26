@@ -525,6 +525,18 @@
      lines it cannot apply to. Same partner-rule pattern as .vwnav, .ipconfirm
      and .btn. */
   .lidctl[hidden]{display:none}
+  /* Q49b (v142): the load-truncation warning. It exists so a boot that did
+     not fetch everything can never be silent. position:fixed at the BOTTOM
+     deliberately: the topbar carries navigation and must not be covered, and
+     the calendar's geometry must not be touched by an element that only
+     appears in an emergency. Below the toast so a toast still reads. */
+  #loadWarn{position:fixed;left:0;right:0;bottom:0;z-index:58;display:none;
+    gap:10px;align-items:center;padding:11px 14px;font-size:12.5px;font-weight:600;
+    background:#4a3a10;color:#f6e6b8;border-top:1px solid #caa017;line-height:1.45}
+  #loadWarn.show{display:flex}
+  #loadWarn button{font:inherit;font-size:12.5px;font-weight:700;margin-left:auto;
+    flex-shrink:0;padding:6px 12px;border-radius:7px;cursor:pointer;
+    background:#caa017;color:#2a2205;border:none}
   /* Q78 (v141): the line's Product/Service type sits on .limeta beside the
      discount control, for the reason v119 put that control there -- .litop is
      already four inputs and a delete button and has to survive a phone. A
@@ -1816,6 +1828,7 @@ body.dragging .calmore-pop{pointer-events:none}
     <div class="modal-f"><button class="btn ghost" id="cqjCancel">Cancel</button><button class="btn" id="cqjGo">Attach</button></div>
   </div></div>
 
+  <div id="loadWarn" role="alert"><span id="loadWarnTxt"></span><button type="button" onclick="location.reload()">Reload</button></div>
   <div class="modal-bg" id="ejcBg"><div class="modal">
     <div class="modal-h"><div><h3 id="ejcTitle">Are you sure?</h3><div class="ms" id="ejcSub">&mdash;</div></div><button class="x" id="ejcClose">&times;</button></div>
     <div class="modal-b" id="ejcBody"></div>
@@ -2194,20 +2207,10 @@ function mapJob(j){return {id:j.id,type:j.type,taskType:j.task_type||null,meetin
   addr:j.site_address||'—',phone:j.customers?(j.customers.phone||''):'',scope:j.scope||'—',
   awaitingProduct:j.awaiting_product,override:j.override_schedule||false,
   lineItems:(j.line_items||[]).map(li=>({id:li.id,desc:li.description,qty:li.qty,delivered:li.delivered,qtyRecv:li.qty_received||0,by:li.delivered_by||'',itemType:li.item_type||null,serviceId:li.service_id||null,unitPrice:li.unit_price,minCharge:li.min_charge,isCustom:!!li.is_custom,discountMode:li.discount_mode||'inherit',discountPct:li.discount_pct==null?null:+li.discount_pct})),jobDiscount:+j.discount_pct||0};}
-async function loadJobs(){try{const {data,error}=await sb.from('jobs')
-    .select('id,customer_id,dealer_id,type,task_type,meeting_type,task_done,site_address,scope,estimated_minutes,awaiting_product,override_schedule,completed_at,closed_at,job_number,discount_pct,customers(name,phone),dealers(name),line_items(id,description,qty,delivered,delivered_by,qty_received,item_type,service_id,unit_price,min_charge,is_custom,discount_mode,discount_pct)')
-    .order('created_at',{ascending:true});
-  if(error){console.error(error);toast('Could not load jobs',true);return;}
-  const scheduled=new Set(appts.map(a=>a.jobId));
-  /* v98: a Task is booked straight onto the calendar and never enters the To
-     Schedule rail -- it has no customer, no line items and nothing to await.
-     The isTask filter is belt and braces: a Task always has an appointment, so
-     the scheduled set already excludes it. It matters if an appointment is
-     ever deleted out from under one, which would otherwise strand the Task in
-     a queue whose every column is blank. */
-  queue=(data||[]).map(mapJob).filter(j=>!scheduled.has(j.id)&&!isTask(j));renderQueue();
-  if(page==='toschedule')buildGeneric('toschedule');if(page==='inventory')buildReceiving();
-}catch(e){console.error(e);toast('Could not reach database',true);}}
+/* Q49b (v142): loadJobs and loadAppointments were merged into loadSchedule,
+   above mapAppt. They were two functions reading one dependency graph in a
+   fixed order, and keeping them apart is what made it possible for the
+   appointments payload to carry a second copy of every job unnoticed. */
 /* A line counts as STOCK when its catalogue rate is a product. Anything that
    cannot be resolved counts as stock: a custom typed line has no service_id,
    and a rate deleted after the line was written no longer resolves. Showing
@@ -2263,16 +2266,26 @@ function stillAwaiting(j){
   if(!j.lineItems||!j.lineItems.length)return true;
   return stockLines(j.lineItems).some(li=>!liFull(li));}
 function partialAwaiting(x){return x.awaitingProduct&&x.lineItems&&stockLines(x.lineItems).some(li=>!liFull(li))}
-let appts=[
-  {id:"a1",type:"Install",cust:"Brad Burdsall",dealer:"Sunset Blinds Co.",addr:"22 Oak Run, Venice",scope:"9 windows · faux wood",day:0,start:9,dur:5,installer:"mk",status:"scheduled"},
-  {id:"a2",type:"Measure",cust:"Fournier Residence",dealer:"Coastal Window Co.",addr:"61 Bay St, Sarasota",scope:"Whole home measure",day:1,start:9,dur:2,installer:"mk",status:"otw"},
-  {id:"a3",type:"Install",cust:"Tony Occhino",dealer:"Gulfside Interiors",addr:"14 Tarpon Ct",scope:"Shutters, 4 openings",day:1,start:12,dur:4,installer:"dr",status:"progress"},
-  {id:"a4",type:"Measure",cust:"Kelly Milton",dealer:"Bayview Shade",addr:"88 Reef Rd",scope:"Living + dining",day:0,start:13,dur:2,installer:"th",status:"scheduled"},
-  {id:"a5",type:"Install",cust:"Kurt Wright",dealer:"Sunset Blinds Co.",addr:"5 Mangrove Pl",scope:"Cellular shades x6",day:0,start:15,dur:2,installer:"mk",status:"hold"},
-  {id:"a6",type:"Install",cust:"Sharon Smith",dealer:"Coastal Window Co.",addr:"30 Gulf Blvd",scope:"Motorized rollers",day:4,start:9,dur:5,installer:"dr",status:"scheduled"},
-  {id:"a7",type:"Return Trip",cust:"Sharon Paisley",dealer:"Gulfside Interiors",addr:"7 Sands Ct",scope:"Damaged slat replacement",day:5,start:9,dur:2,installer:"mk",status:"issue"},
-  {id:"a8",type:"Install",cust:"Allen Tyre",dealer:"Bayview Shade",addr:"19 Coral Way",scope:"Drapery hardware",day:4,start:15,dur:1.5,installer:"th",status:"done"}
-];
+/* ===== Q80 (v142) THE SEED IS GONE ====================================
+   This array used to hold EIGHT hardcoded demo appointments, left over from
+   before the app had a database. Their customer names are deliberately NOT
+   quoted here: tests/q79-boot-shape.cjs asserts that none of them appears
+   anywhere in the file, and naming them in a comment would defeat that check.
+   It is the same reason the v46 stock popup does not quote the three invented
+   order lines it replaced.
+   They were not placeholders in any harmless sense: a7 carried status
+   'issue', which is why the dashboard's issue tile read "1" on every boot,
+   and a8 was 'done' with no line items, which is why revenue and margin read
+   $0.00. Both numbers were FICTION about a real business, shown for as long
+   as the loaders took, and on a phone that is long enough to read.
+   The array now starts empty and the only thing that ever fills it is
+   loadSchedule(). An empty calendar for a moment is honest; a calendar with
+   eight invented jobs on it is not.
+   DATA_READY is the other half: until the loaders return, any screen that
+   would otherwise COMPUTE a number shows a neutral loading state instead of
+   computing it from nothing. See dbRefresh and buildWorkQueue. */
+let appts=[];
+let DATA_READY=false;
 
 /* selectedDay is today's index within BASE_MON's week (0=Mon). Math.round
    rather than a raw divide so a DST boundary cannot land it on 5.96. */
@@ -2319,29 +2332,193 @@ const instMap=i=>({id:i.id,name:i.name,email:i.email||'',color:i.color||'#5b8def
    from the other. INSTALLERS stays filtered on active exactly as before; the
    second, unfiltered read exists only so names and pay rates still resolve on
    work that was done before someone left. */
-async function loadInstallers(){try{const {data,error}=await sb.from('installers').select(INST_COLS).eq('active',true).order('name');
-  if(error){console.error(error);return;}INSTALLERS=(data||[]).map(instMap);
-  const {data:all,error:ae}=await sb.from('installers').select(INST_COLS).order('name');
-  if(ae)console.error(ae);else ALL_INSTALLERS=(all||[]).map(instMap);
+async function loadInstallers(){try{
+  /* Q49b (v142): these two reads are independent -- one is the schedulable
+     subset, one is everybody -- and they used to run one after the other,
+     which made loadInstallers the slowest loader and therefore the one that
+     decided when the boot finished. Sent together now. */
+  const [act,all]=await Promise.all([
+    sb.from('installers').select(INST_COLS).eq('active',true).order('name'),
+    sb.from('installers').select(INST_COLS).order('name')]);
+  if(act.error){console.error(act.error);return;}INSTALLERS=(act.data||[]).map(instMap);
+  if(all.error)console.error(all.error);else ALL_INSTALLERS=(all.data||[]).map(instMap);
   populateInstallerFilter();}catch(e){console.error(e)}}
 function populateInstallerFilter(){const s=$('instFilter');if(!s)return;s.innerHTML='<option value="all">All users</option>';INSTALLERS.forEach(i=>{const o=document.createElement('option');o.value=i.id;o.textContent=i.name;s.appendChild(o)});const u=document.createElement('option');u.value='un';u.textContent='Unassigned';s.appendChild(u);s.value=instFilter;}
 const pad=n=>String(n).padStart(2,'0');
 function dateKey(d){return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`}
 function composeISO(key,hour){const [y,mo,da]=key.split('-').map(Number);const h=Math.floor(hour),min=Math.round((hour-h)*60);return new Date(y,mo-1,da,h,min,0).toISOString();}
 function gotoDate(d){const base=new Date(BASE_MON);base.setHours(0,0,0,0);const t=new Date(d);t.setHours(0,0,0,0);const diff=Math.round((t-base)/86400000);weekOffset=Math.floor(diff/7);selectedDay=((diff%7)+7)%7;navTo('scheduler');setView('day');}
-function mapAppt(r){const j=r.jobs||{};const d=new Date(r.start_time);return {id:r.id,jobId:r.job_id,installer:r.installer_id||'un',status:r.status||'scheduled',
+/* ===== Q49b (v142) THE BOOT DOWNLOAD SHAPE ============================
+   Three things were wrong and all three are fixed here.
+
+   1. loadAll() was six awaits IN SERIES. Nothing in it needs another's
+      RESULT before it can be SENT, so the boot paid the round-trip latency
+      six times over before a single tile was drawn. They now go out together.
+
+   2. The appointments query carried a COMPLETE COPY of every job, including
+      that job's line_items, nested under jobs(...). loadJobs was already
+      fetching every job with its line items, so on every boot of every tab
+      Postgres built and the browser parsed the whole job set TWICE. Measured
+      on synthetic rows of exactly that shape: at 1,000 jobs with 4 lines
+      each, 1.6MB for jobs plus 1.8MB for appointments. The appointments query
+      now asks for APPOINTMENT COLUMNS ONLY and mapAppt reads the job out of
+      JOB_BY_ID, which loadSchedule fills from the jobs read.
+
+   3. No loader passed a limit. PostgREST caps top-level rows (1,000 by
+      default) and returns NO error when it truncates, and the ORDER decided
+      what vanished: jobs ordered by created_at ascending lost the NEWEST
+      jobs, appointments ordered by start_time ascending lost FUTURE ones.
+      Both now pass an explicit ceiling AND ask for an exact count, and if
+      the count exceeds what arrived, #loadWarn says so and nothing pretends
+      otherwise.
+
+   What is deliberately NOT here: a date or status WINDOW. Every screen that
+   reads appts or queue was inventoried first, and Reports (any period),
+   Issues, Completed-not-closed, the dealer and customer profiles, job
+   history, search and calendar navigation into the past all read
+   arbitrarily old rows out of these two arrays. Excluding rows would break
+   them, and Michael's hard rule is that no screen loses data it shows today.
+   Fetching the excluded rows on demand is a real design, but it is a build of
+   its own, per screen, and it is not this one. Every table is under 900 rows
+   today, so the ceiling plus the count check is the honest interim: it cannot
+   lose data, and it says so early if the shape ever gets close. */
+const LOAD_CAP=2000;
+/* Filled by loadSchedule from the jobs read, and read by mapAppt. It is the
+   reason the appointments payload no longer carries a job copy, so it must be
+   filled BEFORE the appointments are mapped -- see loadSchedule. */
+let JOB_BY_ID=Object.create(null);
+const APPT_COLS='id,job_id,installer_id,status,start_time,duration_minutes,notes';
+const JOB_COLS='id,customer_id,dealer_id,type,task_type,meeting_type,task_done,site_address,scope,estimated_minutes,awaiting_product,override_schedule,completed_at,closed_at,job_number,discount_pct,customers(name,phone),dealers(name),line_items(id,description,qty,delivered,delivered_by,qty_received,item_type,service_id,unit_price,min_charge,is_custom,discount_mode,discount_pct)';
+/* One place decides whether a read came back whole. count is the number of
+   rows that MATCH, whatever the ceiling returned, so this catches both our
+   own limit and PostgREST's silent max-rows. */
+let LOAD_TRUNC=[];
+function loadCheck(label,res){
+  const got=(res&&res.data)?res.data.length:0;
+  const total=(res&&typeof res.count==='number')?res.count:got;
+  if(total>got){if(LOAD_TRUNC.indexOf(label)<0)LOAD_TRUNC.push(label);
+    console.error('TRUNCATED: '+label+' returned '+got+' of '+total);}
+  loadWarnPaint();
+  return res;}
+function loadWarnPaint(){const el=$('loadWarn'),t=$('loadWarnTxt');if(!el||!t)return;
+  if(!LOAD_TRUNC.length){el.classList.remove('show');return;}
+  t.innerHTML='\u26a0 Not all data loaded \u2014 '+esc(LOAD_TRUNC.join(' and '))
+    +' came back incomplete, so screens may be missing rows. Nothing has been changed.';
+  el.classList.add('show');}
+function mapAppt(r){const j=(r.jobs)||JOB_BY_ID[r.job_id]||{};const d=new Date(r.start_time);return {id:r.id,jobId:r.job_id,installer:r.installer_id||'un',status:r.status||'scheduled',
   dateKey:dateKey(d),start:d.getHours()+d.getMinutes()/60,dur:(r.duration_minutes||120)/60,notes:r.notes||'',
   type:j.type||'Install',taskType:j.task_type||null,meetingType:j.meeting_type||null,taskDone:!!j.task_done,cust:j.customers?j.customers.name:'—',dealer:j.dealers?j.dealers.name:'—',addr:j.site_address||'—',
   phone:j.customers?(j.customers.phone||''):'',scope:j.scope||'—',customerId:j.customer_id,dealerId:j.dealer_id,estMins:j.estimated_minutes||120,
   awaitingProduct:j.awaiting_product,override:j.override_schedule||false,
   completedAt:j.completed_at||null,closedAt:j.closed_at||null,jobNo:j.job_number||null,
   lineItems:(j.line_items||[]).map(li=>({id:li.id,desc:li.description,qty:li.qty,delivered:li.delivered,qtyRecv:li.qty_received||0,by:li.delivered_by||'',itemType:li.item_type||null,serviceId:li.service_id||null,unitPrice:li.unit_price,minCharge:li.min_charge,isCustom:!!li.is_custom,discountMode:li.discount_mode||'inherit',discountPct:li.discount_pct==null?null:+li.discount_pct})),jobDiscount:+j.discount_pct||0,files:[]};}
-async function loadAppointments(){try{const {data,error}=await sb.from('appointments')
-    .select('id,job_id,installer_id,status,start_time,duration_minutes,notes,jobs(type,task_type,meeting_type,task_done,site_address,scope,estimated_minutes,awaiting_product,override_schedule,completed_at,closed_at,job_number,discount_pct,customer_id,dealer_id,customers(name,phone),dealers(name),line_items(id,description,qty,delivered,delivered_by,qty_received,item_type,service_id,unit_price,min_charge,is_custom,discount_mode,discount_pct))')
-    .order('start_time',{ascending:true});
-  if(error){console.error(error);toast('Could not load appointments',true);return;}
-  appts=(data||[]).map(mapAppt);markConflicts();render();}catch(e){console.error(e)}}
-async function loadAll(){await loadDealers();await loadInstallers();await loadPeople();await loadAppointments();await loadJobs();await loadTodos();}
+/* Q49b: ONE function owns appointments and jobs, because the two are now a
+   single dependency graph and splitting them is what would let the order
+   drift. The two reads are SENT together; the MAPPING order below is
+   load-bearing and is not the order it looks like:
+
+     1. JOB_BY_ID first. mapAppt reads the job's fields out of it now, so an
+        appointment mapped before the jobs land would have no customer, no
+        scope and no line items.
+     2. The SCHEDULED SET comes from the RAW appointment rows, not from the
+        mapped appts, so the To Schedule rail still excludes every job that
+        has an appointment. Derive it from anything later and a scheduled job
+        reappears in the rail -- the exact bug this ordering prevents, and
+        tests/q79-boot-shape.cjs asserts it.
+     3. Then appts, then queue.
+
+   An appointment whose job is missing from the map is KEPT, not dropped: a
+   missing calendar tile is worse than a tile with thin text, and it can only
+   happen if a job row is invisible to this user or a read truncated -- both
+   of which the warning covers. */
+async function loadSchedule(){try{
+  const [aRes,jRes]=await Promise.all([
+    sb.from('appointments').select(APPT_COLS,{count:'exact'}).order('start_time',{ascending:true}).limit(LOAD_CAP),
+    sb.from('jobs').select(JOB_COLS,{count:'exact'}).order('created_at',{ascending:true}).limit(LOAD_CAP)]);
+  if(aRes.error){console.error(aRes.error);toast('Could not load appointments',true);}
+  if(jRes.error){console.error(jRes.error);toast('Could not load jobs',true);}
+  if(aRes.error||jRes.error)return;
+  loadCheck('appointments',aRes);loadCheck('jobs',jRes);
+  const jobRows=jRes.data||[],apptRows=aRes.data||[];
+  JOB_BY_ID=Object.create(null);jobRows.forEach(function(r){JOB_BY_ID[r.id]=r;});
+  const scheduled=new Set(apptRows.map(function(r){return r.job_id;}).filter(Boolean));
+  appts=apptRows.map(mapAppt);
+  /* v98: a Task is booked straight onto the calendar and never enters the To
+     Schedule rail -- it has no customer, no line items and nothing to await.
+     The isTask filter is belt and braces: a Task always has an appointment, so
+     the scheduled set already excludes it. It matters if an appointment is
+     ever deleted out from under one, which would otherwise strand the Task in
+     a queue whose every column is blank. */
+  queue=jobRows.map(mapJob).filter(function(j){return !scheduled.has(j.id)&&!isTask(j);});
+  markConflicts();renderQueue();render();
+  if(page==='toschedule')buildGeneric('toschedule');if(page==='inventory')buildReceiving();
+}catch(e){console.error(e);toast('Could not reach database',true);}}
+/* Q49b: five reads, sent together. loadSchedule owns two of them. Nothing here
+   needs another's result to be SENT, and the only ordering that matters is
+   inside loadSchedule. */
+async function loadAll(){
+  LOAD_TRUNC=[];
+  await Promise.all([loadDealers(),loadInstallers(),loadPeople(),loadSchedule(),loadTodos()]);}
+
+/* ===== Q49b (v142) TARGETED REFETCHERS ================================
+   One record in, one record patched, every twin updated, the existing repaint
+   functions called. These exist for realtime (Q49) to call instead of a
+   loader: an event must never trigger a whole-loader refetch, which is what
+   would turn a multi-megabyte boot into a multi-megabyte event. Nothing is
+   wired to them yet, on purpose -- they are built and tested first so the
+   realtime build is plumbing rather than plumbing plus a new data path.
+   Each returns true if it changed something, false if the row was gone or the
+   read failed, so a caller can tell the difference. */
+function rfRepaint(jobId){
+  renderQueue();markConflicts();render();
+  if(page==='inventory')buildReceiving();
+  if(page==='toschedule')buildGeneric('toschedule');
+  if(jobId&&selectedId&&currentJobId()===jobId){const a=currentItem();
+    if(a){renderDrPricing(a);drRenderMargin(a);drRenderProduct(a);}}}
+/* A deleted appointment must be removed, not left on the calendar. */
+async function refetchAppt(id){if(!id)return false;
+  const {data,error}=await sb.from('appointments').select(APPT_COLS).eq('id',id).maybeSingle();
+  if(error){console.error('refetchAppt',error);return false;}
+  const at=appts.findIndex(function(x){return x.id===id;});
+  if(!data){if(at>=0){const gone=appts[at];appts.splice(at,1);rfRepaint(gone.jobId);}return !!(at>=0);}
+  const fresh=mapAppt(data);
+  /* files and lineItems are held on the in-memory twin, not in APPT_COLS, so
+     carry them over rather than blanking them. */
+  if(at>=0){fresh.files=appts[at].files||[];if(!JOB_BY_ID[data.job_id])fresh.lineItems=appts[at].lineItems||[];appts[at]=fresh;}
+  else appts.push(fresh);
+  rfRepaint(fresh.jobId);return true;}
+/* The job's own fields, for every twin: the appointment, the queue row, or both. */
+async function refetchJob(id){if(!id)return false;
+  const {data,error}=await sb.from('jobs').select(JOB_COLS).eq('id',id).maybeSingle();
+  if(error){console.error('refetchJob',error);return false;}
+  if(!data){const q=queue.findIndex(function(x){return x.id===id;});
+    if(q>=0)queue.splice(q,1);rfRepaint(id);return q>=0;}
+  JOB_BY_ID[id]=data;
+  const j=mapJob(data);
+  const qi=queue.findIndex(function(x){return x.id===id;});
+  const scheduled=appts.some(function(a){return a.jobId===id;});
+  if(scheduled){if(qi>=0)queue.splice(qi,1);}
+  else if(!isTask(j)){if(qi>=0)queue[qi]=j;else queue.push(j);}
+  appts.forEach(function(a,i){if(a.jobId!==id)return;
+    const fresh=mapAppt({id:a.id,job_id:id,installer_id:a.installer==='un'?null:a.installer,
+      status:a.status,start_time:composeISO(a.dateKey,a.start),
+      duration_minutes:Math.round(a.dur*60),notes:a.notes||''});
+    fresh.files=a.files||[];appts[i]=fresh;});
+  rfRepaint(id);return true;}
+/* Lines only. This is what Receiving and the pricing editor need, and it is
+   the smallest of the three. cqRefreshJobLines delegates here so there is one
+   implementation, not two. */
+async function refetchJobLines(jobId){if(!jobId)return false;
+  const {data,error}=await sb.from('line_items').select('id,description,qty,delivered,delivered_by,qty_received,item_type,service_id,unit_price,min_charge,is_custom,discount_mode,discount_pct').eq('job_id',jobId);
+  if(error){console.error('refetchJobLines',error);return false;}
+  const lis=(data||[]).map(function(li){return {id:li.id,desc:li.description,qty:li.qty,delivered:li.delivered,
+    qtyRecv:li.qty_received||0,by:li.delivered_by||'',itemType:li.item_type||null,serviceId:li.service_id||null,
+    unitPrice:li.unit_price,minCharge:li.min_charge,isCustom:!!li.is_custom,
+    discountMode:li.discount_mode||'inherit',discountPct:li.discount_pct==null?null:+li.discount_pct};});
+  if(JOB_BY_ID[jobId])JOB_BY_ID[jobId].line_items=data||[];
+  [...appts,...queue].forEach(function(x){if((x.jobId||x.id)===jobId)
+    x.lineItems=lis.map(function(l){return Object.assign({},l);});});
+  rfRepaint(jobId);return true;}
 
 /* ===== v124 (Q46) — TO-DOS ==============================================
    A to-do is NOT a Task. A Task is a job of type 'Task' WITH an appointment:
@@ -2642,8 +2819,11 @@ function renderQueue(){const list=$('queueList');list.innerHTML='';
     el.addEventListener('dragstart',e=>{e.dataTransfer.setData('id',j.id);DRAG_DY=e.clientY-el.getBoundingClientRect().top;el.classList.add('dragging');document.body.classList.add('dragging')});
     el.addEventListener('dragend',()=>{DRAG_DY=0;el.classList.remove('dragging');document.body.classList.remove('dragging')});
     el.addEventListener('click',()=>openDrawer(j.id));list.appendChild(el)});
-  $('queueCount').textContent=ready.length;$('navCount').textContent=ready.length;
-  $('navRecv').textContent=awaitingQueue().length;
+  /* Q80 (v142): a badge reading 0 before the data arrives is a claim that
+     there is no work. Blank until the loaders return. */
+  const bq=DATA_READY?String(ready.length):'';
+  $('queueCount').textContent=bq;$('navCount').textContent=bq;
+  $('navRecv').textContent=DATA_READY?String(awaitingQueue().length):'';
   dbSchedule();}
 /* v107: the jobs still waiting on product -- the Receiving badge's definition.
    Q78 (v141, decision 5): the pool is now recvPool(), the queue PLUS the
@@ -8590,13 +8770,9 @@ function cqAttachOpen(){
 function cqJobOf(jobId){return [...appts,...queue].find(x=>(x.jobId||x.id)===jobId)||null;}
 function cqLineHave(job,l){return ((job&&job.lineItems)||[]).some(li=>
   (l.service_id&&li.serviceId===l.service_id)||String(li.desc||'').trim().toLowerCase()===String(l.description||'').trim().toLowerCase());}
-async function cqRefreshJobLines(jobId){
-  const {data,error}=await sb.from('line_items').select('id,description,qty,delivered,delivered_by,qty_received,item_type,service_id,unit_price,min_charge,is_custom,discount_mode,discount_pct').eq('job_id',jobId);
-  if(error){console.error('cqRefreshJobLines',error);return;}
-  const lis=(data||[]).map(li=>({id:li.id,desc:li.description,qty:li.qty,delivered:li.delivered,qtyRecv:li.qty_received||0,by:li.delivered_by||'',itemType:li.item_type||null,serviceId:li.service_id||null,unitPrice:li.unit_price,minCharge:li.min_charge,isCustom:!!li.is_custom,discountMode:li.discount_mode||'inherit',discountPct:li.discount_pct==null?null:+li.discount_pct}));
-  [...appts,...queue].forEach(x=>{if((x.jobId||x.id)===jobId)x.lineItems=lis.map(l=>Object.assign({},l));});
-  renderQueue();render();
-  if(selectedId&&currentJobId()===jobId){const a=currentItem();if(a){renderDrPricing(a);drRenderMargin(a);}}}
+/* Q49b (v142): this WAS a second copy of refetchJobLines. It delegates now,
+   so the Install Quote copy path and realtime cannot drift apart. */
+async function cqRefreshJobLines(jobId){await refetchJobLines(jobId);}
 async function cqCopyPlan(jobId,picked){
   if(!CQ_QUOTE||CQ_QUOTE.quote_type!=='install'||!IS_ADMIN)return null;
   const newest=picked.slice().sort((a,b)=>b.version-a.version)[0];
@@ -8978,6 +9154,15 @@ function dbRefresh(){if(page!=='dashboard')return;
   const set=function(id,h){const el=$(id);if(el)el.innerHTML=h;};
   const nm=$('dbHi');if(nm){const f=myFirstName();nm.textContent=f?'Welcome, '+f:'Welcome';}
   const dt=$('dbDate');if(dt)dt.textContent=TODAY.toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric',year:'numeric'});
+  /* Q80 (v142): until the loaders have returned there is nothing to count, so
+     nothing is counted. Every host that would otherwise show a COMPUTED
+     number gets a neutral loading state. The greeting and the date above are
+     real without any data, so they stay. Returning here also keeps the charts
+     from drawing axes for an empty set. */
+  if(!DATA_READY){const wait='<div class="db-empty">Loading\u2026</div>';
+    set('dbAlert','');
+    ['dbxTiles','dbxCharts','dbStats','dbAgenda','dbAssign'].forEach(function(id){if($(id))set(id,wait);});
+    return;}
   /* Today's unassigned work is an ALERT, above everything, not another tile. */
   const todayUn=IS_ADMIN?unassignedAppts().filter(a=>a.dateKey===_ymd(TODAY)).length:0;
   set('dbAlert',todayUn?'<div class="db-alert" role="alert" onclick="dbGoUnassignedToday()">'+DB_ICONS.alert
@@ -9080,6 +9265,11 @@ const WQ={
       ?'Nothing scheduled from today on.'
       :'Your login is not linked to an installer, so there is no personal schedule to show.';}}};
 function buildWorkQueue(kind){const g=$('genericView'),Q=WQ[kind];if(!Q)return;
+  /* Q80 (v142): "No open issues." before the data lands is a statement about
+     the business, and it can be false. Say nothing instead. */
+  if(!DATA_READY){g.innerHTML='<div class="db">'
+    +'<div class="db-back" onclick="navTo(\'dashboard\')">\u2039 Dashboard</div>'
+    +'<div class="gp-head">'+Q.title+'</div><div class="gp-sub">Loading\u2026</div></div>';return;}
   const rows=dbSortAppts(Q.list());
   const when=Q.when||'full',who=Q.who!==false;
   const empty=(typeof Q.empty==='function')?Q.empty():Q.empty;
@@ -9531,6 +9721,8 @@ function buildGeneric(p){const g=$('genericView');
      fire only on a real page change, with .generic{overflow-anchor:none}
      covering the creep. */
   g.scrollTop=0;
+  if(p==='toschedule'&&!DATA_READY){g.innerHTML='<div class="ts-wrap"><div class="ts-main">'
+    +'<div class="gp-head">To Schedule</div><div class="gp-sub">Loading\u2026</div></div></div>';return}
   if(p==='toschedule'){const ready=queue.filter(readyToSchedule);const awaiting=queue.filter(stillAwaiting).length;
     g.innerHTML=`<div class="ts-wrap"><div class="ts-main"><div class="gp-head">To Schedule</div><div class="gp-sub">${ready.length} jobs ready to book.${awaiting?` ${awaiting} more awaiting product in Receiving.`:''}</div>${ready.map(j=>{const aw=partialAwaiting(j)?`<span class="awtag light">⏳ awaiting product</span>`:'';return `<div class="grow" style="cursor:pointer" onclick="openDrawer('${j.id}')"><span class="gt" style="background:rgba(216,198,160,.28);color:#7a6c45">${j.type}</span><div style="flex:1"><div class="gname">${j.cust} ${aw}</div><div class="gmeta clamp2">${j.scope}</div><div class="gmeta">${j.addr}</div></div><div class="gmeta">${j.dealer}</div></div>`}).join('')||'<div class="empty"><h3>Queue is clear</h3><p>No jobs ready to schedule.</p></div>'}</div><div class="ts-side">${miniCal()}</div></div>`;return}
   if(p==='installers'){markConflicts();g.innerHTML=`<div class="rate-top"><div><div class="gp-head">Users</div><div class="gp-sub">Team load &amp; pay setup. Pay type drives cost and margin.</div></div><button class="btn" data-admin onclick="openAddUser()">+ Add User</button></div><div class="gcards">${INSTALLERS.filter(i=>i.id!=='un').map(i=>{const inact=i.status==='inactive';const jobs=appts.filter(a=>a.installer===i.id);const conf=jobs.filter(a=>a._conflict).length;const pay=i.payType==='sub_1099'?`1099 · ${i.payRate||0}% of price`:`${i.payType==='salary'?'Salary':'Hourly'} · ${fmtMoney(i.payRate||0)}/hr`;return `<div class="gcard${inact?' ginactive':''}"><h4>${roleIco(i.companyRole)}${i.name}${inact?'<span class="ibadge">Inactive</span>':''}<button class="pedit" onclick="editInstaller('${i.id}')">Profile</button></h4>${i.companyRole?'<div class="irole">'+esc(i.companyRole)+'</div>':''}<div class="gstat"><div><b>${jobs.length}</b>jobs this week</div><div><b style="color:${conf?'#d9605c':'var(--ink)'}">${conf}</b>conflicts</div></div><div class="ipay">${pay}</div></div>`}).join('')}</div>`;return}
@@ -10698,6 +10890,9 @@ function bootApp(){if(_booted)return;_booted=true;
                       Reports...) -- skipped for the DB_LIVE pages render()
                       has already scheduled, so none is drawn twice. */
   Promise.all([loadAll(),loadServices()]).then(function(){
+    /* Q80: the flag flips BEFORE the repaints, so the first paint that can
+       show a number is the first paint that has one. */
+    DATA_READY=true;
     renderQueue();render();
     if(page!=='scheduler'&&!DB_LIVE[page])buildGeneric(page);});}
 /* v107: where a session lands.
@@ -10735,6 +10930,8 @@ sb.auth.onAuthStateChange((ev)=>{
   /* v131 (Q60): sign-out tears the viewer down too. A signed-out gate must not
      sit under a live PDF iframe holding a signed URL. */
   if(ev==='SIGNED_OUT'){closeViewer();PROFILE=null;AUTH_UID=null;TODOS=[];IS_ADMIN=false;document.body.classList.add('role-installer');
+    /* Q80: and forget the data, so nothing of the last session is counted. */
+    DATA_READY=false;appts=[];queue=[];JOB_BY_ID=Object.create(null);LOAD_TRUNC=[];loadWarnPaint();
     /* v107: forget this tab's page and the dashboard's per-user choices, so
        the next sign-in starts clean on the Dashboard. */
     LOGIN_FRESH=false;try{sessionStorage.removeItem('pl.page');}catch(err){}dbReset();
