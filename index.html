@@ -646,6 +646,25 @@
   .combo-item{padding:9px 12px;font-size:13px;cursor:pointer;color:var(--sand-ink)}
   .combo-item:hover{background:var(--side-3)}
   .combo-item.new{color:var(--sand);border-top:1px solid var(--side-border);font-weight:700}
+  /* v139 (Q77): the rate picker's list. It sits in normal flow UNDER the
+     row's top line (a sibling of .litop, full row width), so it pushes what
+     is below it down and no scrolling ancestor can clip it -- the v99 lesson
+     -- in New Job's modal, the drawer or a page. Being outside .litop it
+     leaves the v137 phone layout of the three inputs exactly as it was.
+     Dark by default (New Job and the drawer are dark surfaces); .mslight
+     gives the light version for Quick Quote. Opened and closed with .open,
+     never [hidden], so it needs no partner rule. */
+  .rclist{display:none;max-height:230px;overflow:auto;overscroll-behavior:contain;margin:6px 0 2px;background:var(--side-2);border:1px solid var(--side-border);border-radius:10px;box-shadow:0 2px 8px rgba(0,0,0,.28)}
+  .rclist.open{display:block}
+  .rclist .combo-item{display:flex;gap:10px;align-items:baseline}
+  .rclist .combo-item.on{background:var(--side-3)}
+  .rclist .rc-n{flex:1;min-width:0;overflow-wrap:anywhere}
+  .rclist .rc-p{flex:none;font-size:12px;color:var(--sand-dim);white-space:nowrap}
+  .mslight .rclist{background:#fff;border-color:var(--border);box-shadow:0 2px 8px rgba(0,0,0,.08)}
+  .mslight .rclist .combo-item{color:var(--ink)}
+  .mslight .rclist .combo-item:hover,.mslight .rclist .combo-item.on{background:#f3f1ea}
+  .mslight .rclist .rc-p{color:var(--muted)}
+  .mslight .rclist .combo-item.new{color:#7a6c45;border-top-color:var(--border)}
   .combo-empty{padding:10px 12px;font-size:12px;color:var(--sand-dim)}
   /* .maplink is grouped with .tel rather than given its own declaration: the
      site address and the phone number sit one above the other in the drawer
@@ -1818,7 +1837,6 @@ body.dragging .calmore-pop{pointer-events:none}
       </div>
       <div class="fld" id="njProdFld"><label>Awaiting product?</label><div class="chips" id="njProd"><div class="chip on" data-p="no">No · ready to schedule</div><div class="chip" data-p="yes">Yes · product on order</div></div></div>
       <div id="njLinesWrap"><label class="lilabel">Line items &amp; pricing</label><div id="njLines"></div><button class="liadd" id="njAddLine">+ Add line item</button>
-        <datalist id="njSvcList"></datalist>
         <div id="njTotals"></div>
       </div>
       <div class="fld" id="njFilesFld"><label>Documents &amp; photos</label>
@@ -6382,7 +6400,6 @@ function jobPricing(item){const lis=item.lineItems||[];
   const disc=mixed?null:(uniq.length?uniq[0]:0);
   return {lines,subtotal,disc,discAmt,total,anyQuote,mixed,jobPct};}
 function svcByName(name){const n=(name||'').trim().toLowerCase();if(!n)return null;return SERVICES.find(s=>s.active!==false&&s.name.toLowerCase()===n)||null;}
-function fillSvcList(){const dl=$('njSvcList');if(!dl)return;dl.innerHTML='';SERVICES.filter(s=>s.active!==false).forEach(s=>{const o=document.createElement('option');o.value=s.name;o.label=(s.price==null?'Quote':'$'+Number(s.price).toFixed(2))+(s.unit?' · '+s.unit:'');dl.appendChild(o);});}
 let njDiscount=0;
 function njSetDiscount(v){njDiscount=Math.max(0,Math.min(100,+v||0));}
 function njShowDiscount(disc){njSetDiscount(disc||0);$('njDisc').value=njDiscount||'';$('njDiscWrap').style.display='flex';njRecalc();}
@@ -6427,13 +6444,6 @@ function peRecalc(linesEl,totalsEl,jobPct){
   if(discAmt>0)h+=`<div class="trow"><span>${mixed?'Discount':'Discount ('+single+'%)'}</span><span>−${fmtMoney(discAmt)}</span></div>`;
   h+=`<div class="trow tot"><span>Job total</span><span>${fmtMoney(total)}</span></div>`;totalsEl.innerHTML=h;}
 function njRecalc(){peRecalc($('njLines'),$('njTotals'),njDiscount);}
-function wireLineRow(row){const descEl=row.querySelector('.lidesc');
-  descEl.addEventListener('input',()=>{resolveRow(row,{lock:true,autofill:true});njRecalc();});descEl.addEventListener('change',()=>{resolveRow(row,{lock:true,autofill:true});njRecalc();});
-  row.querySelector('.liqty').addEventListener('input',njRecalc);row.querySelector('.liprice').addEventListener('input',njRecalc);
-  const nm=row.querySelector('.lidmode'),np=row.querySelector('.lidpct');
-  if(nm)nm.addEventListener('change',()=>{if(np){np.hidden=(nm.value!=='override');if(nm.value==='override'&&!np.value)np.value='0';}njRecalc();});
-  if(np)np.addEventListener('input',njRecalc);
-  row.querySelector('.lidel').onclick=()=>{row.remove();njRecalc();};}
 /* One definition, used by the New Job rows and the drawer editor rows, so the
    two pickers cannot drift. The first option's label is rewritten by
    peRecalc on every recalc so it always names the current job percentage. */
@@ -6458,10 +6468,94 @@ function liDiscGet(row){
   if(mode!=='override')return {discount_mode:mode,discount_pct:null};
   const v=Math.max(0,Math.min(100,+(p?p.value:0)||0));
   return {discount_mode:'override',discount_pct:v};}
-function addLineRow(desc='',qty=1,price=''){const row=document.createElement('div');row.className='lirow';
-  row.innerHTML=`<div class="litop"><input class="lidesc" list="njSvcList" placeholder="Search catalog or type custom…" value="${desc}"><input class="liqty" type="number" min="1" value="${qty}"><input class="liprice" type="number" min="0" step="0.01" placeholder="0.00" value="${price}"><span class="lilt"></span><button class="lidel">×</button></div><div class="limeta">${liDiscCtl()}<span class="limetatext"></span></div>`;
-  $('njLines').appendChild(row);wireLineRow(row);resolveRow(row,{lock:true,autofill:true});njRecalc();return row;}
-$('njAddLine').onclick=()=>addLineRow();
+/* v139 (Q77 step 2): ONE line row for every surface that prices a job.
+   Until v139 New Job built its rows in addLineRow and the drawer's Edit Job
+   Rates in drAddRow: the same markup twice, wired twice. Q76 was the cost of
+   that -- a phone fix reached one copy only. LR_SURF now names the ONLY real
+   differences between surfaces:
+     host   - where the row lives;
+     lock   - New Job locks a catalog price once a rate is picked; the drawer
+              leaves it editable (resolveRow's lock option, as before);
+     recalc - which totals block to refresh.
+   A saved line (the drawer) is loaded through li; a new row resolves its
+   typed text. The two save paths read the inputs and row.dataset, and those
+   are set exactly as the two builders set them, so both surfaces write the
+   same line_items data as v138 (tests/q77-line-row.cjs runs v138 and the
+   current file side by side). The delivered flag is NOT a row property:
+   njSave writes false and drSavePricing writes true, unchanged.
+   A new pricing surface is one LR_SURF entry -- never a third builder. */
+const LR_SURF={
+  nj:{host:function(){return $('njLines');},lock:true,recalc:function(){njRecalc();}},
+  dr:{host:function(){return $('drPriceLines');},lock:false,recalc:function(){drRecalc();}}};
+function lineRow(surf,li){const S=LR_SURF[surf];const row=document.createElement('div');row.className='lirow';
+  const desc=li?(li.desc||''):'';const qty=li?li.qty:1;const price=(li&&li.unitPrice!=null)?Number(li.unitPrice).toFixed(2):'';
+  row.innerHTML='<div class="litop"><input class="lidesc" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Search catalog or type custom…" value="'+esc(desc)+'">'
+    +'<input class="liqty" type="number" min="1" value="'+qty+'"><input class="liprice" type="number" min="0" step="0.01" placeholder="0.00" value="'+price+'">'
+    +'<span class="lilt"></span><button class="lidel">×</button></div>'
+    +'<div class="rclist" role="listbox"></div>'
+    +'<div class="limeta">'+liDiscCtl()+'<span class="limetatext"></span></div>';
+  S.host().appendChild(row);lrWire(row,S);liDiscSet(row,li);
+  if(li){row.dataset.lineId=li.id||'';row.dataset.serviceId=li.serviceId||'';row.dataset.min=li.minCharge!=null?li.minCharge:'';row.dataset.custom=li.isCustom?'1':'0';row.dataset.quote=(li.unitPrice==null&&li.serviceId)?'1':'0';const svc=li.serviceId?SERVICES.find(s=>s.id===li.serviceId):null;row.dataset.unit=svc?(svc.unit||''):'';}
+  else{row.dataset.lineId='';resolveRow(row,{lock:S.lock,autofill:true});}
+  S.recalc();return row;}
+function lrWire(row,S){const d=row.querySelector('.lidesc');
+  const re=function(){resolveRow(row,{lock:S.lock,autofill:true});S.recalc();};
+  d.addEventListener('input',re);d.addEventListener('change',re);
+  const rc=function(){S.recalc();};
+  row.querySelector('.liqty').addEventListener('input',rc);row.querySelector('.liprice').addEventListener('input',rc);
+  const m=row.querySelector('.lidmode'),p=row.querySelector('.lidpct');
+  if(m)m.addEventListener('change',function(){if(p){p.hidden=(m.value!=='override');if(m.value==='override'&&!p.value)p.value='0';}S.recalc();});
+  if(p)p.addEventListener('input',rc);
+  row.querySelector('.lidel').onclick=function(){row.remove();S.recalc();};
+  rcWire(row);}
+
+/* v139 (Q77 step 3): the searchable rate picker, replacing the native
+   <datalist>. iOS showed a datalist as two or three QuickType suggestions
+   above the keyboard; this is a real list on every device. Every word typed
+   must appear in the rate's name or category. The last entry turns what was
+   typed into a custom line. Picking a rate writes its exact name into the
+   input and fires 'change', so resolveRow -- the ONE place a name becomes a
+   rate -- does the rest, exactly as a typed exact name always did. The list
+   is .rclist (CSS above); Escape closes it before anything else sees the
+   key, and a press anywhere outside the row closes it. */
+const RC_MAX=50;
+function rcMatches(q){const w=String(q||'').trim().toLowerCase().split(/\s+/).filter(Boolean);
+  return SERVICES.filter(function(s){if(s.active===false)return false;
+    const t=(String(s.name||'')+' '+String(s.category||'')).toLowerCase();
+    return w.every(function(x){return t.indexOf(x)>=0;});}).slice(0,RC_MAX);}
+function rcOpen(row){const inp=row.querySelector('.lidesc'),box=row.querySelector('.rclist');if(!inp||!box)return;
+  const q=inp.value.trim(),m=rcMatches(q),exact=svcByName(q);
+  let html=m.map(function(s){return '<div class="combo-item rc-item" role="option" data-sid="'+esc(s.id)+'">'
+    +'<span class="rc-n">'+esc(s.name)+'</span><span class="rc-p">'+esc(s.price==null?'Quote':fmtMoney(s.price))
+    +(s.unit?' · '+esc(s.unit):'')+'</span></div>';}).join('');
+  if(q&&!exact)html+='<div class="combo-item new rc-item" role="option" data-sid="">Use “'+esc(q)+'” as a custom line</div>';
+  if(!html)html='<div class="combo-empty">No matching rate. Type a name to add a custom line.</div>';
+  box.innerHTML=html;box.classList.add('open');row._rcAt=-1;}
+function rcClose(row){const box=row&&row.querySelector('.rclist');if(box){box.classList.remove('open');box.innerHTML='';}}
+function rcPick(row,it){const inp=row.querySelector('.lidesc');const sid=it.dataset.sid;
+  if(sid){const s=SERVICES.find(function(x){return x.id===sid;});if(s)inp.value=s.name;}
+  rcClose(row);inp.dispatchEvent(new Event('change'));}
+function rcMove(row,d){const its=[...row.querySelectorAll('.rc-item')];if(!its.length)return;
+  row._rcAt=Math.max(0,Math.min(its.length-1,(row._rcAt==null?-1:row._rcAt)+d));
+  its.forEach(function(x,i){x.classList.toggle('on',i===row._rcAt);});
+  its[row._rcAt].scrollIntoView({block:'nearest'});}
+function rcWire(row){const inp=row.querySelector('.lidesc'),box=row.querySelector('.rclist');if(!inp||!box)return;
+  inp.addEventListener('focus',function(){rcOpen(row);});
+  inp.addEventListener('input',function(){rcOpen(row);});
+  inp.addEventListener('keydown',function(e){const open=box.classList.contains('open');
+    if(e.key==='ArrowDown'){e.preventDefault();if(!open)rcOpen(row);rcMove(row,1);}
+    else if(e.key==='ArrowUp'){if(open){e.preventDefault();rcMove(row,-1);}}
+    else if(e.key==='Enter'){if(open){const it=row.querySelectorAll('.rc-item')[row._rcAt];if(it){e.preventDefault();rcPick(row,it);}}}
+    else if(e.key==='Escape'){if(open){e.preventDefault();e.stopPropagation();rcClose(row);}}
+    else if(e.key==='Tab')rcClose(row);});
+  /* pointerdown is cancelled so the input keeps focus (and a phone keeps its
+     keyboard) while an entry is tapped; the click then picks it. */
+  box.addEventListener('pointerdown',function(e){e.preventDefault();});
+  box.addEventListener('click',function(e){const it=e.target.closest('.rc-item');if(it)rcPick(row,it);});}
+document.addEventListener('pointerdown',function(e){
+  document.querySelectorAll('.rclist.open').forEach(function(b){const row=b.closest('.lirow');
+    if(row&&!row.contains(e.target))rcClose(row);});},true);
+$('njAddLine').onclick=()=>lineRow('nj');
 $('njDisc').addEventListener('input',e=>{njSetDiscount(e.target.value);njRecalc();});
 /* v119: this box is the JOB's discount and writes nowhere but the job it is
    creating. It used to UPDATE dealers.discount_pct, so typing a one-off
@@ -6492,26 +6586,11 @@ function renderDrPricing(a){const P=jobPricing(a);const box=$('drPricing');$('dr
 function drCancelEdit(){$('drPriceEdit').style.display='none';$('drPricing').style.display='block';}
 function drRecalc(){drPriceDisc=$('drJobDisc')?Math.max(0,Math.min(100,+$('drJobDisc').value||0)):drPriceDisc;
   peRecalc($('drPriceLines'),$('drPriceTotals'),drPriceDisc);}
-function drWireRow(row){const d=row.querySelector('.lidesc');
-  d.addEventListener('input',()=>{resolveRow(row,{autofill:true});drRecalc();});d.addEventListener('change',()=>{resolveRow(row,{autofill:true});drRecalc();});
-  row.querySelector('.liqty').addEventListener('input',drRecalc);row.querySelector('.liprice').addEventListener('input',drRecalc);
-  const dm=row.querySelector('.lidmode'),dp=row.querySelector('.lidpct');
-  if(dm)dm.addEventListener('change',()=>{if(dp){dp.hidden=(dm.value!=='override');if(dm.value==='override'&&!dp.value)dp.value='0';}drRecalc();});
-  if(dp)dp.addEventListener('input',drRecalc);
-  row.querySelector('.lidel').onclick=()=>{row.remove();drRecalc();};}
-function drAddRow(li){const row=document.createElement('div');row.className='lirow';
-  const desc=li?(li.desc||''):'';const qty=li?li.qty:1;const price=(li&&li.unitPrice!=null)?Number(li.unitPrice).toFixed(2):'';
-  row.innerHTML=`<div class="litop"><input class="lidesc" list="njSvcList" placeholder="Search catalog or type custom…" value="${desc.replace(/"/g,'&quot;')}"><input class="liqty" type="number" min="1" value="${qty}"><input class="liprice" type="number" min="0" step="0.01" placeholder="0.00" value="${price}"><span class="lilt"></span><button class="lidel">×</button></div><div class="limeta">${liDiscCtl()}<span class="limetatext"></span></div>`;
-  $('drPriceLines').appendChild(row);drWireRow(row);
-  liDiscSet(row,li);
-  if(li){row.dataset.lineId=li.id||'';row.dataset.serviceId=li.serviceId||'';row.dataset.min=li.minCharge!=null?li.minCharge:'';row.dataset.custom=li.isCustom?'1':'0';row.dataset.quote=(li.unitPrice==null&&li.serviceId)?'1':'0';const svc=li.serviceId?SERVICES.find(s=>s.id===li.serviceId):null;row.dataset.unit=svc?(svc.unit||''):'';}
-  else{row.dataset.lineId='';resolveRow(row,{autofill:true});}
-  drRecalc();return row;}
 function drEnterEdit(a){if(!IS_ADMIN)return;if(!a)return;drPriceDisc=+a.jobDiscount||0;drPriceJobId=currentJobId();
   if($('drJobDisc'))$('drJobDisc').value=drPriceDisc||'';
   drPriceOrig=(a.lineItems||[]).map(l=>({id:l.id,desc:l.desc,qty:l.qty,unitPrice:l.unitPrice,serviceId:l.serviceId||null,minCharge:l.minCharge,isCustom:!!l.isCustom,discountMode:l.discountMode||'inherit',discountPct:l.discountPct==null?null:+l.discountPct}));
-  fillSvcList();$('drPriceLines').innerHTML='';
-  if(drPriceOrig.length)drPriceOrig.forEach(l=>drAddRow(l));else drAddRow();
+  $('drPriceLines').innerHTML='';
+  if(drPriceOrig.length)drPriceOrig.forEach(l=>lineRow('dr',l));else lineRow('dr');
   $('drPricing').style.display='none';$('drPriceEdit').style.display='block';drRecalc();}
 async function drSavePricing(a){if(!IS_ADMIN)return;if(!a)return;const jobId=drPriceJobId||currentJobId();if(!jobId){toast('Save the job first',true);return;}
   const desired=[];
@@ -6547,7 +6626,7 @@ async function drSavePricing(a){if(!IS_ADMIN)return;if(!a)return;const jobId=drP
   }catch(e){console.error(e);toast('Could not save pricing',true);}
   btn.disabled=false;btn.textContent='Save pricing';}
 if($('drJobDisc'))$('drJobDisc').addEventListener('input',drRecalc);
-$('drAddLineBtn').onclick=()=>drAddRow();
+$('drAddLineBtn').onclick=()=>lineRow('dr');
 $('drPriceCancel').onclick=()=>{drCancelEdit();renderDrPricing(currentItem());};
 $('drPriceSave').onclick=()=>drSavePricing(currentItem());
 // ---- Phase C: installer pay → cost & margin ----
@@ -7630,7 +7709,7 @@ $('newJobBtn').onclick=()=>{
   njSyncSched();
   $('njLines').innerHTML='';$('njScope').value='';
   $('njDiscWrap').style.display='none';$('njDisc').value='';njSetDiscount(0);
-  fillSvcList();addLineRow();
+  lineRow('nj');
   fillDur($('njDurH'),$('njDurM'),defaultMins('Measure'));
   /* v98: the task controls are rebuilt on every open so a stale description,
      date or assignee from the last one cannot be saved onto the next. The
@@ -9298,7 +9377,7 @@ const RATE_CATS=['Services','Horizontals','Verticals','Drapery','Shutters','Hurr
 const RATE_UNITS=['Per Blind','Per Linear Ft','Per Sq Ft','Per Opening','Per Unit','Per Installation','Flat','Hourly','Per Pallet','Per Month','Per Mile','Per Day','Quote Only'];
 let SERVICES=[],rateSearch='';
 async function loadServices(){try{const {data,error}=await sb.from('services').select('*').order('category').order('name');
-  if(error){console.error(error);toast('Could not load service rates',true);return;}SERVICES=data||[];fillSvcList();if(page==='rates')buildRates();}catch(e){console.error(e)}}
+  if(error){console.error(error);toast('Could not load service rates',true);return;}SERVICES=data||[];if(page==='rates')buildRates();}catch(e){console.error(e)}}
 function money(v){return v==null?'<span class="rq">Quote</span>':'$'+Number(v).toFixed(2)}
 function buildRates(){const g=$('genericView');const q=rateSearch.trim().toLowerCase();
   const list=SERVICES.filter(s=>!q||s.name.toLowerCase().includes(q)||(s.category||'').toLowerCase().includes(q));
