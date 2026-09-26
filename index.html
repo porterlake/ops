@@ -2021,7 +2021,13 @@ body.dragging .calmore-pop{pointer-events:none}
 
   <div class="toast" id="toast"></div>
 
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<!-- Q68 (v143): PINNED, per golden rule 4. "@2" is a moving target: jsdelivr
+     resolved it to 2.117.2 on 2026-09-26, and it would have silently become
+     2.118.x tomorrow. An installer in the field cannot debug a library that
+     changed under them overnight, and realtime now depends on this library's
+     socket behaviour, which is exactly the kind of thing a minor release
+     touches. Bump it deliberately, with the suite run afterwards. -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2"></script>
 <script>
 /* Anchored to the real clock at launch (v41). TODAY is midnight today;
    BASE_MON is the Monday of today's week, so weekOffset=0 is THIS week.
@@ -2535,26 +2541,38 @@ async function refetchJobLines(jobId){if(!jobId)return false;
 
    Checking off is not destruction: done + done_at, still readable under
    Completed. Delete is a separate, explicit DELETE. */
-const TODO_COLS='id,body,owner_id,created_by_email,done,done_at,created_at';
+/* Q49 (v143): tenant_id rides along so the realtime tenant check has
+   something to compare against. It is not displayed and mapTodo ignores it --
+   see RT_TENANT for why the client needs to learn its own tenant at all. */
+const TODO_COLS='id,tenant_id,body,owner_id,created_by_email,done,done_at,created_at';
 var TODOS=[];
 function mapTodo(r){return {id:r.id,body:r.body||'',owner:r.owner_id,by:r.created_by_email||'',byUid:r.created_by||null,
   done:!!r.done,doneAt:r.done_at||null,createdAt:r.created_at||null};}
 async function loadTodos(){try{const {data,error}=await selOpt('todos',TODO_COLS,'created_by',q=>q.order('created_at',{ascending:true}));
   if(error){console.error('loadTodos',error);return;}
-  TODOS=(data||[]).map(mapTodo);}catch(e){console.error(e);}}
+  TODOS=(data||[]).map(mapTodo);
+  (data||[]).some(function(r){return r.tenant_id&&(RT_TENANT=r.tenant_id);});
+  }catch(e){console.error(e);}}
 async function todoAdd(body,ownerId){
   const {data,error}=await sb.from('todos').insert({body:body,owner_id:ownerId}).select(TODO_COLS).single();
   if(error){console.error('todoAdd',error);return null;}
-  const t=mapTodo(data);if(!t.byUid)t.byUid=AUTH_UID;TODOS.push(t);return t;}
+  const t=mapTodo(data);if(!t.byUid)t.byUid=AUTH_UID;
+  /* Q49: upsert, not push -- the server's own INSERT event may already have
+     landed this row. See rtUpsertLocal. */
+  rtMark('todos',t.id);rtUpsertLocal('todos',t);
+  if(data&&data.tenant_id&&!RT_TENANT)RT_TENANT=data.tenant_id;
+  return t;}
 /* Optimistic, and reverted if the write fails — the same contract as
    setTaskDone. done_at is written with done so todos_done_shape_chk holds. */
 async function todoSetDone(id,done){const t=TODOS.find(x=>x.id===id);if(!t)return;
+  rtMark('todos',id);
   const prev={done:t.done,doneAt:t.doneAt};
   t.done=!!done;t.doneAt=done?new Date().toISOString():null;dbSchedule();
   const {error}=await sb.from('todos').update({done:t.done,done_at:t.doneAt,done_by:done?AUTH_UID:null}).eq('id',id);
   if(error){console.error('todoSetDone',error);t.done=prev.done;t.doneAt=prev.doneAt;dbSchedule();
     toast('Could not update that to-do',true);}}
 async function todoDelete(id){const i=TODOS.findIndex(t=>t.id===id);if(i<0)return;
+  rtMark('todos',id);
   const prev=TODOS[i];TODOS.splice(i,1);dbSchedule();
   const {error}=await sb.from('todos').delete().eq('id',id);
   if(error){console.error('todoDelete',error);TODOS.splice(i,0,prev);dbSchedule();
@@ -9142,6 +9160,171 @@ document.addEventListener('visibilitychange',function(){
   const was=_todoHidden;_todoHidden=false;dbTodoSync(was);});
 window.addEventListener('focus',function(){dbTodoSync();});
 
+/* ===== Q49 (v143) ONE CONNECTION, ONE REGISTRY =========================
+   The app updates live between devices. This is the pilot: the connection and
+   the registry are the whole design, and TODOS is the only table plugged into
+   it. Todos went first because a mistake here cannot overwrite anyone's job.
+
+   WHY A REGISTRY. A realtime build that wires each table by hand ends up with
+   one apply path per table and they drift, which is the same mistake v137 paid
+   for with two line-row builders. Here there is ONE connection, built once,
+   and ONE apply function. A table joins by adding an entry to RT_TABLES that
+   says where its rows live, how to map one, how to compare two, and what to
+   repaint. Adding appointments, jobs or line_items later is an entry, never
+   new plumbing.
+
+   WHAT THE PUBLICATION CARRIES. All four tables are published deliberately, so
+   Michael runs the SQL once. An event for a table with no registry entry is
+   counted and dropped -- rtApply returns 'unregistered' -- so publishing ahead
+   of the app is safe.
+
+   THE FOUR SAFETY RULES, in the order rtApply applies them:
+     1. TENANT. A row whose tenant_id differs from ours is dropped. RLS is the
+        real boundary for INSERT and UPDATE and this is belt and braces, which
+        is why it is skipped rather than failing closed when RT_TENANT is not
+        yet known (a tenant with no todos has taught us nothing).
+     2. ECHO. The writer's own tab already applied its change optimistically.
+        Re-applying it would flash the row, so a write marks 'table:id' for
+        RT_ECHO_MS and events for a marked id are dropped. This is only to
+        avoid the flash; correctness comes from rule 3.
+     3. CONTENT. If the row we hold already equals the row that arrived, do
+        nothing and repaint nothing. This is self-correcting and needs no
+        clock, which is why it is the rule that matters.
+     4. DELETE. Supabase does NOT apply RLS to DELETE events -- a delete is
+        broadcast to every subscriber on the project -- and under the default
+        replica identity the payload is the primary key and nothing else. So a
+        delete is acted on ONLY when the id is already in memory, and the id is
+        NEVER used to fetch anything. That is what makes REPLICA IDENTITY
+        DEFAULT a security property and not a detail: FULL would put every
+        column of a deleted row into that unfiltered broadcast.
+
+   NEVER CLOBBER SOMEONE MID-EDIT. The DATA is always applied; the REPAINT is
+   deferred while a form in FORM_CLOSERS is open and dirty, or while the table's
+   own entry says it is busy. A deferred repaint retries, so nothing is lost.
+   ==================================================================== */
+const RT_ECHO_MS=4000;
+const RT_TABLES={};
+let RT_CHANNEL=null,RT_STATE='off',RT_TENANT=null,RT_TRIES=0,RT_PENDING=false,RT_RETRY=0;
+const RT_ECHO=new Map();
+/* Counters, for the tests and for a support question later. */
+const RT_STATS={applied:0,echo:0,nochange:0,foreign:0,unknown:0,unregistered:0,deleted:0,deferred:0,events:0};
+function rtMark(table,id){if(id)RT_ECHO.set(table+':'+id,Date.now()+RT_ECHO_MS);}
+function rtSweep(){const now=Date.now();RT_ECHO.forEach(function(v,k){if(v<now)RT_ECHO.delete(k);});}
+function rtIsEcho(table,id){const t=RT_ECHO.get(table+':'+id);if(!t)return false;
+  if(t<Date.now()){RT_ECHO.delete(table+':'+id);return false;}return true;}
+/* A repaint is safe unless someone is editing. FORM_CLOSERS is the list of
+   every surface that holds unsaved work, and formDirty is the Q71 test. */
+function rtMayRepaint(){
+  for(const id in FORM_CLOSERS){const el=document.getElementById(id);
+    if(el&&el.classList.contains('open')&&formDirty(id))return false;}
+  const dr=document.getElementById('drawer');
+  if(dr&&dr.classList.contains('open')&&formDirty('drawer'))return false;
+  return true;}
+function rtRepaint(entry){
+  if(!rtMayRepaint()||(entry.busy&&entry.busy())){
+    RT_STATS.deferred++;RT_PENDING=true;
+    if(!RT_RETRY)RT_RETRY=setTimeout(function(){RT_RETRY=0;rtFlush();},1500);
+    return false;}
+  entry.repaint();return true;}
+function rtFlush(){if(!RT_PENDING)return;
+  if(!rtMayRepaint()){RT_RETRY=setTimeout(function(){RT_RETRY=0;rtFlush();},1500);return;}
+  RT_PENDING=false;
+  Object.keys(RT_TABLES).forEach(function(t){const e=RT_TABLES[t];
+    if(!(e.busy&&e.busy()))e.repaint();});}
+/* Q49: the LOCAL optimistic apply has to be idempotent on id, and this is not
+   theoretical. The echo mark can be set before an UPDATE or a DELETE, because
+   the id is known first -- but an INSERT only learns its id from the returning
+   row, so the server's own event can arrive BEFORE the writer has anything to
+   mark. Over a real network it usually does not; over a fast local socket it
+   does, and "usually" is not a correctness argument. So the writer upserts by
+   id instead of pushing, and rtApply's insert branch already updates in place
+   when the id is present. Whichever of the two lands first, there is one row.
+   The first version of this pushed unconditionally and produced a duplicate
+   to-do every time, which is exactly what the pilot was meant to catch. */
+function rtUpsertLocal(table,row){
+  const e=RT_TABLES[table];if(!e||!row||!row.id)return row;
+  const list=e.list();
+  const at=list.findIndex(function(x){return x.id===row.id;});
+  if(at>=0)list[at]=row;
+  else{list.push(row);if(e.sort)list.sort(e.sort);}
+  return row;}
+function rtApply(table,payload){
+  RT_STATS.events++;
+  const e=RT_TABLES[table];
+  if(!e){RT_STATS.unregistered++;return 'unregistered';}
+  const ev=String(payload.eventType||payload.event||'').toUpperCase();
+  const raw=payload.new&&Object.keys(payload.new).length?payload.new:null;
+  const old=payload.old&&Object.keys(payload.old).length?payload.old:null;
+  const id=(raw&&raw.id)||(old&&old.id)||null;
+  if(!id)return 'noid';
+  if(raw&&e.tenantOf){const t=e.tenantOf(raw);
+    if(t&&!RT_TENANT)RT_TENANT=t;
+    if(t&&RT_TENANT&&t!==RT_TENANT){RT_STATS.foreign++;return 'foreign';}}
+  if(rtIsEcho(table,id)){RT_STATS.echo++;return 'echo';}
+  const list=e.list();
+  const at=list.findIndex(function(x){return x.id===id;});
+  if(ev==='DELETE'){
+    if(at<0){RT_STATS.unknown++;return 'unknown-delete';}
+    list.splice(at,1);RT_STATS.deleted++;rtRepaint(e);return 'deleted';}
+  if(!raw)return 'norow';
+  const fresh=e.map(raw);
+  if(at>=0){
+    if(e.same&&e.same(list[at],fresh)){RT_STATS.nochange++;return 'nochange';}
+    list[at]=fresh;}
+  else{list.push(fresh);if(e.sort)list.sort(e.sort);}
+  RT_STATS.applied++;rtRepaint(e);
+  return at>=0?'updated':'inserted';}
+/* ONE connection. Every registered table is a filter on the same channel, so
+   there is one socket however many tables join. */
+function rtStart(){
+  if(RT_CHANNEL||!PROFILE)return;
+  const tables=Object.keys(RT_TABLES);
+  if(!tables.length)return;
+  RT_STATE='connecting';
+  let ch=sb.channel('pl-live');
+  tables.forEach(function(t){
+    ch=ch.on('postgres_changes',{event:'*',schema:'public',table:t},function(payload){
+      try{rtSweep();rtApply(t,payload);}catch(err){console.error('realtime '+t,err);}});});
+  RT_CHANNEL=ch;
+  ch.subscribe(function(status){
+    RT_STATE=String(status||'');
+    if(RT_STATE==='SUBSCRIBED'){RT_TRIES=0;
+      /* A socket that has just (re)joined may have missed events while it was
+         down. Re-read the registered tables once. Q49a generalises this into a
+         proper catch-up on focus and phone wake -- this is the narrow version
+         that keeps the pilot honest. */
+      rtCatchUp();return;}
+    if(RT_STATE==='CHANNEL_ERROR'||RT_STATE==='TIMED_OUT'||RT_STATE==='CLOSED'){
+      if(!PROFILE)return;
+      RT_TRIES++;
+      const wait=Math.min(30000,1000*Math.pow(2,Math.min(RT_TRIES,5)));
+      setTimeout(function(){if(!PROFILE)return;rtStop();rtStart();},wait);}});}
+function rtStop(){
+  if(RT_RETRY){clearTimeout(RT_RETRY);RT_RETRY=0;}
+  RT_PENDING=false;RT_ECHO.clear();
+  if(!RT_CHANNEL){RT_STATE='off';return;}
+  try{sb.removeChannel(RT_CHANNEL);}catch(err){console.error('rtStop',err);}
+  RT_CHANNEL=null;RT_STATE='off';}
+async function rtCatchUp(){
+  if(!PROFILE)return;
+  try{await loadTodos();dbSchedule();}catch(err){console.error('rtCatchUp',err);}}
+/* The registry. ONE entry per table, and todos is the only one in this build.
+   REGISTERED TABLES: todos. */
+RT_TABLES.todos={
+  list:function(){return TODOS;},
+  map:mapTodo,
+  tenantOf:function(r){return r.tenant_id||null;},
+  /* Field by field, because "did this change" must not depend on key order. */
+  same:function(a,b){return a.body===b.body&&a.owner===b.owner&&a.by===b.by
+    &&!!a.done===!!b.done&&(a.doneAt||null)===(b.doneAt||null)&&(a.createdAt||null)===(b.createdAt||null);},
+  /* loadTodos orders by created_at ascending, so an inserted row goes where a
+     reload would have put it, not on the end. */
+  sort:function(a,b){return String(a.createdAt||'').localeCompare(String(b.createdAt||''));},
+  /* An add in flight, or the inline "Delete? Yes/No" open, means a repaint
+     would destroy what the user is doing. */
+  busy:function(){return !!(DB&&DB.qaBusy)||!!document.querySelector('.db-del-ask');},
+  repaint:function(){dbSchedule();}};
+
 /* Rebuild a <select>'s options only when the list itself changed, so a redraw
    never resets what someone is in the middle of choosing. */
 function dbFillSelect(sel,opts,val){if(!sel)return;const sig=opts.map(o=>o[0]+'='+o[1]).join('|');
@@ -10921,15 +11104,32 @@ async function resolveSession(){
   const {data:prof,error}=await sb.rpc('current_profile');
   if(error){console.error(error);gateMode='signin';gateForm('Could not load your profile: '+error.message);return;}
   if(!prof||!prof.profile_id){gateDenied(session.user&&session.user.email);return;}
-  applyProfile(prof);gate.classList.add('hidden');bootApp();landPage();}
-sb.auth.onAuthStateChange((ev)=>{
+  applyProfile(prof);
+  /* Q49: the socket carries the session's own token, so it is opened AFTER the
+     profile is known and never before. */
+  rtAuth(session);rtStart();
+  gate.classList.add('hidden');bootApp();landPage();}
+/* supabase-js holds the access token for the realtime socket separately from
+   the REST client, so a refreshed token has to be handed over or the socket
+   keeps presenting an expired one and RLS starts refusing its events. */
+function rtAuth(session){
+  const tok=(session&&session.access_token)||null;
+  try{if(sb.realtime&&sb.realtime.setAuth)sb.realtime.setAuth(tok);}catch(err){console.error('rtAuth',err);}}
+sb.auth.onAuthStateChange((ev,session)=>{
+  /* Q49: a refreshed token must reach the socket, and a sign-in in another tab
+     must not leave this one connected with the wrong identity. */
+  if(ev==='TOKEN_REFRESHED'){rtAuth(session);return;}
+  if(ev==='SIGNED_IN'){rtAuth(session);if(PROFILE)rtStart();return;}
   if(ev==='PASSWORD_RECOVERY'){gateMode='recovery';gateRecovery();return;}
   /* doRecovery signs out on purpose after setting the new password. The
      gateMode guard stops this handler repainting a blank sign-in form over
      the confirmation message that follows it. */
   /* v131 (Q60): sign-out tears the viewer down too. A signed-out gate must not
      sit under a live PDF iframe holding a signed URL. */
-  if(ev==='SIGNED_OUT'){closeViewer();PROFILE=null;AUTH_UID=null;TODOS=[];IS_ADMIN=false;document.body.classList.add('role-installer');
+  if(ev==='SIGNED_OUT'){closeViewer();
+    /* Q49: drop the socket BEFORE the state it writes into is cleared. */
+    rtStop();RT_TENANT=null;
+    PROFILE=null;AUTH_UID=null;TODOS=[];IS_ADMIN=false;document.body.classList.add('role-installer');
     /* Q80: and forget the data, so nothing of the last session is counted. */
     DATA_READY=false;appts=[];queue=[];JOB_BY_ID=Object.create(null);LOAD_TRUNC=[];loadWarnPaint();
     /* v107: forget this tab's page and the dashboard's per-user choices, so
